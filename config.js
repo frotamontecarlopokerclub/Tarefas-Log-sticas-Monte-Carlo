@@ -9,6 +9,6 @@
 // Enquanto estes campos estiverem vazios, o sistema abre em modo demonstração.
 // =====================================================================
 window.MC_CONFIG = {
-  supabaseUrl: "",
-  supabaseAnonKey: ""
+  supabaseUrl: "https://srnhqfyeaspjkiyrrixk.supabase.co",
+  supabaseAnonKey: "sb_publishable_hPgsFBQhNFAvyRSkuunvTw_qqZZM-Fx"
 };
