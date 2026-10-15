@@ -279,7 +279,7 @@ function periodRange(p){
   else {const n=Number(p)||30; a=sod(new Date(now.getTime()-(n-1)*86400000)); b=new Date(sod(now).getTime()+86400000)}
   return [a,b];
 }
-const refDate=o=>o.agendadoPara||o.solicitadoEm||o.criadoEm;
+const refDate=o=>o.solicitadoEm||o.criadoEm||o.agendadoPara;
 function inPainel(o){
   const [a,b]=periodRange(S.f.periodo); const t=T(refDate(o));
   if(!(t>=a.getTime()&&t<b.getTime()))return false;
@@ -341,7 +341,7 @@ function renderPainel(){
   const series=days.map(k=>({k,v:cnt[k]||0}));
 
   h+=`<div class="grid3">
-    <section class="card span2"><div class="card-h"><h2>Ordens por dia</h2><span class="sub">pela data agendada</span></div><div class="card-b"><div class="chart" id="chDia"></div></div></section>
+    <section class="card span2"><div class="card-h"><h2>Ordens por dia</h2><span class="sub">pela data do pedido</span></div><div class="card-b"><div class="chart" id="chDia"></div></div></section>
     <section class="card"><div class="card-h"><h2>Situação das OS</h2><span class="sub">${val.length} no período</span></div><div class="card-b">${statusSplit(list)}</div></section>
   </div>`;
 
