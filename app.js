@@ -15,7 +15,7 @@ const ABERTOS=["registrada","agendada","em_rota"];
 /* ---------- Estado ---------- */
 const S={os:[],locais:[],setores:[],equipe:[],veiculos:[],config:{toleranciaMin:15},
   uid:null,role:null,meName:"",demo:false,loaded:{os:false},names:{},pedidos:[],meus:[],relatorios:[],perfis:[],recovery:false,authMsg:"",meuSetor:null,
-  fromPedido:null,recusando:null,pTab:"aguardando",rm:null,copyOpen:false,
+  fromPedido:null,recusando:null,pTab:"aguardando",rm:null,copyOpen:false,recorrencias:[],dupFrom:null,editRec:null,novaRec:false,recDel:null,
   route:"painel",openId:null,action:null,editId:null,
   f:{periodo:"30",setor:"",local:""},
   lf:{status:"abertas",q:"",setor:"",local:"",tipo:""},cadTab:"locais",cadEdit:null};
@@ -87,8 +87,9 @@ async function startSession(session){
   S.role=PAPEL_ROLE[perfil.papel];
   document.body.classList.remove("auth");
   buildNav(); if(!location.hash||location.hash.length<2) location.replace("#"+navCfg().home); route();
-  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis"].map(carregar));
+  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias"].map(carregar));
   buildNav(); render();
+  if(S.role==="log") gerarRecorrentes();
   assinarTempoReal();
 }
 async function carregar(t){
@@ -97,7 +98,7 @@ async function carregar(t){
   if(t==="pedidos") q=q.order("criado_em",{ascending:false}).limit(1000);
   const {data,error}=await q;
   if(error){ console.warn(t,error); return; }
-  if(t==="config"){ const c=data[0]; if(c) S.config={toleranciaMin:c.tolerancia_min}; return; }
+  if(t==="config"){ const c=data[0]; if(c) S.config={toleranciaMin:c.tolerancia_min,checklist:Array.isArray(c.checklist)?c.checklist:null}; return; }
   if(t==="perfis"){ S.perfis=data.map(fromDb); S.perfis.forEach(p=>S.names[p.id]=p.nome||p.email||""); return; }
   if(t==="pedidos"){ const l=data.map(r=>{const p=fromDb(r);p.pid=p.id;p.uid=p.solicitanteId;return p});
     if(S.role==="log"){S.pedidos=l;S.loaded.pedidos=true} else {S.meus=l.filter(p=>p.uid===S.uid);S.loaded.meus=true} return; }
@@ -107,7 +108,7 @@ const recarga={};
 function assinarTempoReal(){
   sb.channel("logistica-mc").on("postgres_changes",{event:"*",schema:"public"},pl=>{
     const t=pl.table; clearTimeout(recarga[t]);
-    recarga[t]=setTimeout(async()=>{ await carregar(t); if(t==="pedidos"||t==="perfis") buildNav(); render(); },250);
+    recarga[t]=setTimeout(async()=>{ await carregar(t); if(t==="pedidos"||t==="perfis") buildNav(); if(t==="recorrencias") gerarRecorrentes(); render(); },250);
   }).subscribe();
   document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&sb) Promise.all(["os","pedidos"].map(carregar)).then(()=>{buildNav();render()}); });
 }
@@ -242,7 +243,7 @@ function route(){
   markNav();
   render(true); window.scrollTo(0,0);
 }
-window.addEventListener("hashchange",()=>{ if(S.openId)closeOS(); if(location.hash!=="#nova"){S.editId=null;S.fromPedido=null} route(); });
+window.addEventListener("hashchange",()=>{ if(S.openId)closeOS(); if(location.hash!=="#nova"){S.editId=null;S.fromPedido=null;S.dupFrom=null;S.editRec=null;S.novaRec=false} route(); });
 
 /* ---------- Render principal ---------- */
 let formMounted=false;
@@ -362,9 +363,9 @@ function renderPainel(){
   const porVeic=groupCount(val,o=>o.veiculoId);
   const porEq=groupCount(val,o=>o.equipeIds||[]);
   h+=`<div class="grid2">
-    <section class="card"><div class="card-h"><h2>Veículos</h2><span class="sub">uso no período</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Veículo</th><th class="r">OS</th><th class="r">Horas em rota</th><th class="r">Km rodados</th></tr></thead><tbody>
+    <section class="card"><div class="card-h"><h2>Veículos</h2><span class="sub">uso no período</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Veículo</th><th class="r">OS</th><th class="r">Horas em rota</th><th class="r">Km rodados</th><th class="r">Problemas no checklist</th></tr></thead><tbody>
     ${porVeic.length?porVeic.map(([k,l])=>{const c=l.filter(o=>o.status==="concluida");const hrs=c.reduce((s,o)=>s+(isFinite(tExec(o))?tExec(o):0),0)/3600000;const km=c.reduce((s,o)=>s+((o.kmFinal>o.kmInicial)?(o.kmFinal-o.kmInicial):0),0);
-      return `<tr><td><b>${esc(nomeVeic(k))}</b></td><td class="r num">${l.length}</td><td class="r num">${hrs.toFixed(1).replace(".",",")}</td><td class="r num">${km?km.toLocaleString("pt-BR"):"—"}</td></tr>`}).join(""):`<tr><td colspan="4">Nenhum veículo informado.</td></tr>`}
+      return `<tr><td><b>${esc(nomeVeic(k))}</b></td><td class="r num">${l.length}</td><td class="r num">${hrs.toFixed(1).replace(".",",")}</td><td class="r num">${km?km.toLocaleString("pt-BR"):"—"}</td><td class="r num">${l.reduce((s2,o)=>s2+((o.checklist&&o.checklist.problemas)||0),0)||"—"}</td></tr>`}).join(""):`<tr><td colspan="5">Nenhum veículo informado.</td></tr>`}
     </tbody></table></div></section>
     <section class="card"><div class="card-h"><h2>Equipe</h2><span class="sub">participação nas OS</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Pessoa</th><th class="r">OS</th><th class="r">Concluídas</th><th class="r">No prazo</th></tr></thead><tbody>
     ${porEq.length?porEq.map(([k,l])=>{const c=l.filter(o=>o.status==="concluida");const cp=c.filter(o=>isFinite(prazo(o)));const np=cp.filter(o=>!concluidaComAtraso(o)).length;const p=byId(S.equipe,k);
@@ -373,7 +374,7 @@ function renderPainel(){
   </div>`;
 
   // destinos
-  const porDest=groupCount(val,o=>[o.origemId,o.destinoId]);
+  const porDest=groupCount(val,o=>[...new Set(paradasDe(o).map(p=>p.localId).filter(Boolean))]);
   h+=`<section class="card"><div class="card-h"><h2>Unidades mais atendidas</h2><span class="sub">OS com a unidade como origem ou destino</span></div><div class="card-b">${hbars(porDest.slice(0,12).map(([k,l])=>({n:nomeLocal(k),v:l.length,x:""})))}</div></section>`;
 
   app.innerHTML=h; bindPainel(); drawBars($("#chDia"),series);
@@ -446,7 +447,7 @@ function filtraLista(){
     if(f.setor&&o.setorId!==f.setor)return false;
     if(f.tipo&&o.tipo!==f.tipo)return false;
     if(f.local&&o.origemId!==f.local&&o.destinoId!==f.local)return false;
-    if(q){const hay=[codigo(o),o.solicitante,o.tipo,nomeLocal(o.origemId),nomeLocal(o.destinoId),nomeSetor(o.setorId),nomeEquipe(o.equipeIds),nomeVeic(o.veiculoId),o.observacoes,(o.itens||[]).map(i=>i.desc).join(" ")].join(" ").toLowerCase();if(!hay.includes(q))return false}
+    if(q){const hay=[codigo(o),o.solicitante,o.tipo,paradasDe(o).map(p=>nomeLocal(p.localId)).join(" "),nomeSetor(o.setorId),nomeEquipe(o.equipeIds),nomeVeic(o.veiculoId),o.observacoes,(o.itens||[]).map(i=>i.desc).join(" ")].join(" ").toLowerCase();if(!hay.includes(q))return false}
     return true;
   });
 }
@@ -454,7 +455,7 @@ function rowHTML(o){
   const late=atrasada(o),lateC=concluidaComAtraso(o);
   return `<button class="row" type="button" data-open="${esc(o.id)}">
     <span class="cod num">${codigo(o)}<small>${esc(o.tipo||"")}</small></span>
-    <span class="rt"><b>${esc(nomeLocal(o.origemId))} <span class="arrow">→</span> ${esc(nomeLocal(o.destinoId))}</b><span>${esc(itensResumo(o))}</span></span>
+    <span class="rt"><b>${esc(nomeLocal(o.origemId))} <span class="arrow">→</span> ${esc(nomeLocal(o.destinoId))}${extraParadas(o)}</b><span>${esc(itensResumo(o))}</span></span>
     <span class="meta"><div><b class="num">${fDH(o.agendadoPara)}</b>${o.prioridade&&o.prioridade!=="normal"?` · <span class="prio-${o.prioridade}">${o.prioridade==="urgente"?"Urgente":"Alta"}</span>`:""}</div><div>${esc(nomeSetor(o.setorId))}${o.solicitante?" · "+esc(o.solicitante):""}</div></span>
     <span class="meta meta2"><div>${esc(nomeEquipe(o.equipeIds))}</div><div>${esc(nomeVeic(o.veiculoId))}</div></span>
     <span class="stc"><span class="st ${o.status}">${ST[o.status]||o.status}</span>${late?`<span class="late">Atrasada</span>`:lateC?`<span class="late">Concluída com atraso</span>`:""}</span>
@@ -502,7 +503,7 @@ function renderAgenda(){
   const semData=S.os.filter(o=>ABERTOS.includes(o.status)&&!o.agendadoPara);
   const sod=new Date();sod.setHours(0,0,0,0);
   const ag=o=>`<button class="ag" type="button" data-open="${esc(o.id)}"><span class="h num">${o.agendadoPara?fHora(o.agendadoPara):"--:--"}<small>${codigo(o)}</small></span>
-    <span class="x"><b>${esc(nomeLocal(o.origemId))} <span class="arrow">→</span> ${esc(nomeLocal(o.destinoId))}</b><span>${esc(o.tipo||"")} · ${esc(nomeEquipe(o.equipeIds))} · ${esc(nomeVeic(o.veiculoId))}</span></span>
+    <span class="x"><b>${esc(nomeLocal(o.origemId))} <span class="arrow">→</span> ${esc(nomeLocal(o.destinoId))}${extraParadas(o)}</b><span>${o.recorrenciaId?"Rota fixa · ":""}${esc(o.tipo||"")} · ${esc(nomeEquipe(o.equipeIds))} · ${esc(nomeVeic(o.veiculoId))}</span></span>
     <span class="stc"><span class="st ${o.status}">${ST[o.status]}</span>${atrasada(o)?`<span class="late">Atrasada</span>`:""}</span></button>`;
   if(atr.length) h+=`<div class="day"><h2 style="color:var(--s-late)">Atrasadas <span>${atr.length}</span></h2>${atr.map(o=>ag(o).replace('<span class="h num">',`<span class="h num" style="font-size:13px">${fData(o.agendadoPara)}<br>`)).join("")}</div>`;
   let any=false;
@@ -522,61 +523,83 @@ let FD=null; // estado do formulário
 function blankForm(){
   const now=new Date();const st=new Date(now.getTime()+3600000);st.setMinutes(0,0,0);
   return {tipo:TIPOS[0],prioridade:"normal",setorId:"",solicitante:"",canal:"WhatsApp",solicitadoEm:nowISO(),
-    origemId:"",origemDetalhe:"",destinoId:"",destinoDetalhe:"",itens:[{desc:"",qtd:"",un:"un"}],
+    origemId:"",origemDetalhe:"",destinoId:"",destinoDetalhe:"",paradas:[novaParada("retirada"),novaParada("entrega")],itens:[{desc:"",qtd:"",un:"un"}],
     agendadoPara:st.toISOString(),previstoAte:new Date(st.getTime()+2*3600000).toISOString(),equipeIds:[],veiculoId:"",observacoes:""};
 }
 function renderForm(){
   if(!isLog()){app.innerHTML=`<div class="head"><div><h1>Nova OS</h1></div></div>${banner()}`;return}
   const ed=S.editId?byId(S.os,S.editId):null;const fp=!ed&&S.fromPedido?S.fromPedido:null;
+  const dup=!ed&&!fp&&S.dupFrom?byId(S.os,S.dupFrom):null;
+  const rec=!ed&&!fp&&S.editRec?byId(S.recorrencias,S.editRec):null;
   FD=ed?JSON.parse(JSON.stringify(ed)):blankForm();
+  if(ed) FD.paradas=JSON.parse(JSON.stringify(paradasDe(ed)));
   if(fp){const b=FD;const ag=fp.desejadoPara||b.agendadoPara;
     FD=Object.assign(b,{tipo:fp.tipo||b.tipo,prioridade:fp.prioridade||"normal",setorId:fp.setorId||"",solicitante:S.names[fp.uid]||"",canal:"Pedido no sistema",solicitadoEm:fp.criadoEm||b.solicitadoEm,
-      origemId:fp.origemId||"",origemDetalhe:fp.origemDetalhe||"",destinoId:fp.destinoId||"",destinoDetalhe:fp.destinoDetalhe||"",itens:JSON.parse(JSON.stringify(fp.itens||[])),
+      paradas:[novaParada("retirada",fp.origemId,fp.origemDetalhe),novaParada("entrega",fp.destinoId,fp.destinoDetalhe)],itens:JSON.parse(JSON.stringify(fp.itens||[])),
       agendadoPara:ag,previstoAte:new Date(T(ag)+2*3600000).toISOString(),observacoes:[fp.observacoes,fp.contato?"Contato: "+fp.contato:""].filter(Boolean).join(" · ")});}
+  if(dup){const c=JSON.parse(JSON.stringify(dup));
+    Object.assign(FD,{tipo:c.tipo||FD.tipo,prioridade:c.prioridade||"normal",setorId:c.setorId||"",solicitante:c.solicitante||"",canal:c.canal||FD.canal,
+      paradas:limparParadas(paradasDe(c)),itens:c.itens||[],equipeIds:c.equipeIds||[],veiculoId:c.veiculoId||"",observacoes:c.observacoes||""});}
+  if(rec){const m=JSON.parse(JSON.stringify(rec.modelo||{}));const [hh,mm]=(rec.hora||"08:00").split(":").map(Number);const ini=new Date();ini.setHours(hh||0,mm||0,0,0);
+    Object.assign(FD,m,{paradas:limparParadas(m.paradas&&m.paradas.length?m.paradas:FD.paradas),agendadoPara:ini.toISOString(),previstoAte:new Date(ini.getTime()+(rec.duracaoMin||120)*60000).toISOString(),
+      equipeIds:m.equipeIds||[],itens:m.itens||[]});
+    FD.rep={on:true,dias:(rec.diasSemana||[]).slice(),nome:rec.nome||""};}
+  if(!FD.rep) FD.rep={on:!!S.novaRec,dias:[],nome:""};
+  if(!FD.paradas||FD.paradas.length<2) FD.paradas=[novaParada("retirada"),novaParada("entrega")];
   if(!FD.itens||!FD.itens.length)FD.itens=[{desc:"",qtd:"",un:"un"}];
-  app.innerHTML=`<div class="head"><div><h1>${ed?"Editar <em>"+codigo(ed)+"</em>":fp?"OS a partir do <em>pedido</em>":"Nova ordem de <em>serviço</em>"}</h1><p>${ed?"Ajuste dados, itens, equipe ou horário. A alteração fica registrada no histórico.":fp?"Os dados vieram do pedido de "+esc(S.names[fp.uid]||"um setor")+". Confira, defina equipe e veículo e registre. O setor vê o número da OS em Meus pedidos.":"Registre o pedido recebido. Com data, equipe e veículo definidos, a OS já entra como agendada."}</p></div></div>${banner()}
+  const titulo=ed?"Editar <em>"+codigo(ed)+"</em>":rec?"Editar rota <em>fixa</em>":fp?"OS a partir do <em>pedido</em>":dup?"Cópia da <em>"+codigo(dup)+"</em>":FD.rep.on?"Nova rota <em>fixa</em>":"Nova ordem de <em>serviço</em>";
+  const sub=ed?"Ajuste dados, paradas, itens, equipe ou horário. A alteração fica registrada no histórico."
+    :rec?"As mudanças valem para as próximas OS geradas. As que já estão na Agenda não mudam."
+    :fp?"Os dados vieram do pedido de "+esc(S.names[fp.uid]||"um setor")+". Confira, defina equipe e veículo e registre. O setor vê o número da OS em Meus pedidos."
+    :dup?"Os dados foram copiados. Confira a data e o horário antes de registrar."
+    :FD.rep.on?"Monte o modelo da rota: trajeto, itens, equipe, veículo e horário. Depois escolha os dias da semana."
+    :"Registre o pedido recebido. Com data, equipe e veículo definidos, a OS já entra como agendada.";
+  const podeRepetir=!ed&&!fp;
+  app.innerHTML=`<div class="head"><div><h1>${titulo}</h1><p>${sub}</p></div></div>${banner()}
   <form class="form" id="fOS" novalidate>
     <section class="fs"><h2>Pedido</h2><div class="fg">
       <div class="field"><label class="req" for="tipo">Tipo de serviço</label><select id="tipo">${optsS(TIPOS,FD.tipo)}</select></div>
       <div class="field"><label for="prio">Prioridade</label><select id="prio">${optsS(PRIOS,FD.prioridade)}</select></div>
       <div class="field"><label class="req" for="setor">Setor solicitante</label><select id="setor"></select></div>
       <div class="field"><label for="solic">Quem pediu</label><input type="text" id="solic" value="${esc(FD.solicitante)}" placeholder="Nome de quem fez o pedido"></div>
-      <div class="field"><label for="canal">Canal do pedido</label><select id="canal">${optsS(CANAIS,FD.canal)}</select></div>
+      <div class="field"><label for="canal">Canal do pedido</label><select id="canal">${optsS(CANAIS.concat(["Rota fixa"]),FD.canal)}</select></div>
       <div class="field"><label for="solEm">Pedido recebido em</label><input type="datetime-local" id="solEm" value="${toInput(FD.solicitadoEm)}"><span class="hint">Base do tempo de resposta</span></div>
     </div></section>
-    <section class="fs"><h2>Trajeto</h2><div class="fg">
-      <div class="field"><label class="req" for="orig">Local de retirada</label><select id="orig"></select></div>
-      <div class="field"><label for="origD">Detalhe da retirada</label><input type="text" id="origD" value="${esc(FD.origemDetalhe)}" placeholder="Ex.: estoque seco, doca, falar com…"></div>
-      <div class="field"><label class="req" for="dest">Local de entrega</label><select id="dest"></select></div>
-      <div class="field"><label for="destD">Detalhe da entrega</label><input type="text" id="destD" value="${esc(FD.destinoDetalhe)}" placeholder="Ex.: cozinha, salão principal, recepção…"></div>
-    </div></section>
+    <section class="fs"><h2>Trajeto</h2><p class="hint" style="margin:-6px 0 12px">A ordem da lista é a ordem do percurso. Use mais paradas para rotas com várias retiradas ou entregas.</p>
+      <div class="stops" id="stops"></div><div style="margin-top:10px"><button type="button" class="btn sm" id="addSt">Adicionar parada</button></div></section>
     <section class="fs"><h2>Itens transportados</h2><div class="items" id="items"></div>
       <div style="margin-top:10px"><button type="button" class="btn sm" id="addIt">Adicionar item</button></div></section>
     <section class="fs"><h2>Programação</h2><div class="fg">
-      <div class="field"><label for="agPara">Início agendado</label><input type="datetime-local" id="agPara" value="${toInput(FD.agendadoPara)}"></div>
+      <div class="field"><label for="agPara">${FD.rep.on?"Horário de início":"Início agendado"}</label><input type="datetime-local" id="agPara" value="${toInput(FD.agendadoPara)}"><span class="hint" id="agHint">${FD.rep.on?"Na rota fixa vale o horário; a data é a de cada dia escolhido":""}</span></div>
       <div class="field"><label for="prev">Previsão de término</label><input type="datetime-local" id="prev" value="${toInput(FD.previstoAte)}"><span class="hint">Usada para medir atraso</span></div>
       <div class="field full"><span class="lbl">Equipe responsável</span><div class="chips" id="eqChips"></div></div>
       <div class="field"><label for="veic">Veículo</label><select id="veic"></select></div>
       <div class="field full"><label for="obs">Observações</label><textarea id="obs" placeholder="Cuidados com a carga, contato no local, acesso, horário de recebimento…">${esc(FD.observacoes)}</textarea></div>
     </div></section>
-    <div class="form-foot"><span class="err" id="fErr" role="alert"></span><a class="btn" href="${ed?"#ordens":"#painel"}" id="fCancel">Descartar</a><button class="btn pri" type="submit" id="fSave">${ed?"Salvar alterações":"Registrar OS"}</button></div>
+    ${podeRepetir?`<section class="fs"><h2>Repetição</h2>
+      <label class="chk"><input type="checkbox" id="rep"${FD.rep.on?" checked":""}${rec?" disabled":""}> Repetir toda semana (rota fixa)</label>
+      <div id="repBox"${FD.rep.on?"":" hidden"} style="margin-top:12px"><div class="fg">
+        <div class="field full"><span class="lbl req">Dias da semana</span><div class="chips" id="repDias">${DIAS.map((d,i)=>`<button type="button" class="chip" data-dia="${i}" aria-pressed="${FD.rep.dias.includes(i)}">${d}</button>`).join("")}</div></div>
+        <div class="field full"><label for="repNome">Nome da rota fixa</label><input type="text" id="repNome" value="${esc(FD.rep.nome||"")}" placeholder="Ex.: Abastecimento do Doryo"></div></div>
+        <p class="hint" style="margin:8px 0 0">As OS são criadas sozinhas com 7 dias de antecedência e aparecem na Agenda. Você gerencia em Cadastros → Rotas fixas.</p></div></section>`:""}
+    <div class="form-foot"><span class="err" id="fErr" role="alert"></span><a class="btn" href="${ed?"#ordens":rec?"#cadastros":"#painel"}" id="fCancel">Descartar</a><button class="btn pri" type="submit" id="fSave">${ed?"Salvar alterações":rec?"Salvar rota fixa":FD.rep.on?"Criar rota fixa":"Registrar OS"}</button></div>
   </form>`;
   refreshFormOptions(); renderItems();
   $("#addIt").onclick=()=>{readItems();FD.itens.push({desc:"",qtd:"",un:"un"});renderItems();const ins=$$("#items .item input[type=text]");ins[ins.length-1].focus()};
+  $("#addSt").onclick=()=>{readStops();FD.paradas.push(novaParada("entrega"));renderStops();const s=$("#st-l-"+(FD.paradas.length-1));if(s)s.focus()};
   $("#agPara").onchange=e=>{const a=fromInput(e.target.value);const p=fromInput($("#prev").value);if(a&&(!p||T(p)<=T(a))){$("#prev").value=toInput(new Date(T(a)+2*3600000).toISOString())}};
-  $("#fCancel").onclick=e=>{S.editId=null; if(ed){e.preventDefault();location.hash="#ordens";setTimeout(()=>openOS(ed.id),50)}};
+  $("#fCancel").onclick=e=>{const back=S.editId;S.editId=null;S.editRec=null;S.dupFrom=null;S.novaRec=false; if(ed){e.preventDefault();location.hash="#ordens";setTimeout(()=>openOS(back),50)} if(rec){S.cadTab="rotas"}};
   $("#fOS").onsubmit=submitForm;
-  ["#orig","#dest"].forEach(sel=>$(sel).addEventListener("change",()=>{FD.mesmoOk=false}));
+  const rp=$("#rep");if(rp)rp.onchange=()=>{FD.rep.on=rp.checked;$("#repBox").hidden=!rp.checked;$("#fSave").textContent=rp.checked?"Criar rota fixa":"Registrar OS";$("#agHint").textContent=rp.checked?"Na rota fixa vale o horário; a data é a de cada dia escolhido":""};
+  $$("[data-dia]").forEach(b=>b.onclick=()=>{const d=+b.dataset.dia;const i=FD.rep.dias.indexOf(d);if(i>=0)FD.rep.dias.splice(i,1);else FD.rep.dias.push(d);b.setAttribute("aria-pressed",i<0)});
 }
 function refreshFormOptions(){
   if(!FD||!$("#fOS"))return;
   const keep=(sel,val)=>{const el=$(sel);return el?(el.value||val):val};
-  FD.setorId=keep("#setor",FD.setorId);FD.origemId=keep("#orig",FD.origemId);FD.destinoId=keep("#dest",FD.destinoId);FD.veiculoId=keep("#veic",FD.veiculoId);
+  FD.setorId=keep("#setor",FD.setorId);FD.veiculoId=keep("#veic",FD.veiculoId);
+  readStops(); renderStops();
   const inc=(arr,id)=>arr.filter(x=>x.ativo!==false||x.id===id).sort(sortNome);
-  const grp=(id)=>{const g={};inc(S.locais,id).forEach(l=>{(g[l.tipo||"Outro"]=g[l.tipo||"Outro"]||[]).push(l)});
-    return `<option value="">Selecione…</option>`+Object.keys(g).sort((a,b)=>LOCAL_TIPOS.indexOf(a)-LOCAL_TIPOS.indexOf(b)).map(k=>`<optgroup label="${esc(k)}">${g[k].map(x=>`<option value="${esc(x.id)}"${x.id===id?" selected":""}>${esc(x.nome)}</option>`).join("")}</optgroup>`).join("")};
   $("#setor").innerHTML=opts(inc(S.setores,FD.setorId),FD.setorId,"Selecione…");
-  $("#orig").innerHTML=grp(FD.origemId);$("#dest").innerHTML=grp(FD.destinoId);
   $("#veic").innerHTML=`<option value="">A definir</option>`+inc(S.veiculos,FD.veiculoId).map(v=>`<option value="${esc(v.id)}"${v.id===FD.veiculoId?" selected":""}>${esc(v.nome)}${v.placa?" · "+esc(v.placa):""}</option>`).join("");
   const eq=inc(S.equipe,null).concat(S.equipe.filter(p=>p.ativo===false&&FD.equipeIds.includes(p.id)));
   $("#eqChips").innerHTML=eq.length?eq.map(p=>`<button type="button" class="chip" data-eq="${esc(p.id)}" aria-pressed="${FD.equipeIds.includes(p.id)}">${esc(p.nome)}${p.funcao?`<small>${esc(p.funcao)}</small>`:""}</button>`).join(""):`<span class="hint">Cadastre a equipe em Cadastros.</span>`;
@@ -592,21 +615,38 @@ function renderItems(){
 }
 function readItems(){FD.itens=FD.itens.map((_,i)=>({desc:$("#it-d-"+i).value.trim(),qtd:$("#it-q-"+i).value,un:$("#it-u-"+i).value}))}
 async function submitForm(e){
-  e.preventDefault(); readItems();
+  e.preventDefault(); readItems(); readStops();
   const v=id=>$(id).value;
+  const ps=FD.paradas.map(p=>Object.assign({},p));
   const d={tipo:v("#tipo"),prioridade:v("#prio"),setorId:v("#setor"),solicitante:v("#solic").trim(),canal:v("#canal"),solicitadoEm:fromInput(v("#solEm"))||nowISO(),
-    origemId:v("#orig"),origemDetalhe:v("#origD").trim(),destinoId:v("#dest"),destinoDetalhe:v("#destD").trim(),
+    paradas:ps,origemId:(ps[0]||{}).localId||"",origemDetalhe:(ps[0]||{}).detalhe||"",destinoId:(ps[ps.length-1]||{}).localId||"",destinoDetalhe:(ps[ps.length-1]||{}).detalhe||"",
     itens:FD.itens.filter(i=>i.desc).map(i=>({desc:i.desc,qtd:i.qtd===""?"":Number(i.qtd),un:i.un})),
     agendadoPara:fromInput(v("#agPara")),previstoAte:fromInput(v("#prev")),equipeIds:FD.equipeIds.slice(),veiculoId:v("#veic"),observacoes:v("#obs").trim()};
   const errs=[];
-  if(!d.setorId)errs.push("setor solicitante");if(!d.origemId)errs.push("local de retirada");if(!d.destinoId)errs.push("local de entrega");
+  if(!d.setorId)errs.push("setor solicitante");
+  const semLocal=ps.findIndex(p=>!p.localId); if(semLocal>=0)errs.push("o local da parada "+(semLocal+1));
   if(!d.itens.length)errs.push("pelo menos um item");
+  const rep=FD.rep&&FD.rep.on&&!S.editId&&!S.fromPedido;
+  if(rep&&!FD.rep.dias.length)errs.push("os dias da semana da rota fixa");
+  if(rep&&!d.agendadoPara)errs.push("o horário de início");
   if(d.agendadoPara&&d.previstoAte&&T(d.previstoAte)<T(d.agendadoPara)){$("#fErr").textContent="A previsão de término precisa ser depois do início.";return}
   if(errs.length){$("#fErr").textContent="Preencha: "+errs.join(", ")+".";return}
-  if(d.origemId===d.destinoId&&!FD.mesmoOk){FD.mesmoOk=true;$("#fErr").textContent="Retirada e entrega estão no mesmo local ("+nomeLocal(d.origemId)+"). Se for um remanejamento interno, toque em "+($("#fSave").textContent)+" de novo; se não, corrija o local de entrega.";return}
-  $("#fErr").textContent="";const btn=$("#fSave");btn.disabled=true;btn.textContent="Salvando…";
+  const rep2=ps.findIndex((p,i)=>i>0&&p.localId===ps[i-1].localId);
+  if(rep2>0&&!FD.mesmoOk){FD.mesmoOk=true;$("#fErr").textContent="As paradas "+rep2+" e "+(rep2+1)+" estão no mesmo local ("+nomeLocal(ps[rep2].localId)+"). Se for um remanejamento interno, toque em "+($("#fSave").textContent)+" de novo; se não, corrija o trajeto.";return}
+  $("#fErr").textContent="";const btn=$("#fSave");const txt=btn.textContent;btn.disabled=true;btn.textContent="Salvando…";
   const pronta=!!(d.agendadoPara&&d.equipeIds.length&&d.veiculoId);
   try{
+    if(rep){
+      const ini=new Date(d.agendadoPara);const dur=Math.max(15,Math.round(((T(d.previstoAte)||T(d.agendadoPara)+7200000)-T(d.agendadoPara))/60000));
+      const modelo={tipo:d.tipo,prioridade:d.prioridade,setorId:d.setorId,solicitante:d.solicitante,paradas:limparParadas(ps),itens:d.itens,equipeIds:d.equipeIds,veiculoId:d.veiculoId,observacoes:d.observacoes};
+      const nome=(FD.rep.nome||$("#repNome").value||"").trim()||(d.tipo+" · "+nomeLocal(d.origemId)+" → "+nomeLocal(d.destinoId));
+      const dados={nome,diasSemana:FD.rep.dias.slice().sort(),hora:pad(ini.getHours())+":"+pad(ini.getMinutes()),duracaoMin:dur,modelo,ativo:true};
+      const nomeIn=$("#repNome");if(nomeIn&&nomeIn.value.trim())dados.nome=nomeIn.value.trim();
+      await salvarRecorrencia(S.editRec||null,dados);
+      const n=await gerarRecorrentes();
+      toast(S.editRec?"Rota fixa salva":"Rota fixa criada"+(n?" · "+n+" OS na agenda":""));
+      S.editRec=null;S.novaRec=false;location.hash="#agenda";return;
+    }
     if(S.editId){
       const o=byId(S.os,S.editId);let st=o.status,extra={};
       if(o.status==="registrada"&&pronta){st="agendada";extra.agendadaEm=nowISO()}
@@ -617,16 +657,18 @@ async function submitForm(e){
     }else{
       const id=novoId();
       const st=pronta?"agendada":"registrada";const now=nowISO();
-      const fp=S.fromPedido;
+      const fp=S.fromPedido;const dup=S.dupFrom?byId(S.os,S.dupFrom):null;
       if(fp){d.pedidoId=fp.pid;d.solicitanteId=fp.uid}
+      d.paradas=limparParadas(d.paradas);
       if(S.demo) d.numero=S.os.reduce((m,o)=>Math.max(m,o.numero||0),0)+1;
       const doc=Object.assign(d,{status:st,criadoEm:now,criadoPor:S.uid||null,atualizadoEm:now,agendadaEm:pronta?now:null,
-        historico:[{s:"registrada",em:now,por:S.uid||null,nota:"OS registrada"}].concat(pronta?[{s:"agendada",em:now,por:S.uid||null,nota:""}]:[])});
+        historico:[{s:"registrada",em:now,por:S.uid||null,nota:dup?"OS registrada (cópia da "+codigo(dup)+")":"OS registrada"}].concat(pronta?[{s:"agendada",em:now,por:S.uid||null,nota:""}]:[])});
       const row=await saveOS(id,doc);const n=(row&&row.numero)||d.numero||0;
       if(fp){ try{ await marcarPedido(fp,{status:"convertido",osId:id,numero:n,respondidoEm:nowISO(),respondidoPor:S.uid||null}); }catch(e){console.warn(e)} S.fromPedido=null; }
+      S.dupFrom=null;
       toast("OS-"+String(n).padStart(4,"0")+" registrada");location.hash="#ordens";setTimeout(()=>openOS(id),60);
     }
-  }catch(err){console.error(err);btn.disabled=false;btn.textContent=S.editId?"Salvar alterações":"Registrar OS";
+  }catch(err){console.error(err);btn.disabled=false;btn.textContent=txt;
     $("#fErr").textContent="Não foi possível salvar. Verifique a conexão e tente novamente."+(err&&err.message?" ("+err.message+")":"");}
 }
 
@@ -644,6 +686,7 @@ function renderDrawer(){
   const tl=(o.historico||[]).slice().reverse().map(h=>`<li><time class="num">${fDH(h.em)}</time><span><span class="st ${h.s}">${ST[h.s]||h.s}</span>${h.nota?` · ${esc(h.nota)}`:""}${h.por&&S.names[h.por]?` <span style="color:var(--faint)">por ${esc(S.names[h.por])}</span>`:""}</span></li>`).join("");
   let acts="";
   const copyBtn=`<button class="btn" data-act="copiar">Copiar resumo</button>`;
+  const extraActs=isLog()?`<button class="btn" data-act="duplicar">Duplicar</button><button class="btn ghost danger" data-act="excluir">Excluir</button>`:"";
   if(isLog()){
     if(o.status==="registrada") acts=`<button class="btn pri" data-act="editar">Agendar equipe e veículo</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
     if(o.status==="agendada") acts=`<button class="btn pri" data-act="iniciar">Iniciar rota</button><button class="btn" data-act="editar">Editar</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
@@ -652,11 +695,11 @@ function renderDrawer(){
   }
   const A=S.action;
   let panel="";
-  if(A&&A.t==="iniciar") panel=`<div class="panel" id="pan"><h3>Iniciar rota</h3><div class="fg">
+  if(A&&A.t==="iniciar") panel=`<div class="panel" id="pan"><h3>Iniciar rota</h3>${checklistPanelHTML(A)}<div class="fg">
       <div class="field"><label for="kmI">Km inicial do veículo</label><input type="number" id="kmI" inputmode="numeric" min="0" value="${esc(A.kmI||"")}" placeholder="Opcional"></div></div>
       <div class="field"><span class="lbl">Foto da carga na retirada (opcional)</span>${fotosHTML(A.fotos||[],true)}<label class="upl"><input type="file" accept="image/*" capture="environment" multiple id="upI">Tirar ou anexar foto</label></div>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk">Confirmar saída</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
-  if(A&&A.t==="concluir") panel=`<div class="panel" id="pan"><h3>Concluir com foto</h3>
+  if(A&&A.t==="concluir") panel=`<div class="panel" id="pan"><h3>${multi(o)?"Última parada: "+esc(nomeLocal(paradasDe(o)[paradasDe(o).length-1].localId)):"Concluir com foto"}</h3>
       <div class="field"><span class="lbl req">Fotos da entrega</span>${fotosHTML(A.fotos||[],true)}<label class="upl"><input type="file" accept="image/*" capture="environment" multiple id="upC">Tirar ou anexar foto</label><span class="hint">Mostre os itens entregues no local. Ao menos uma foto.</span></div>
       <div class="field"><span class="lbl">Assinatura de quem recebeu</span><div class="sig" id="sigBox"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Assine aqui com o dedo</span></div>
         <div class="actions"><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div></div>
@@ -664,6 +707,16 @@ function renderDrawer(){
       <div class="field"><label for="kmF">Km final do veículo</label><input type="number" id="kmF" inputmode="numeric" min="0" value="${esc(A.kmF||"")}" placeholder="${o.kmInicial?"Saída: "+o.kmInicial:"Opcional"}"></div>
       <div class="field full"><label for="cObs">Observações da entrega</label><textarea id="cObs" placeholder="Divergências, avarias, itens faltantes…">${esc(A.obs||"")}</textarea></div></div>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>Encerrar OS</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
+  if(A&&A.t==="parada"){const pp=paradasDe(o)[A.idx];const ent=pp.tipo==="entrega";
+    panel=`<div class="panel" id="pan"><h3>Parada ${A.idx+1}: ${ent?"entrega":"retirada"} em ${esc(nomeLocal(pp.localId))}</h3>
+      <div class="field"><span class="lbl${ent?" req":""}">Fotos ${ent?"da entrega":"da retirada (opcional)"}</span>${fotosHTML(A.fotos||[],true)}<label class="upl"><input type="file" accept="image/*" capture="environment" multiple id="upP">Tirar ou anexar foto</label></div>
+      ${ent?`<div class="field"><span class="lbl">Assinatura de quem recebeu</span><div class="sig" id="sigBox"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Assine aqui com o dedo</span></div>
+        <div class="actions"><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div></div>`:""}
+      <div class="fg"><div class="field"><label for="rec">${ent?"Recebido por":"Entregue por"}</label><input type="text" id="rec" value="${esc(A.rec||"")}" placeholder="Nome da pessoa no local"></div>
+      <div class="field full"><label for="cObs">Observações</label><textarea id="cObs" placeholder="Divergências, avarias, itens faltantes…">${esc(A.obs||"")}</textarea></div></div>
+      <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>Registrar parada</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;}
+  if(A&&A.t==="excluir") panel=`<div class="panel" id="pan"><h3>Excluir ${codigo(o)}?</h3><p style="margin:0;color:var(--mute)">A OS some do sistema, com histórico e indicadores. Para manter o registro, prefira Cancelar.${o.pedidoId?" O pedido do setor volta para Aguardando.":""}${o.recorrenciaId?" A rota fixa não vai recriar esta OS.":""}</p>
+      <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn danger" id="pOk">Excluir definitivamente</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
   if(A&&A.t==="cancelar") panel=`<div class="panel" id="pan"><h3>Cancelar ${codigo(o)}</h3><div class="field"><label class="req" for="mot">Motivo do cancelamento</label><textarea id="mot" placeholder="Ex.: setor desistiu, item já entregue por outro meio…">${esc(A.mot||"")}</textarea></div>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn danger" id="pOk">Confirmar cancelamento</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
 
@@ -671,11 +724,8 @@ function renderDrawer(){
     <div class="dr-h"><div class="row1"><div><h2 id="drT" class="num">${codigo(o)}</h2><p>${esc(o.tipo||"")}${o.prioridade&&o.prioridade!=="normal"?" · Prioridade "+(o.prioridade==="urgente"?"urgente":"alta"):""}</p></div><button class="cl" id="drX" aria-label="Fechar">×</button></div>
       <span class="stl"><span class="st ${o.status}">${ST[o.status]}</span></span>${late?` <span class="stl"><span class="late">Atrasada</span></span>`:lateC?` <span class="stl"><span class="late">Concluída com atraso</span></span>`:""}</div>
     <div class="dr-b">
-      ${!A?`<div class="actions">${acts}${copyBtn}</div>`:""}${S.copyOpen&&!A?copyPanel(o):""}${panel}
-      <section class="card card-b" style="padding-top:16px"><div class="route">
-        <span class="dot"></span><div><b>${esc(nomeLocal(o.origemId))}</b><span>${esc(o.origemDetalhe||"Retirada")}</span></div>
-        <span class="ln"></span><span></span>
-        <span class="dot end"></span><div><b>${esc(nomeLocal(o.destinoId))}</b><span>${esc(o.destinoDetalhe||"Entrega")}</span></div></div></section>
+      ${!A?`<div class="actions">${acts}${copyBtn}${extraActs}</div>`:""}${S.copyOpen&&!A?copyPanel(o):""}${panel}
+      <section class="card card-b" style="padding-top:16px">${stopsHTML(o,isLog()&&!A)}${o.recorrenciaId?`<p class="hint" style="margin:10px 0 0">Gerada pela rota fixa ${esc((byId(S.recorrencias,o.recorrenciaId)||{}).nome||"")}</p>`:""}</section>
       <section class="card card-b" style="padding-top:16px"><dl class="dl">
         <div><dt>Início agendado</dt><dd class="num">${fDH(o.agendadoPara)}</dd></div>
         <div><dt>Previsão de término</dt><dd class="num">${fDH(o.previstoAte)}</dd></div>
@@ -689,6 +739,7 @@ function renderDrawer(){
       </dl>${o.observacoes?`<p style="margin:14px 0 0;color:var(--mute)"><b style="color:var(--ink)">Observações:</b> ${esc(o.observacoes)}</p>`:""}</section>
       <section class="card"><div class="card-h"><h2>Itens</h2><span class="sub">${(o.itens||[]).length} ${(o.itens||[]).length===1?"item":"itens"}</span></div><div class="card-b tbl-wrap">
         ${(o.itens||[]).length?`<table class="t"><thead><tr><th>Descrição</th><th class="r">Qtd</th><th>Un.</th></tr></thead><tbody>${o.itens.map(i=>`<tr><td>${esc(i.desc)}</td><td class="r num">${esc(i.qtd===""?"—":String(i.qtd).replace(".",","))}</td><td>${esc(i.un||"")}</td></tr>`).join("")}</tbody></table>`:`<p style="color:var(--mute)">Nenhum item informado.</p>`}</div></section>
+      ${checklistViewHTML(o)}
       ${(o.fotosRetirada||[]).length?`<section class="card"><div class="card-h"><h2>Fotos da retirada</h2></div><div class="card-b">${fotosHTML(o.fotosRetirada)}</div></section>`:""}
       ${o.status==="concluida"?`<section class="card"><div class="card-h"><h2>Entrega</h2><span class="sub num">${fDH(o.concluidoEm)}</span></div><div class="card-b">${(c.fotos||[]).length?fotosHTML(c.fotos):""}
         <dl class="dl" style="margin-top:12px"><div><dt>Recebido por</dt><dd>${esc(c.recebidoPor||"—")}</dd></div></dl>
@@ -701,18 +752,20 @@ function renderDrawer(){
   $("#drX").onclick=closeOS; $("#ov").onclick=e=>{if(e.target.id==="ov")closeOS()};
   $$("[data-zoom]",layer).forEach(b=>b.onclick=()=>{const lb=document.createElement("div");lb.className="lb";lb.innerHTML=`<img src="${esc(b.dataset.zoom)}" alt="Foto ampliada">`;lb.onclick=()=>lb.remove();document.body.appendChild(lb)});
   $$("[data-act]",layer).forEach(b=>b.onclick=()=>doAct(o,b.dataset.act));
+  $$("[data-parada]",layer).forEach(b=>b.onclick=()=>{S.copyOpen=false;S.action={t:"parada",idx:+b.dataset.parada,fotos:[],sig:[]};renderDrawer();const p=$("#pan");if(p)p.scrollIntoView({block:"nearest"})});
   const cx=$("#cpX");if(cx)cx.onclick=()=>{S.copyOpen=false;renderDrawer()};
   const ct=$("#cpT");if(ct){ct.focus();ct.select();}
   if(A) bindPanel(o);
 }
 function syncPanelFields(){const A=S.action;if(!A)return;const g=id=>{const e=$("#"+id);return e?e.value:undefined};
-  if(g("kmI")!==undefined)A.kmI=g("kmI");if(g("kmF")!==undefined)A.kmF=g("kmF");if(g("rec")!==undefined)A.rec=g("rec");if(g("cObs")!==undefined)A.obs=g("cObs");if(g("mot")!==undefined)A.mot=g("mot");}
+  if(g("kmI")!==undefined)A.kmI=g("kmI");if(g("kmF")!==undefined)A.kmF=g("kmF");if(g("rec")!==undefined)A.rec=g("rec");if(g("cObs")!==undefined)A.obs=g("cObs");if(g("mot")!==undefined)A.mot=g("mot");syncChecklist();}
 function rerenderPanel(){syncPanelFields();renderDrawer()}
 function resumo(o){
   const it=(o.itens||[]).map(i=>"• "+[i.qtd===""||i.qtd==null?"":String(i.qtd).replace(".",","),i.un||"",i.desc].filter(Boolean).join(" ")).join("\n");
   const pr=o.prioridade==="urgente"?" — URGENTE":o.prioridade==="alta"?" — prioridade alta":"";
   const L=[`*${codigo(o)} · ${o.tipo||"Serviço"}*${pr}`,`Situação: ${ST[o.status]||o.status}`,
-    `Retirada: ${nomeLocal(o.origemId)}${o.origemDetalhe?" ("+o.origemDetalhe+")":""}`,`Entrega: ${nomeLocal(o.destinoId)}${o.destinoDetalhe?" ("+o.destinoDetalhe+")":""}`,
+    ...(multi(o)?["Paradas:\n"+paradasDe(o).map((p,i)=>`${i+1}. ${p.tipo==="retirada"?"Retirada":"Entrega"} · ${nomeLocal(p.localId)}${p.detalhe?" ("+p.detalhe+")":""}${p.status==="feita"?" ✔":""}`).join("\n")]
+      :[`Retirada: ${nomeLocal(o.origemId)}${o.origemDetalhe?" ("+o.origemDetalhe+")":""}`,`Entrega: ${nomeLocal(o.destinoId)}${o.destinoDetalhe?" ("+o.destinoDetalhe+")":""}`]),
     o.agendadoPara?`Quando: ${fData(o.agendadoPara)}, das ${fHora(o.agendadoPara)}${o.previstoAte?" às "+fHora(o.previstoAte):""}`:"Quando: a definir",
     `Equipe: ${nomeEquipe(o.equipeIds)}`,`Veículo: ${nomeVeic(o.veiculoId)}`];
   if(it)L.push("Itens:\n"+it);
@@ -726,10 +779,15 @@ function copyPanel(o){const t=resumo(o);return `<div class="panel copybox"><h3>R
 async function doAct(o,a){
   if(a==="copiar"){const t=resumo(o);let ok=false;try{await navigator.clipboard.writeText(t);ok=true}catch(e){}
     if(ok){toast("Resumo copiado. Cole no WhatsApp.");S.copyOpen=true;renderDrawer();}else{S.copyOpen=true;renderDrawer();}return}
+  if(a==="duplicar"){S.dupFrom=o.id;S.editId=null;S.fromPedido=null;S.editRec=null;closeOS();if(location.hash==="#nova")route();else location.hash="#nova";return}
+  if(a==="concluir"&&multi(o)){const ps=paradasDe(o);const falta=ps.slice(0,-1).map((p,i)=>p.status==="feita"?null:i+1).filter(Boolean);
+    if(falta.length){toast("Registre antes a"+(falta.length>1?"s paradas ":" parada ")+falta.join(", ")+".");return}}
   if(a==="editar"){S.editId=o.id;closeOS();if(location.hash==="#nova")route();else location.hash="#nova";return}
   if(a==="reabrir"){const st=(o.agendadoPara&&(o.equipeIds||[]).length&&o.veiculoId)?"agendada":"registrada";
     try{await saveOS(o.id,{status:st,canceladoEm:null,atualizadoEm:nowISO(),historico:hist(o,st,"OS reaberta")});toast(codigo(o)+" reaberta")}catch(e){toast("Não foi possível reabrir.")}return}
-  S.copyOpen=false;S.action={t:a,fotos:[],sig:[]};renderDrawer();const p=$("#pan");if(p)p.scrollIntoView({block:"nearest"});
+  S.copyOpen=false;S.action={t:a,fotos:[],sig:[]};
+  if(a==="iniciar") S.action.ck=itensChecklist().map(nome=>({nome,ok:null,obs:""}));
+  renderDrawer();const p=$("#pan");if(p)p.scrollIntoView({block:"nearest"});
 }
 async function compress(file){
   try{
@@ -773,10 +831,11 @@ function sigBlob(A){return new Promise(res=>{const W=600,H=220,c=document.create
   c.toBlob(b=>res(b),"image/png")})}
 function bindPanel(o){
   const A=S.action;
-  if(A.t==="concluir") initSig(A);
+  if(A.t==="concluir"||A.t==="parada") initSig(A);
+  $$("[data-ck]",layer).forEach(b=>b.onclick=()=>{syncPanelFields();const c=A.ck[+b.dataset.ck];c.ok=b.dataset.v==="1";if(c.ok)c.obs="";renderDrawer();const f=$("#ck-o-"+b.dataset.ck);if(f)f.focus()});
   $("#pNo").onclick=()=>{S.action=null;renderDrawer()};
   $$("[data-rmf]",layer).forEach(b=>b.onclick=()=>{A.fotos.splice(+b.dataset.rmf,1);rerenderPanel()});
-  const up=$("#upI")||$("#upC");
+  const up=$("#upI")||$("#upC")||$("#upP");
   if(up) up.onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;syncPanelFields();
     const lbl=up.parentElement;(lbl.lastChild.textContent="Enviando "+fs.length+" foto"+(fs.length>1?"s":"")+"…");
     A.busy=true;const r=await uploadFiles(fs,$("#pErr"));A.busy=false;A.fotos=A.fotos.concat(r);rerenderPanel()};
@@ -784,8 +843,12 @@ function bindPanel(o){
     syncPanelFields();const err=$("#pErr");const btn=$("#pOk");
     if(A.busy){err.textContent="Aguarde o envio das fotos.";return}
     try{
-      if(A.t==="iniciar"){btn.disabled=true;const km=Number(A.kmI)||null;
-        await saveOS(o.id,{status:"em_rota",iniciadoEm:nowISO(),kmInicial:km,fotosRetirada:(o.fotosRetirada||[]).concat(A.fotos),atualizadoEm:nowISO(),historico:hist(o,"em_rota","Saída para retirada")});
+      if(A.t==="iniciar"){
+        const sem=A.ck.findIndex(c=>c.ok===null);if(sem>=0){err.textContent="Responda o checklist: "+A.ck[sem].nome+".";return}
+        const semObs=A.ck.findIndex(c=>c.ok===false&&!(c.obs||"").trim());if(semObs>=0){err.textContent="Descreva o problema em: "+A.ck[semObs].nome+".";return}
+        btn.disabled=true;const km=Number(A.kmI)||null;const probs=A.ck.filter(c=>!c.ok).length;
+        const checklist={itens:A.ck.map(c=>({nome:c.nome,ok:c.ok,obs:(c.obs||"").trim()})),problemas:probs,em:nowISO(),por:S.uid||null};
+        await saveOS(o.id,{status:"em_rota",iniciadoEm:nowISO(),kmInicial:km,checklist,fotosRetirada:(o.fotosRetirada||[]).concat(A.fotos),atualizadoEm:nowISO(),historico:hist(o,"em_rota","Saída para retirada"+(probs?" · checklist com "+probs+" problema"+(probs>1?"s":""):""))});
         S.action=null;toast(codigo(o)+" em rota");}
       if(A.t==="concluir"){
         if(!A.fotos.length){err.textContent="Anexe ao menos uma foto da entrega.";return}
@@ -797,8 +860,23 @@ function bindPanel(o){
         if(temSig){const b=await sigBlob(A);
           if(S.demo) assinatura={id:"local",url:URL.createObjectURL(b)};
           else { try{assinatura=await enviarArquivo(b,"png","image/png")}catch(e){btn.disabled=false;btn.textContent="Encerrar OS";err.textContent="Falha ao enviar a assinatura. Tente novamente.";return} }}
-        await saveOS(o.id,{status:"concluida",concluidoEm:nowISO(),kmFinal:km,conclusao:{fotos:A.fotos,assinatura,recebidoPor:(A.rec||"").trim(),obs:(A.obs||"").trim()},atualizadoEm:nowISO(),historico:hist(o,"concluida","Entrega confirmada com foto")});
+        const extraP={};
+        if(multi(o)){const ps=JSON.parse(JSON.stringify(paradasDe(o)));const u=ps.length-1;ps[u]=Object.assign(ps[u],{status:"feita",feitoEm:nowISO(),fotos:A.fotos,assinatura,pessoa:(A.rec||"").trim(),obs:(A.obs||"").trim()});extraP.paradas=ps;}
+        await saveOS(o.id,Object.assign(extraP,{status:"concluida",concluidoEm:nowISO(),kmFinal:km,conclusao:{fotos:A.fotos,assinatura,recebidoPor:(A.rec||"").trim(),obs:(A.obs||"").trim()},atualizadoEm:nowISO(),historico:hist(o,"concluida","Entrega confirmada com foto")}));
         S.action=null;toast(codigo(o)+" concluída");}
+      if(A.t==="parada"){
+        const ps=JSON.parse(JSON.stringify(paradasDe(o)));const pp=ps[A.idx];const ent=pp.tipo==="entrega";
+        if(ent&&!A.fotos.length){err.textContent="Anexe ao menos uma foto da entrega.";return}
+        const temSig=(A.sig||[]).some(st=>st.length>1);
+        if(temSig&&!(A.rec||"").trim()){err.textContent="Informe o nome de quem assinou.";return}
+        btn.disabled=true;btn.textContent="Salvando…";let assinatura=null;
+        if(temSig){const b=await sigBlob(A);
+          if(S.demo) assinatura={id:"local",url:URL.createObjectURL(b)};
+          else { try{assinatura=await enviarArquivo(b,"png","image/png")}catch(e){btn.disabled=false;btn.textContent="Registrar parada";err.textContent="Falha ao enviar a assinatura. Tente novamente.";return} }}
+        Object.assign(pp,{status:"feita",feitoEm:nowISO(),fotos:A.fotos,assinatura,pessoa:(A.rec||"").trim(),obs:(A.obs||"").trim()});
+        await saveOS(o.id,{paradas:ps,atualizadoEm:nowISO(),historico:hist(o,"em_rota","Parada "+(A.idx+1)+" · "+(ent?"entrega":"retirada")+" em "+nomeLocal(pp.localId))});
+        S.action=null;toast("Parada "+(A.idx+1)+" registrada");}
+      if(A.t==="excluir"){btn.disabled=true;await excluirOS(o);toast(codigo(o)+" excluída");closeOS();render();return;}
       if(A.t==="cancelar"){
         if(!(A.mot||"").trim()){err.textContent="Informe o motivo.";return}
         btn.disabled=true;
@@ -807,6 +885,142 @@ function bindPanel(o){
       renderDrawer();
     }catch(e){console.error(e);btn.disabled=false;err.textContent="Não foi possível salvar. Verifique a conexão e tente novamente."}
   };
+}
+
+/* ---------- PARADAS ---------- */
+const PTIPOS=[["retirada","Retirada"],["entrega","Entrega"]];
+const DIAS=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+function paradasDe(o){
+  if(o.paradas&&o.paradas.length) return o.paradas;
+  return [{id:"p0",tipo:"retirada",localId:o.origemId||"",detalhe:o.origemDetalhe||"",status:"pendente"},
+          {id:"p1",tipo:"entrega",localId:o.destinoId||"",detalhe:o.destinoDetalhe||"",status:"pendente"}];
+}
+const multi=o=>(o.paradas||[]).length>2;
+const extraParadas=o=>multi(o)?` (+${o.paradas.length-2} parada${o.paradas.length>3?"s":""})`:"";
+const novaParada=(tipo,localId,detalhe)=>({id:"p"+Math.random().toString(36).slice(2,8),tipo:tipo||"entrega",localId:localId||"",detalhe:detalhe||"",status:"pendente"});
+const limparParadas=ps=>(ps||[]).map(p=>({id:p.id||novaParada().id,tipo:p.tipo,localId:p.localId,detalhe:p.detalhe||"",status:"pendente"}));
+function localOptions(id){
+  const inc=S.locais.filter(x=>x.ativo!==false||x.id===id).sort(sortNome);const g={};
+  inc.forEach(l=>{(g[l.tipo||"Outro"]=g[l.tipo||"Outro"]||[]).push(l)});
+  return `<option value="">Selecione o local…</option>`+Object.keys(g).sort((a,b)=>LOCAL_TIPOS.indexOf(a)-LOCAL_TIPOS.indexOf(b)).map(k=>`<optgroup label="${esc(k)}">${g[k].map(x=>`<option value="${esc(x.id)}"${x.id===id?" selected":""}>${esc(x.nome)}</option>`).join("")}</optgroup>`).join("");
+}
+function renderStops(){
+  const box=$("#stops");if(!box)return;
+  box.innerHTML=FD.paradas.map((p,i)=>`<div class="stop">
+    <span class="sn num" aria-hidden="true">${i+1}</span>
+    <select id="st-t-${i}" aria-label="Tipo da parada ${i+1}">${optsS(PTIPOS,p.tipo)}</select>
+    <select id="st-l-${i}" aria-label="Local da parada ${i+1}">${localOptions(p.localId)}</select>
+    <input type="text" id="st-d-${i}" aria-label="Detalhe da parada ${i+1}" placeholder="Detalhe (setor, doca, falar com…)" value="${esc(p.detalhe||"")}">
+    <button type="button" class="x" data-stup="${i}" aria-label="Subir parada ${i+1}"${i===0?" disabled":""}>↑</button>
+    <button type="button" class="x" data-strm="${i}" aria-label="Remover parada ${i+1}"${FD.paradas.length<=2?" disabled":""}>×</button></div>`).join("");
+  $$("[data-strm]").forEach(b=>b.onclick=()=>{readStops();FD.paradas.splice(+b.dataset.strm,1);FD.mesmoOk=false;renderStops()});
+  $$("[data-stup]").forEach(b=>b.onclick=()=>{readStops();const i=+b.dataset.stup;const t=FD.paradas[i-1];FD.paradas[i-1]=FD.paradas[i];FD.paradas[i]=t;renderStops()});
+  $$("#stops select").forEach(s=>s.addEventListener("change",()=>{FD.mesmoOk=false}));
+}
+function readStops(){ if(!$("#stops"))return; FD.paradas=FD.paradas.map((p,i)=>{const t=$("#st-t-"+i);if(!t)return p;return Object.assign({},p,{tipo:t.value,localId:$("#st-l-"+i).value,detalhe:$("#st-d-"+i).value.trim()})}); }
+function stopsHTML(o,canAct){
+  const ps=paradasDe(o);const M=multi(o);
+  const ultimo=ps.length-1;
+  return `<div class="route2">${ps.map((p,i)=>{
+    const feita=p.status==="feita";
+    const btn=M&&canAct&&o.status==="em_rota"&&!feita&&i!==ultimo?`<button class="btn sm pri" data-parada="${i}" type="button">Registrar parada</button>`:"";
+    return `<div class="rs${feita?" ok":""}"><span class="rd ${p.tipo}" aria-hidden="true"></span><div class="rc">
+      <div class="rt1"><b>${esc(nomeLocal(p.localId))}</b><span class="rk">${p.tipo==="retirada"?"Retirada":"Entrega"}${M?` · parada ${i+1}`:""}</span></div>
+      ${p.detalhe?`<span class="rdet">${esc(p.detalhe)}</span>`:""}
+      ${M&&feita?`<span class="rdone">Feita ${fDH(p.feitoEm)}${p.pessoa?" · "+esc(p.pessoa):""}</span>`:""}
+      ${M&&(p.fotos||[]).length?`<div class="photos sm">${p.fotos.map((f,j)=>`<div class="ph"><button type="button" data-zoom="${esc(f.url)}" aria-label="Ampliar foto da parada ${i+1}"><img src="${esc(f.url)}" alt="Foto da parada ${i+1}" loading="lazy"></button></div>`).join("")}</div>`:""}
+      ${M&&p.assinatura?`<div class="sig-view sm"><img src="${esc(p.assinatura.url)}" alt="Assinatura na parada ${i+1}"></div>`:""}
+      ${M&&p.obs?`<span class="rdet">${esc(p.obs)}</span>`:""}
+      ${btn}</div></div>`}).join("")}</div>`;
+}
+
+/* ---------- CHECKLIST DO VEÍCULO ---------- */
+const CHECK_PADRAO=["Pneus calibrados e sem avarias","Combustível suficiente para a rota","Luzes, setas e freios funcionando","Baú ou caçamba limpos","Carga amarrada e protegida","Documentos do veículo a bordo"];
+const itensChecklist=()=>(S.config.checklist&&S.config.checklist.length?S.config.checklist:CHECK_PADRAO);
+function checklistPanelHTML(A){
+  return `<div class="field"><span class="lbl req">Checklist do veículo</span><div class="ck">${A.ck.map((c,i)=>`<div class="ck-r">
+    <span class="ck-n">${esc(c.nome)}</span>
+    <span class="ck-b"><button type="button" class="chip" data-ck="${i}" data-v="1" aria-pressed="${c.ok===true}">OK</button><button type="button" class="chip warn" data-ck="${i}" data-v="0" aria-pressed="${c.ok===false}">Problema</button></span>
+    ${c.ok===false?`<input type="text" id="ck-o-${i}" class="ck-o" aria-label="Descreva o problema em ${esc(c.nome)}" placeholder="Descreva o problema" value="${esc(c.obs||"")}">`:""}</div>`).join("")}</div></div>`;
+}
+function checklistViewHTML(o){
+  const ck=o.checklist;if(!ck||!(ck.itens||[]).length)return "";
+  return `<section class="card"><div class="card-h"><h2>Checklist do veículo</h2><span class="sub">${ck.problemas?`<span class="late">${ck.problemas} problema${ck.problemas>1?"s":""}</span>`:"Tudo OK"} · ${fDH(ck.em)}</span></div><div class="card-b"><ul class="ckv">${ck.itens.map(c=>`<li><span class="${c.ok?"ok":"late"}">${c.ok?"OK":"Problema"}</span> ${esc(c.nome)}${c.obs?` <span class="rdet">· ${esc(c.obs)}</span>`:""}</li>`).join("")}</ul></div></section>`;
+}
+function syncChecklist(){const A=S.action;if(!A||!A.ck)return;A.ck.forEach((c,i)=>{const e=$("#ck-o-"+i);if(e)c.obs=e.value})}
+
+/* ---------- EXCLUIR OS ---------- */
+async function excluirOS(o){
+  if(o.recorrenciaId&&o.dataRecorrencia){const r=byId(S.recorrencias,o.recorrenciaId);
+    if(r){const pulos=(r.pulos||[]).concat([String(o.dataRecorrencia).slice(0,10)]);
+      if(S.demo) r.pulos=pulos; else { const {error}=await sb.from("recorrencias").update({pulos}).eq("id",r.id); if(error) throw error; r.pulos=pulos; }}}
+  if(o.pedidoId){const p=S.pedidos.find(x=>x.pid===o.pedidoId); if(p){ try{await marcarPedido(p,{status:"aguardando",osId:null,numero:null,respondidoEm:null})}catch(e){console.warn(e)} }}
+  if(!S.demo){ const {error}=await sb.from("os").delete().eq("id",o.id); if(error) throw error; }
+  S.os=S.os.filter(x=>x.id!==o.id);
+}
+
+/* ---------- ROTAS FIXAS (recorrências) ---------- */
+let gerando=false;
+function dataLocal(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+async function gerarRecorrentes(){
+  if(!isLog()||gerando)return 0; gerando=true; let n=0;
+  try{
+    const hoje=new Date();hoje.setHours(0,0,0,0);
+    for(const r of S.recorrencias.filter(x=>x.ativo!==false)){
+      const base=new Date(r.criadoEm||Date.now());base.setHours(0,0,0,0);
+      for(let i=0;i<7;i++){
+        const d=new Date(hoje.getTime()+i*86400000+3600000);d.setHours(0,0,0,0);
+        if(d<base)continue;
+        const ds=dataLocal(d);
+        if(!(r.diasSemana||[]).includes(d.getDay()))continue;
+        if((r.pulos||[]).includes(ds))continue;
+        if(S.os.some(o=>o.recorrenciaId===r.id&&String(o.dataRecorrencia||"").slice(0,10)===ds))continue;
+        const [hh,mm]=(r.hora||"08:00").split(":").map(Number);const ini=new Date(d);ini.setHours(hh||0,mm||0,0,0);
+        const m=r.modelo||{};const now=nowISO();
+        const pronta=!!((m.equipeIds||[]).length&&m.veiculoId);const st=pronta?"agendada":"registrada";
+        const ps=limparParadas(m.paradas&&m.paradas.length?m.paradas:paradasDe({}));
+        const doc={tipo:m.tipo||TIPOS[0],prioridade:m.prioridade||"normal",setorId:m.setorId||"",solicitante:m.solicitante||"",canal:"Rota fixa",solicitadoEm:now,
+          paradas:ps,origemId:(ps[0]||{}).localId||"",origemDetalhe:(ps[0]||{}).detalhe||"",destinoId:(ps[ps.length-1]||{}).localId||"",destinoDetalhe:(ps[ps.length-1]||{}).detalhe||"",
+          itens:JSON.parse(JSON.stringify(m.itens||[])),agendadoPara:ini.toISOString(),previstoAte:new Date(ini.getTime()+(r.duracaoMin||120)*60000).toISOString(),
+          equipeIds:(m.equipeIds||[]).slice(),veiculoId:m.veiculoId||"",observacoes:m.observacoes||"",recorrenciaId:r.id,dataRecorrencia:ds,
+          status:st,criadoEm:now,criadoPor:S.uid||null,atualizadoEm:now,agendadaEm:pronta?now:null,
+          historico:[{s:"registrada",em:now,por:S.uid||null,nota:"Gerada pela rota fixa "+(r.nome||"")}].concat(pronta?[{s:"agendada",em:now,por:S.uid||null,nota:""}]:[])};
+        if(S.demo) doc.numero=S.os.reduce((mx,o)=>Math.max(mx,o.numero||0),0)+1;
+        try{ await saveOS(novoId(),doc); n++; }
+        catch(e){ if(!(e&&(e.code==="23505"||/duplicate/i.test(e.message||"")))) console.warn(e); }
+      }
+    }
+  } finally { gerando=false; }
+  if(n&&!S.demo) await carregar("os");
+  if(n) render();
+  return n;
+}
+async function salvarRecorrencia(id,data){
+  if(S.demo){ if(id){Object.assign(byId(S.recorrencias,id),data);return byId(S.recorrencias,id)} const r=Object.assign({id:novoId(),criadoEm:nowISO(),pulos:[]},data);S.recorrencias.push(r);return r; }
+  if(id){ const {error}=await sb.from("recorrencias").update(toDb(data)).eq("id",id); if(error) throw error; await carregar("recorrencias"); return byId(S.recorrencias,id); }
+  const {data:row,error}=await sb.from("recorrencias").insert(toDb(data)).select().single(); if(error) throw error; await carregar("recorrencias"); return fromDb(row);
+}
+function renderRotasFixas(){
+  const list=S.recorrencias.slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+  const diasTxt=r=>(r.diasSemana||[]).slice().sort().map(d=>DIAS[d]).join(", ")||"Nenhum dia";
+  return `<section class="card"><div class="card-h"><h2>Rotas fixas</h2><span class="sub">As OS são criadas sozinhas com 7 dias de antecedência e aparecem na Agenda</span></div><div class="card-b">
+    ${isLog()?`<a class="btn sm" href="#nova" id="novaRec">Nova rota fixa</a>`:""}
+    ${list.length?list.map(r=>{const m=r.modelo||{};const ps=m.paradas||[];
+      return `<div class="rec-row${r.ativo===false?" off":""}"><div class="rec-n"><b>${esc(r.nome)}</b>${r.ativo===false?` <span style="color:var(--faint);font-weight:500">pausada</span>`:""}
+        <span class="m">${esc(ps.length?ps.map(p=>nomeLocal(p.localId)).join(" → "):"")}</span></div>
+        <span class="m">${esc(diasTxt(r))} · ${esc(r.hora||"")} · ${fDur((r.duracaoMin||120)*60000)}</span>
+        <span class="m">${esc(nomeEquipe(m.equipeIds))} · ${esc(nomeVeic(m.veiculoId))}</span>
+        ${isLog()?(S.recDel===r.id?`<span class="actions"><span class="err">Excluir a rota? As OS já criadas continuam.</span><button class="btn sm danger" data-rdel2="${esc(r.id)}" type="button">Excluir</button><button class="btn sm ghost" data-rdelx type="button">Voltar</button></span>`
+          :`<span class="actions"><button class="btn sm ghost" data-red="${esc(r.id)}" type="button">Editar</button><button class="btn sm ghost" data-rtg="${esc(r.id)}" type="button">${r.ativo===false?"Reativar":"Pausar"}</button><button class="btn sm ghost danger" data-rdel="${esc(r.id)}" type="button">Excluir</button></span>`):"<span></span>"}</div>`}).join(""):`<p style="color:var(--mute)">Nenhuma rota fixa ainda. Crie uma para serviços que se repetem toda semana, como o abastecimento de uma unidade.</p>`}
+  </div></section>`;
+}
+function bindRotasFixas(){
+  const nr=$("#novaRec");if(nr)nr.onclick=e=>{e.preventDefault();S.novaRec=true;S.editRec=null;S.editId=null;if(location.hash==="#nova")route();else location.hash="#nova"};
+  $$("[data-red]").forEach(b=>b.onclick=()=>{S.editRec=b.dataset.red;S.editId=null;S.novaRec=false;if(location.hash==="#nova")route();else location.hash="#nova"});
+  $$("[data-rtg]").forEach(b=>b.onclick=async()=>{const r=byId(S.recorrencias,b.dataset.rtg);try{await salvarRecorrencia(r.id,{ativo:r.ativo===false});if(r.ativo!==false)toast("Rota pausada");else{toast("Rota reativada");await gerarRecorrentes()}renderCadastros()}catch(e){toast("Não foi possível alterar.")}});
+  $$("[data-rdel]").forEach(b=>b.onclick=()=>{S.recDel=b.dataset.rdel;renderCadastros()});
+  $$("[data-rdelx]").forEach(b=>b.onclick=()=>{S.recDel=null;renderCadastros()});
+  $$("[data-rdel2]").forEach(b=>b.onclick=async()=>{const id=b.dataset.rdel2;try{ if(S.demo){S.recorrencias=S.recorrencias.filter(r=>r.id!==id)} else { const {error}=await sb.from("recorrencias").delete().eq("id",id); if(error)throw error; await carregar("recorrencias"); } S.recDel=null;toast("Rota fixa excluída");renderCadastros()}catch(e){toast("Não foi possível excluir.")}});
 }
 
 /* ---------- CADASTROS ---------- */
@@ -822,13 +1036,16 @@ const CAD={
     f:[["nome","Modelo / apelido","text"],["placa","Placa","text"],["tipo","Tipo","select",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"]],["capacidade","Capacidade","text"]],m:x=>[x.placa,[x.tipo,x.capacidade].filter(Boolean).join(" · ")]}
 };
 function renderCadastros(){
-  const tab=S.cadTab;const tabs=[["locais","Locais"],["setores","Setores"],["equipe","Equipe"],["veiculos","Veículos"],["usuarios","Usuários"],["config","Regras de prazo"]];
+  const tab=S.cadTab;const tabs=[["locais","Locais"],["setores","Setores"],["equipe","Equipe"],["veiculos","Veículos"],["rotas","Rotas fixas"],["usuarios","Usuários"],["config","Regras"]];
   let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome.</p></div></div>${banner()}
-  <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
+  <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k==="rotas"?`<span class="c num">${S.recorrencias.filter(x=>x.ativo!==false).length}</span>`:k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
   if(tab==="usuarios"){ app.innerHTML=h+renderUsuarios(); bindCad(); bindUsuarios(); return; }
+  if(tab==="rotas"){ app.innerHTML=h+renderRotasFixas(); bindCad(); bindRotasFixas(); return; }
   if(tab==="config"){
     h+=`<section class="card"><div class="card-h"><h2>Tolerância de atraso</h2></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:62ch">Uma OS conta como atrasada quando é concluída depois da previsão de término somada a esta tolerância. OS abertas viram atrasadas quando o relógio passa desse ponto.</p>
-      <div class="filters"><div class="field"><label for="tol">Tolerância (minutos)</label><input type="number" id="tol" min="0" step="5" value="${esc(S.config.toleranciaMin)}"${isLog()?"":" disabled"}></div>${isLog()?`<button class="btn pri" id="tolOk" type="button">Salvar</button>`:""}</div></div></section>`;
+      <div class="filters"><div class="field"><label for="tol">Tolerância (minutos)</label><input type="number" id="tol" min="0" step="5" value="${esc(S.config.toleranciaMin)}"${isLog()?"":" disabled"}></div>${isLog()?`<button class="btn pri" id="tolOk" type="button">Salvar</button>`:""}</div></div></section>
+      <section class="card" style="margin-top:16px"><div class="card-h"><h2>Checklist do veículo</h2></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:62ch">Itens que a equipe confere antes de iniciar a rota. Um item por linha. Se algum tiver problema, a descrição fica registrada na OS e soma no painel do veículo.</p>
+      <div class="field"><label for="ckTxt">Itens</label><textarea id="ckTxt" rows="8"${isLog()?"":" disabled"}>${esc(itensChecklist().join("\n"))}</textarea></div>${isLog()?`<div class="actions" style="margin-top:10px"><button class="btn pri" id="ckOk" type="button">Salvar checklist</button></div>`:""}</div></section>`;
     app.innerHTML=h;bindCad();return;
   }
   const C=CAD[tab];const list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||sortNome(a,b));
@@ -846,6 +1063,8 @@ function bindCad(){
   $$("[data-ct]").forEach(b=>b.onclick=()=>{S.cadTab=b.dataset.ct;S.cadEdit=null;renderCadastros()});
   const tol=$("#tolOk");if(tol)tol.onclick=async()=>{const v=Math.max(0,Number($("#tol").value)||0);
     try{ if(S.demo){S.config.toleranciaMin=v}else{ const {error}=await sb.from("config").update({tolerancia_min:v}).eq("id",1); if(error)throw error; S.config.toleranciaMin=v; } toast("Tolerância salva");}catch(e){toast("Não foi possível salvar.")}};
+  const cko=$("#ckOk");if(cko)cko.onclick=async()=>{const itens=$("#ckTxt").value.split("\n").map(x=>x.trim()).filter(Boolean);if(!itens.length){toast("Informe ao menos um item.");return}
+    try{ if(!S.demo){ const {error}=await sb.from("config").update({checklist:itens}).eq("id",1); if(error)throw error; } S.config.checklist=itens; toast("Checklist salvo"); }catch(e){toast("Não foi possível salvar. Rode o script 03 no Supabase.")}};
   const nb=$("[data-new]");if(nb)nb.onclick=()=>{S.cadEdit="__new";renderCadastros();const f=$("#ce-nome");if(f)f.focus()};
   $$("[data-ed]").forEach(b=>b.onclick=()=>{S.cadEdit=b.dataset.ed;renderCadastros()});
   $$("[data-cx]").forEach(b=>b.onclick=()=>{S.cadEdit=null;renderCadastros()});
@@ -1076,6 +1295,8 @@ function loadDemo(){
   ["Ana (Cozinha)","Bruno (Eventos)","Carla (Bar)","Diego (Compras)"].forEach((n,i)=>S.names["demo-u"+i]=n);
   S.meus=S.pedidos.slice(1,4).map(x=>Object.assign({},x,{uid:"demo"}));S.uid="demo";S.names.demo="Você";
   const pm=new Date();pm.setDate(1);pm.setMonth(pm.getMonth()-1);
+  S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
+    modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];
   S.relatorios=[{id:pm.getFullYear()+"-"+pad(pm.getMonth()+1),geradoEm:new Date(now-12*86400000).toISOString(),resumo:"Exemplo de fechamento. O volume cresceu puxado por Eventos e Bar, e a rota CD → Mirage concentrou a maior parte das transferências. O tempo de resposta caiu, mas um terço das OS concluídas passou da previsão de término, quase todas em retiradas de fornecedor.",destaques:["Rever a previsão de término das retiradas em fornecedor, que costumam levar mais de 2 h.","Concentrar as entregas CD → Mirage em uma rota fixa pela manhã."]}];
 }
 
