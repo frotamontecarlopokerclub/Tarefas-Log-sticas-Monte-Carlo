@@ -397,3 +397,5 @@ input[type=email],input[type=password]{width:100%;background:var(--card);border:
 .photos .ph{min-width:0}
 .photos .ph>button:first-child{width:100%;display:block}
 @media (max-width:760px){.item{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 32px}.item input[type=text]{grid-column:1 / -1}}
+.btn.wa{background:#1F7A4D;border-color:#1F7A4D;color:#fff}
+.btn.wa:hover{background:#17603D}
