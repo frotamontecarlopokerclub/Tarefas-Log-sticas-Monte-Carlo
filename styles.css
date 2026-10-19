@@ -428,3 +428,8 @@ input[type=email],input[type=password]{width:100%;background:var(--card);border:
 
 .stop-new{margin:0 0 4px 36px}
 @media (max-width:760px){.stop-new{margin-left:34px}}
+
+.upl-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.upl.alt{border-style:solid;border-color:var(--line-strong);color:var(--ink)}
+@media (max-width:380px){.upl-row{grid-template-columns:1fr}}
+.upl-i{width:20px;height:20px;flex:none}
