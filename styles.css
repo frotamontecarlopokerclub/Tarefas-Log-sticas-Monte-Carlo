@@ -399,3 +399,32 @@ input[type=email],input[type=password]{width:100%;background:var(--card);border:
 @media (max-width:760px){.item{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 32px}.item input[type=text]{grid-column:1 / -1}}
 .btn.wa{background:#1F7A4D;border-color:#1F7A4D;color:#fff}
 .btn.wa:hover{background:#17603D}
+
+/* Campo de local com busca */
+.lp{position:relative;min-width:0}
+.lp-in{width:100%}
+.lp.lp-err .lp-in{border-color:var(--s-late)}
+.lp-ls{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:var(--card);border:1px solid var(--line-strong);border-radius:10px;box-shadow:0 10px 30px rgba(20,12,11,.18);max-height:300px;overflow-y:auto;padding:4px}
+.lp-op{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:7px;cursor:pointer}
+.lp-op b{font-weight:600;font-size:14px}
+.lp-op small{color:var(--faint);font-size:12px}
+.lp-op:hover,.lp-op.hi{background:var(--hover)}
+.lp-op[aria-selected="true"] b{color:var(--accent)}
+.lp-vazio{margin:0;padding:10px;color:var(--mute);font-size:13px}
+.lp-add{display:block;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;padding:10px;margin-top:4px;font-weight:700;color:var(--gold-ink);cursor:pointer;border-radius:0 0 7px 7px}
+.lp-add:hover{background:var(--soft)}
+.lp-new{margin-top:8px}
+.lp-form{border:1px solid var(--gold);background:var(--soft);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.lp-form .err{margin:0}
+.stop .lp{grid-column:auto}
+@media (max-width:760px){.stop .lp{grid-area:l}}
+.rlinks{display:inline-flex;gap:8px;margin-left:4px}
+.rlinks a{font-size:12px;font-weight:700;color:var(--gold-ink);text-decoration:none;border:1px solid var(--line-strong);border-radius:6px;padding:1px 7px}
+.rlinks a:hover{background:var(--soft)}
+.chk.sm{font-size:12px;font-weight:600;gap:6px}
+.chk.sm input{width:16px;height:16px}
+.usr-row{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,220px) minmax(0,170px) 150px 76px}
+@media (max-width:760px){.usr-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+
+.stop-new{margin:0 0 4px 36px}
+@media (max-width:760px){.stop-new{margin-left:34px}}

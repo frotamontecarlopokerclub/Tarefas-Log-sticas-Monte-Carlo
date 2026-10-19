@@ -15,7 +15,7 @@ const ABERTOS=["registrada","agendada","em_rota"];
 /* ---------- Estado ---------- */
 const S={os:[],locais:[],setores:[],equipe:[],veiculos:[],config:{toleranciaMin:15},
   uid:null,role:null,meName:"",demo:false,loaded:{os:false},names:{},pedidos:[],meus:[],relatorios:[],perfis:[],recovery:false,authMsg:"",meuSetor:null,
-  fromPedido:null,recusando:null,pTab:"aguardando",rm:null,copyOpen:false,recorrencias:[],dupFrom:null,editRec:null,novaRec:false,recDel:null,
+  fromPedido:null,recusando:null,pTab:"aguardando",rm:null,copyOpen:false,recorrencias:[],solicitantes:[],meuTelefone:"",dupFrom:null,editRec:null,novaRec:false,recDel:null,
   route:"painel",openId:null,action:null,editId:null,
   f:{periodo:"30",setor:"",local:""},
   lf:{status:"abertas",q:"",setor:"",local:"",tipo:""},cadTab:"locais",cadEdit:null};
@@ -49,7 +49,7 @@ function concluidaComAtraso(o){if(o.status!=="concluida")return false;const p=pr
 function tResposta(o){const a=T(o.agendadaEm),s=T(o.solicitadoEm||o.criadoEm);return a-s}
 function tExec(o){return T(o.concluidoEm)-T(o.iniciadoEm)}
 function rotaTxt(o){return nomeLocal(o.origemId)+" → "+nomeLocal(o.destinoId)}
-function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
+function toast(msg){$$(".toast").forEach(x=>x.remove());const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
 function sortNome(a,b){return (a.nome||"").localeCompare(b.nome||"","pt-BR")}
 const ativos=arr=>arr.filter(x=>x.ativo!==false).sort(sortNome);
 
@@ -82,12 +82,12 @@ async function startSession(session){
   let perfil=null;
   for(let i=0;i<3&&!perfil;i++){ const r=await sb.from("perfis").select("*").eq("id",S.uid).maybeSingle(); perfil=r.data; if(!perfil) await new Promise(r=>setTimeout(r,600)); }
   if(!perfil) return renderAuth("pendente");
-  S.meName=perfil.nome||session.user.email; S.meuSetor=perfil.setor_id;
+  S.meName=perfil.nome||session.user.email; S.meuSetor=perfil.setor_id; S.meuTelefone=perfil.telefone||""; S.podeLocal=perfil.pode_cadastrar_local===true;
   if(!PAPEL_ROLE[perfil.papel]) return renderAuth(perfil.papel==="bloqueado"?"bloqueado":"pendente");
   S.role=PAPEL_ROLE[perfil.papel];
   document.body.classList.remove("auth");
   buildNav(); if(!location.hash||location.hash.length<2) location.replace("#"+navCfg().home); route();
-  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias"].map(carregar));
+  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes"].map(carregar));
   buildNav(); render();
   if(S.role==="log") gerarRecorrentes();
   assinarTempoReal();
@@ -98,7 +98,7 @@ async function carregar(t){
   if(t==="pedidos") q=q.order("criado_em",{ascending:false}).limit(1000);
   const {data,error}=await q;
   if(error){ console.warn(t,error); return; }
-  if(t==="config"){ const c=data[0]; if(c) S.config={toleranciaMin:c.tolerancia_min,checklist:Array.isArray(c.checklist)?c.checklist:null}; return; }
+  if(t==="config"){ const c=data[0]; if(c) S.config={toleranciaMin:c.tolerancia_min,checklist:Array.isArray(c.checklist)?c.checklist:null,whatsappAuto:c.whatsapp_auto===true}; return; }
   if(t==="perfis"){ S.perfis=data.map(fromDb); S.perfis.forEach(p=>S.names[p.id]=p.nome||p.email||""); return; }
   if(t==="pedidos"){ const l=data.map(r=>{const p=fromDb(r);p.pid=p.id;p.uid=p.solicitanteId;return p});
     if(S.role==="log"){S.pedidos=l;S.loaded.pedidos=true} else {S.meus=l.filter(p=>p.uid===S.uid);S.loaded.meus=true} return; }
@@ -183,21 +183,26 @@ function renderAuth(mode){
 }
 
 /* ---------- Usuários (cadastro de acessos) ---------- */
-const PAPEIS=[["pendente","Aguardando liberação"],["logistica","Logística"],["setor","Setor (faz pedidos)"],["leitura","Somente leitura"],["bloqueado","Bloqueado"]];
+const PAPEIS=[["pendente","Aguardando liberação"],["logistica","Logística (administra)"],["setor","Solicitante (faz pedidos)"],["leitura","Somente leitura (não faz pedidos)"],["bloqueado","Bloqueado"]];
 function renderUsuarios(){
   const ps=(S.perfis||[]).slice().sort((a,b)=>((a.papel!=="pendente")-(b.papel!=="pendente"))||(a.nome||"").localeCompare(b.nome||"","pt-BR"));
   return `<section class="card"><div class="card-h"><h2>Usuários</h2><span class="sub">Quem se cadastra fica aguardando até a logística liberar</span></div><div class="card-b">
+    <p style="margin:0 0 10px;color:var(--mute);max-width:72ch">Solicitante faz pedidos à logística e acompanha os seus. Marque “Cadastra fornecedor” para que ele possa incluir um fornecedor novo direto no pedido. Somente leitura vê OS e painel, mas não faz pedidos.</p>
     ${S.demo?`<p style="color:var(--mute)">No modo demonstração não há usuários.</p>`:""}
     ${ps.map(p=>`<div class="usr-row${p.papel==="bloqueado"?" off":""}"><span class="n">${esc(p.nome||"Sem nome")}${p.id===S.uid?' <span style="color:var(--faint);font-weight:500">você</span>':""}</span>
       <span class="m">${esc(p.email||"")}</span>
       <select id="pp-${esc(p.id)}" aria-label="Acesso de ${esc(p.nome||"")}"${p.id===S.uid?" disabled":""}>${optsS(PAPEIS,p.papel)}</select>
       <select id="ps-${esc(p.id)}" aria-label="Setor de ${esc(p.nome||"")}"${p.id===S.uid?" disabled":""}><option value="">Sem setor</option>${optsS(ativos(S.setores).map(s=>[s.id,s.nome]),p.setorId||"")}</select>
+      <label class="chk sm" title="Pode cadastrar fornecedor novo ao fazer pedido"><input type="checkbox" id="pl-${esc(p.id)}"${p.papel==="logistica"||p.podeCadastrarLocal?" checked":""}${p.papel!=="setor"||p.id===S.uid?" disabled":""}> Cadastra fornecedor</label>
       ${p.id===S.uid?"<span></span>":`<button class="btn sm pri" data-pp="${esc(p.id)}" type="button">Salvar</button>`}</div>`).join("")}
   </div></section>`;
 }
 function bindUsuarios(){
+  $$("[id^='pp-']").forEach(sel=>sel.addEventListener("change",()=>{const id=sel.id.slice(3);const c=$("#pl-"+id);if(!c)return;c.disabled=sel.value!=="setor";if(sel.value==="logistica")c.checked=true;else if(sel.value!=="setor")c.checked=false}));
   $$("[data-pp]").forEach(b=>b.onclick=async()=>{const id=b.dataset.pp;b.disabled=true;
-    const {error}=await sb.rpc("definir_papel",{alvo:id,novo_papel:$("#pp-"+id).value,novo_setor:$("#ps-"+id).value||null});
+    const papel=$("#pp-"+id).value;
+    let {error}=await sb.rpc("definir_acesso",{alvo:id,novo_papel:papel,novo_setor:$("#ps-"+id).value||null,pode_local:papel==="setor"&&$("#pl-"+id).checked});
+    if(error&&/definir_acesso|function|schema cache/i.test(error.message||"")){ ({error}=await sb.rpc("definir_papel",{alvo:id,novo_papel:papel,novo_setor:$("#ps-"+id).value||null})); if(!error) toast("Rode o script 06 no Supabase para salvar a permissão de fornecedor."); }
     b.disabled=false; if(error){toast(error.message||"Não foi possível salvar.");return} await carregar("perfis"); buildNav(); toast("Acesso atualizado"); renderCadastros();});
 }
 
@@ -538,9 +543,9 @@ function renderForm(){
     FD=Object.assign(b,{tipo:fp.tipo||b.tipo,prioridade:fp.prioridade||"normal",setorId:fp.setorId||"",solicitante:S.names[fp.uid]||"",canal:"Pedido no sistema",solicitadoEm:fp.criadoEm||b.solicitadoEm,
       paradas:[novaParada("retirada",fp.origemId,fp.origemDetalhe),novaParada("entrega",fp.destinoId,fp.destinoDetalhe)],itens:JSON.parse(JSON.stringify(fp.itens||[])),
       agendadoPara:ag,previstoAte:new Date(T(ag)+2*3600000).toISOString(),observacoes:[fp.observacoes,fp.contato?"Contato: "+fp.contato:""].filter(Boolean).join(" · "),
-      solicitanteTelefone:fp.contato&&soDigitos(fp.contato).length>=10?fp.contato:""});}
+      solicitanteTelefone:fp.contato&&soDigitos(fp.contato).length>=10?fp.contato:((acharContato(S.names[fp.uid])||{}).telefone||"")});}
   if(dup){const c=JSON.parse(JSON.stringify(dup));
-    Object.assign(FD,{tipo:c.tipo||FD.tipo,prioridade:c.prioridade||"normal",setorId:c.setorId||"",solicitante:c.solicitante||"",solicitanteTelefone:c.solicitanteTelefone||"",canal:c.canal||FD.canal,
+    Object.assign(FD,{tipo:c.tipo||FD.tipo,prioridade:c.prioridade||"normal",setorId:c.setorId||"",solicitante:c.solicitante||"",solicitanteTelefone:c.solicitanteTelefone||"",contatoId:c.contatoId||null,canal:c.canal||FD.canal,
       paradas:limparParadas(paradasDe(c)),itens:c.itens||[],equipeIds:c.equipeIds||[],veiculoId:c.veiculoId||"",observacoes:c.observacoes||""});}
   if(rec){const m=JSON.parse(JSON.stringify(rec.modelo||{}));const [hh,mm]=(rec.hora||"08:00").split(":").map(Number);const ini=new Date();ini.setHours(hh||0,mm||0,0,0);
     Object.assign(FD,m,{paradas:limparParadas(m.paradas&&m.paradas.length?m.paradas:FD.paradas),agendadoPara:ini.toISOString(),previstoAte:new Date(ini.getTime()+(rec.duracaoMin||120)*60000).toISOString(),
@@ -563,8 +568,10 @@ function renderForm(){
       <div class="field"><label class="req" for="tipo">Tipo de serviço</label><select id="tipo">${optsS(TIPOS,FD.tipo)}</select></div>
       <div class="field"><label for="prio">Prioridade</label><select id="prio">${optsS(PRIOS,FD.prioridade)}</select></div>
       <div class="field"><label class="req" for="setor">Setor solicitante</label><select id="setor"></select></div>
-      <div class="field"><label for="solic">Quem pediu</label><input type="text" id="solic" value="${esc(FD.solicitante)}" placeholder="Nome de quem fez o pedido"></div>
-      <div class="field"><label for="solTel">WhatsApp de quem pediu</label><input type="tel" id="solTel" inputmode="tel" value="${esc(FD.solicitanteTelefone||"")}" placeholder="(11) 99999-9999"><span class="hint">Para avisar a conclusão com um toque</span></div>
+      <div class="field"><label class="req" for="solic">Quem pediu</label><input type="text" id="solic" list="dlSolic" autocomplete="off" value="${esc(FD.solicitante)}" placeholder="Digite o nome; os cadastrados aparecem na lista">
+        <datalist id="dlSolic">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}">${esc([nomeSetor(c.setorId)!=="—"?nomeSetor(c.setorId):"",fFone(c.telefone)].filter(Boolean).join(" · "))}</option>`).join("")}</datalist>
+        <span class="hint" id="solHint">${acharContato(FD.solicitante)?"Contato cadastrado":"Se for alguém novo, o contato é salvo ao registrar"}</span></div>
+      <div class="field"><label class="req" for="solTel">WhatsApp de quem pediu</label><input type="tel" id="solTel" inputmode="tel" value="${esc(FD.solicitanteTelefone||"")}" placeholder="(11) 99999-9999"><span class="hint">Recebe o aviso de conclusão</span></div>
       <div class="field"><label for="canal">Canal do pedido</label><select id="canal">${optsS(CANAIS.concat(["Rota fixa"]),FD.canal)}</select></div>
       <div class="field"><label for="solEm">Pedido recebido em</label><input type="datetime-local" id="solEm" value="${toInput(FD.solicitadoEm)}"><span class="hint">Base do tempo de resposta</span></div>
     </div></section>
@@ -589,10 +596,13 @@ function renderForm(){
   </form>`;
   refreshFormOptions(); renderItems();
   $("#addIt").onclick=()=>{readItems();FD.itens.push({desc:"",qtd:"",un:"un"});renderItems();const ins=$$("#items .item input[type=text]");ins[ins.length-1].focus()};
-  $("#addSt").onclick=()=>{readStops();FD.paradas.push(novaParada("entrega"));renderStops();const s=$("#st-l-"+(FD.paradas.length-1));if(s)s.focus()};
+  $("#addSt").onclick=()=>{readStops();FD.paradas.push(novaParada("entrega"));renderStops();const s=$("#st-l-"+(FD.paradas.length-1)+"-q");if(s)s.focus()};
   $("#agPara").onchange=e=>{const a=fromInput(e.target.value);const p=fromInput($("#prev").value);if(a&&(!p||T(p)<=T(a))){$("#prev").value=toInput(new Date(T(a)+2*3600000).toISOString())}};
   $("#fCancel").onclick=e=>{const back=S.editId;S.editId=null;S.editRec=null;S.dupFrom=null;S.novaRec=false; if(ed){e.preventDefault();location.hash="#ordens";setTimeout(()=>openOS(back),50)} if(rec){S.cadTab="rotas"}};
   $("#fOS").onsubmit=submitForm;
+  $("#solic").addEventListener("input",()=>{const c=acharContato($("#solic").value);const h=$("#solHint");
+    if(c){$("#solTel").value=c.telefone||"";if(c.setorId&&!$("#setor").value){$("#setor").value=c.setorId}h.textContent="Contato cadastrado"+(c.setorId?" · "+nomeSetor(c.setorId):"")}
+    else h.textContent=$("#solic").value.trim()?"Contato novo: será salvo ao registrar":"Se for alguém novo, o contato é salvo ao registrar"});
   const rp=$("#rep");if(rp)rp.onchange=()=>{FD.rep.on=rp.checked;$("#repBox").hidden=!rp.checked;$("#fSave").textContent=rp.checked?"Criar rota fixa":"Registrar OS";$("#agHint").textContent=rp.checked?"Na rota fixa vale o horário; a data é a de cada dia escolhido":""};
   $$("[data-dia]").forEach(b=>b.onclick=()=>{const d=+b.dataset.dia;const i=FD.rep.dias.indexOf(d);if(i>=0)FD.rep.dias.splice(i,1);else FD.rep.dias.push(d);b.setAttribute("aria-pressed",i<0)});
 }
@@ -600,7 +610,7 @@ function refreshFormOptions(){
   if(!FD||!$("#fOS"))return;
   const keep=(sel,val)=>{const el=$(sel);return el?(el.value||val):val};
   FD.setorId=keep("#setor",FD.setorId);FD.veiculoId=keep("#veic",FD.veiculoId);
-  readStops(); renderStops();
+  if(!$("#stops .lp")){ readStops(); renderStops(); } else refreshPickers();
   const inc=(arr,id)=>arr.filter(x=>x.ativo!==false||x.id===id).sort(sortNome);
   $("#setor").innerHTML=opts(inc(S.setores,FD.setorId),FD.setorId,"Selecione…");
   $("#veic").innerHTML=`<option value="">A definir</option>`+inc(S.veiculos,FD.veiculoId).map(v=>`<option value="${esc(v.id)}"${v.id===FD.veiculoId?" selected":""}>${esc(v.nome)}${v.placa?" · "+esc(v.placa):""}</option>`).join("");
@@ -627,6 +637,8 @@ async function submitForm(e){
     agendadoPara:fromInput(v("#agPara")),previstoAte:fromInput(v("#prev")),equipeIds:FD.equipeIds.slice(),veiculoId:v("#veic"),observacoes:v("#obs").trim()};
   const errs=[];
   if(!d.setorId)errs.push("setor solicitante");
+  if(!d.solicitante)errs.push("quem pediu");
+  if(!d.solicitanteTelefone)errs.push("o WhatsApp de quem pediu");
   if(d.solicitanteTelefone&&!foneValido(d.solicitanteTelefone)){$("#fErr").textContent="O WhatsApp de quem pediu precisa ter DDD e número, por exemplo (11) 99999-9999.";return}
   const semLocal=ps.findIndex(p=>!p.localId); if(semLocal>=0)errs.push("o local da parada "+(semLocal+1));
   if(!d.itens.length)errs.push("pelo menos um item");
@@ -638,11 +650,12 @@ async function submitForm(e){
   const rep2=ps.findIndex((p,i)=>i>0&&p.localId===ps[i-1].localId);
   if(rep2>0&&!FD.mesmoOk){FD.mesmoOk=true;$("#fErr").textContent="As paradas "+rep2+" e "+(rep2+1)+" estão no mesmo local ("+nomeLocal(ps[rep2].localId)+"). Se for um remanejamento interno, toque em "+($("#fSave").textContent)+" de novo; se não, corrija o trajeto.";return}
   $("#fErr").textContent="";const btn=$("#fSave");const txt=btn.textContent;btn.disabled=true;btn.textContent="Salvando…";
+  try{ d.contatoId=await salvarContato(d.solicitante,d.solicitanteTelefone,d.setorId,S.fromPedido?S.fromPedido.uid:null); }catch(e){ console.warn("contato",e); delete d.contatoId; }
   const pronta=!!(d.agendadoPara&&d.equipeIds.length&&d.veiculoId);
   try{
     if(rep){
       const ini=new Date(d.agendadoPara);const dur=Math.max(15,Math.round(((T(d.previstoAte)||T(d.agendadoPara)+7200000)-T(d.agendadoPara))/60000));
-      const modelo={tipo:d.tipo,prioridade:d.prioridade,setorId:d.setorId,solicitante:d.solicitante,solicitanteTelefone:d.solicitanteTelefone,paradas:limparParadas(ps),itens:d.itens,equipeIds:d.equipeIds,veiculoId:d.veiculoId,observacoes:d.observacoes};
+      const modelo={tipo:d.tipo,prioridade:d.prioridade,setorId:d.setorId,solicitante:d.solicitante,solicitanteTelefone:d.solicitanteTelefone,contatoId:d.contatoId||null,paradas:limparParadas(ps),itens:d.itens,equipeIds:d.equipeIds,veiculoId:d.veiculoId,observacoes:d.observacoes};
       const nome=(FD.rep.nome||$("#repNome").value||"").trim()||(d.tipo+" · "+nomeLocal(d.origemId)+" → "+nomeLocal(d.destinoId));
       const dados={nome,diasSemana:FD.rep.dias.slice().sort(),hora:pad(ini.getHours())+":"+pad(ini.getMinutes()),duracaoMin:dur,modelo,ativo:true};
       const nomeIn=$("#repNome");if(nomeIn&&nomeIn.value.trim())dados.nome=nomeIn.value.trim();
@@ -690,7 +703,7 @@ function renderDrawer(){
   const tl=(o.historico||[]).slice().reverse().map(h=>`<li><time class="num">${fDH(h.em)}</time><span><span class="st ${h.s}">${ST[h.s]||h.s}</span>${h.nota?` · ${esc(h.nota)}`:""}${h.por&&S.names[h.por]?` <span style="color:var(--faint)">por ${esc(S.names[h.por])}</span>`:""}</span></li>`).join("");
   let acts="";
   const copyBtn=`<button class="btn" data-act="copiar">Copiar resumo</button>`;
-  const avisarBtn=isLog()&&o.status==="concluida"?`<button class="btn ${o.avisadoEm?"":"wa"}" data-act="avisar">${o.avisadoEm?"Avisar de novo no WhatsApp":"Avisar no WhatsApp"}</button>`:"";
+  const avisarBtn=isLog()&&o.status==="concluida"?`<button class="btn ${o.avisadoEm?"":"wa"}" data-act="avisar">${o.avisadoEm||o.avisoStatus==="enviado"?"Avisar de novo no WhatsApp":"Avisar no WhatsApp"}</button>`:"";
   const extraActs=isLog()?avisarBtn+`<button class="btn" data-act="duplicar">Duplicar</button><button class="btn ghost danger" data-act="excluir">Excluir</button>`:"";
   if(isLog()){
     if(o.status==="registrada") acts=`<button class="btn pri" data-act="editar">Agendar equipe e veículo</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
@@ -723,9 +736,10 @@ function renderDrawer(){
       <div class="field full"><label for="cObs">Observações</label><textarea id="cObs" placeholder="Divergências, avarias, itens faltantes…">${esc(A.obs||"")}</textarea></div></div>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>Registrar parada</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;}
   if(A&&A.t==="avisar") panel=`<div class="panel" id="pan"><h3>Avisar quem pediu no WhatsApp</h3>
+      ${A.falhaAuto?`<p class="err" style="margin:0">O envio automático não foi concluído: ${esc(A.falhaAuto)}. Você pode tentar de novo ou enviar pelo seu WhatsApp.</p>`:""}
       <div class="fg"><div class="field"><label class="req" for="waTel">WhatsApp${o.solicitante?" de "+esc(o.solicitante):""}</label><input type="tel" id="waTel" inputmode="tel" value="${esc(A.fone||"")}" placeholder="(11) 99999-9999"><span class="hint">Com DDD. O número fica salvo na OS.</span></div></div>
       <div class="field"><label for="waMsg">Mensagem</label><textarea id="waMsg" rows="8">${esc(A.msg||"")}</textarea></div>
-      <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn wa" id="pOk" type="button">Abrir conversa no WhatsApp</button><button class="btn ghost" id="pNo" type="button">Agora não</button></div></div>`;
+      <span class="err" id="pErr" role="alert"></span><div class="actions">${S.config.whatsappAuto?`<button class="btn wa" id="pAuto" type="button">Enviar automaticamente</button><button class="btn" id="pOk" type="button">Abrir no meu WhatsApp</button>`:`<button class="btn wa" id="pOk" type="button">Abrir conversa no WhatsApp</button>`}<button class="btn ghost" id="pNo" type="button">Agora não</button></div></div>`;
   if(A&&A.t==="excluir") panel=`<div class="panel" id="pan"><h3>Excluir ${codigo(o)}?</h3><p style="margin:0;color:var(--mute)">A OS some do sistema, com histórico e indicadores. Para manter o registro, prefira Cancelar.${o.pedidoId?" O pedido do setor volta para Aguardando.":""}${o.recorrenciaId?" A rota fixa não vai recriar esta OS.":""}</p>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn danger" id="pOk">Excluir definitivamente</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
   if(A&&A.t==="cancelar") panel=`<div class="panel" id="pan"><h3>Cancelar ${codigo(o)}</h3><div class="field"><label class="req" for="mot">Motivo do cancelamento</label><textarea id="mot" placeholder="Ex.: setor desistiu, item já entregue por outro meio…">${esc(A.mot||"")}</textarea></div>
@@ -747,7 +761,7 @@ function renderDrawer(){
         <div><dt>Tempo de resposta</dt><dd class="num">${o.agendadaEm?fDur(tResposta(o)):"Aguardando agendamento"}</dd></div>
         <div><dt>Tempo de execução</dt><dd class="num">${o.concluidoEm?fDur(tExec(o)):o.iniciadoEm?"Em rota desde "+fHora(o.iniciadoEm):"—"}</dd></div>
         ${o.kmInicial!=null||o.kmFinal!=null?`<div><dt>Quilometragem</dt><dd class="num">${o.kmInicial!=null?Number(o.kmInicial).toLocaleString("pt-BR"):"—"} → ${o.kmFinal!=null?Number(o.kmFinal).toLocaleString("pt-BR"):"—"}${kmRodados(o)!=null?` · <b>rodou ${fKm(kmRodados(o))}</b>`:""}</dd></div>`:""}
-        ${o.solicitanteTelefone?`<div><dt>WhatsApp de quem pediu</dt><dd class="num">${esc(fFone(o.solicitanteTelefone))}${o.avisadoEm?` <span style="color:var(--s-ok);font-weight:600">· avisado ${fDH(o.avisadoEm)}</span>`:""}</dd></div>`:""}
+        ${o.solicitanteTelefone?`<div><dt>WhatsApp de quem pediu</dt><dd class="num">${esc(fFone(o.solicitanteTelefone))}${o.avisoStatus==="enviado"?` <span style="color:var(--s-ok);font-weight:600">· aviso enviado automaticamente ${fDH(o.avisoAutoEm)}</span>`:o.avisadoEm?` <span style="color:var(--s-ok);font-weight:600">· avisado ${fDH(o.avisadoEm)}</span>`:o.avisoStatus==="erro"?` <span class="late">· falha no envio automático</span>`:""}</dd></div>`:""}
       </dl>${o.observacoes?`<p style="margin:14px 0 0;color:var(--mute)"><b style="color:var(--ink)">Observações:</b> ${esc(o.observacoes)}</p>`:""}</section>
       <section class="card"><div class="card-h"><h2>Itens</h2><span class="sub">${(o.itens||[]).length} ${(o.itens||[]).length===1?"item":"itens"}</span></div><div class="card-b tbl-wrap">
         ${(o.itens||[]).length?`<table class="t"><thead><tr><th>Descrição</th><th class="r">Qtd</th><th>Un.</th></tr></thead><tbody>${o.itens.map(i=>`<tr><td>${esc(i.desc)}</td><td class="r num">${esc(i.qtd===""?"—":String(i.qtd).replace(".",","))}</td><td>${esc(i.un||"")}</td></tr>`).join("")}</tbody></table>`:`<p style="color:var(--mute)">Nenhum item informado.</p>`}</div></section>
@@ -846,6 +860,13 @@ function sigBlob(A){return new Promise(res=>{const W=600,H=220,c=document.create
 function bindPanel(o){
   const A=S.action;
   if(A.t==="concluir"||A.t==="parada") initSig(A);
+  const pa=$("#pAuto");if(pa)pa.onclick=async()=>{syncPanelFields();const err=$("#pErr");const tel=(A.fone||"").trim();
+    if(!foneValido(tel)){err.textContent="Informe o WhatsApp com DDD, por exemplo (11) 99999-9999.";return}
+    pa.disabled=true;pa.textContent="Enviando…";
+    if(soDigitos(tel)!==soDigitos(o.solicitanteTelefone)){ try{await saveOS(o.id,{solicitanteTelefone:tel})}catch(e){} }
+    const r=await enviarAvisoAuto(byId(S.os,o.id)||o);
+    if(r&&r.ok){S.action=null;toast("Aviso enviado no WhatsApp para "+fFone(tel));renderDrawer();}
+    else{pa.disabled=false;pa.textContent="Enviar automaticamente";err.textContent="Não foi enviado: "+((r&&(r.detalhe||r.erro))||"sem resposta")+". Confira em Cadastros → Regras ou envie pelo seu WhatsApp.";}};
   const kf=$("#kmF");if(kf)kf.oninput=()=>{const h=$("#kmHint");if(!h||o.kmInicial==null)return;const v=Number(kf.value);h.textContent="Saída: "+fKm(o.kmInicial)+(kf.value!==""&&v>=o.kmInicial?" · rodou "+fKm(v-o.kmInicial):kf.value!==""?" · valor menor que a saída":"")};
   $$("[data-ck]",layer).forEach(b=>b.onclick=()=>{syncPanelFields();const c=A.ck[+b.dataset.ck];c.ok=b.dataset.v==="1";if(c.ok)c.obs="";renderDrawer();const f=$("#ck-o-"+b.dataset.ck);if(f)f.focus()});
   $("#pNo").onclick=()=>{S.action=null;renderDrawer()};
@@ -890,7 +911,14 @@ function bindPanel(o){
         if(multi(o)){const ps=JSON.parse(JSON.stringify(paradasDe(o)));const u=ps.length-1;ps[u]=Object.assign(ps[u],{status:"feita",feitoEm:nowISO(),fotos:A.fotos,assinatura,pessoa:(A.rec||"").trim(),obs:(A.obs||"").trim()});extraP.paradas=ps;}
         await saveOS(o.id,Object.assign(extraP,{status:"concluida",concluidoEm:nowISO(),kmFinal:km,conclusao:{fotos:A.fotos,assinatura,recebidoPor:(A.rec||"").trim(),obs:(A.obs||"").trim()},atualizadoEm:nowISO(),historico:hist(o,"concluida","Entrega confirmada com foto")}));
         S.action=null;toast(codigo(o)+" concluída");
-        const o2=byId(S.os,o.id)||o; S.action={t:"avisar",fone:telefoneSugerido(o2),msg:msgConclusao(o2)}; }
+        const o2=byId(S.os,o.id)||o; const fone=telefoneSugerido(o2);
+        if(S.config.whatsappAuto&&foneValido(fone)){
+          if(!o2.solicitanteTelefone){ try{await saveOS(o2.id,{solicitanteTelefone:fone})}catch(e){} }
+          renderDrawer(); toast("Enviando aviso no WhatsApp…");
+          const r=await enviarAvisoAuto(byId(S.os,o.id)||o2);
+          if(r&&r.ok){ toast("Aviso enviado no WhatsApp para "+fFone(fone)); renderDrawer(); return; }
+          S.action={t:"avisar",fone,msg:msgConclusao(o2),falhaAuto:(r&&(r.detalhe||r.erro))||"sem resposta"};
+        } else S.action={t:"avisar",fone,msg:msgConclusao(o2)}; }
       if(A.t==="parada"){
         const ps=JSON.parse(JSON.stringify(paradasDe(o)));const pp=ps[A.idx];const ent=pp.tipo==="entrega";
         if(ent&&!A.fotos.length){err.textContent="Anexe ao menos uma foto da entrega.";return}
@@ -942,13 +970,15 @@ function renderStops(){
   box.innerHTML=FD.paradas.map((p,i)=>`<div class="stop">
     <span class="sn num" aria-hidden="true">${i+1}</span>
     <select id="st-t-${i}" aria-label="Tipo da parada ${i+1}">${optsS(PTIPOS,p.tipo)}</select>
-    <select id="st-l-${i}" aria-label="Local da parada ${i+1}">${localOptions(p.localId)}</select>
+    ${pickerHTML("st-l-"+i,p.localId,"Local da parada "+(i+1),true)}
     <input type="text" id="st-d-${i}" aria-label="Detalhe da parada ${i+1}" placeholder="Detalhe (setor, doca, falar com…)" value="${esc(p.detalhe||"")}">
     <button type="button" class="x" data-stup="${i}" aria-label="Subir parada ${i+1}"${i===0?" disabled":""}>↑</button>
-    <button type="button" class="x" data-strm="${i}" aria-label="Remover parada ${i+1}"${FD.paradas.length<=2?" disabled":""}>×</button></div>`).join("");
+    <button type="button" class="x" data-strm="${i}" aria-label="Remover parada ${i+1}"${FD.paradas.length<=2?" disabled":""}>×</button></div>
+    <div class="lp-new stop-new" id="st-l-${i}-new" hidden></div>`).join("");
   $$("[data-strm]").forEach(b=>b.onclick=()=>{readStops();FD.paradas.splice(+b.dataset.strm,1);FD.mesmoOk=false;renderStops()});
   $$("[data-stup]").forEach(b=>b.onclick=()=>{readStops();const i=+b.dataset.stup;const t=FD.paradas[i-1];FD.paradas[i-1]=FD.paradas[i];FD.paradas[i]=t;renderStops()});
   $$("#stops select").forEach(s=>s.addEventListener("change",()=>{FD.mesmoOk=false}));
+  FD.paradas.forEach((_,i)=>bindPicker("st-l-"+i,()=>{FD.mesmoOk=false}));
 }
 function readStops(){ if(!$("#stops"))return; FD.paradas=FD.paradas.map((p,i)=>{const t=$("#st-t-"+i);if(!t)return p;return Object.assign({},p,{tipo:t.value,localId:$("#st-l-"+i).value,detalhe:$("#st-d-"+i).value.trim()})}); }
 function stopsHTML(o,canAct){
@@ -958,13 +988,92 @@ function stopsHTML(o,canAct){
     const feita=p.status==="feita";
     const btn=M&&canAct&&o.status==="em_rota"&&!feita&&i!==ultimo?`<button class="btn sm pri" data-parada="${i}" type="button">Registrar parada</button>`:"";
     return `<div class="rs${feita?" ok":""}"><span class="rd ${p.tipo}" aria-hidden="true"></span><div class="rc">
-      <div class="rt1"><b>${esc(nomeLocal(p.localId))}</b><span class="rk">${p.tipo==="retirada"?"Retirada":"Entrega"}${M?` · parada ${i+1}`:""}</span></div>
+      <div class="rt1"><b>${esc(nomeLocal(p.localId))}</b><span class="rk">${p.tipo==="retirada"?"Retirada":"Entrega"}${M?` · parada ${i+1}`:""}</span>${linksRota(p.localId)}</div>
+      ${(byId(S.locais,p.localId)||{}).endereco?`<span class="rdet">${esc(byId(S.locais,p.localId).endereco)}</span>`:""}
       ${p.detalhe?`<span class="rdet">${esc(p.detalhe)}</span>`:""}
       ${M&&feita?`<span class="rdone">Feita ${fDH(p.feitoEm)}${p.pessoa?" · "+esc(p.pessoa):""}</span>`:""}
       ${M&&(p.fotos||[]).length?`<div class="photos sm">${p.fotos.map((f,j)=>`<div class="ph"><button type="button" data-zoom="${esc(f.url)}" aria-label="Ampliar foto da parada ${i+1}"><img src="${esc(f.url)}" alt="Foto da parada ${i+1}" loading="lazy"></button></div>`).join("")}</div>`:""}
       ${M&&p.assinatura?`<div class="sig-view sm"><img src="${esc(p.assinatura.url)}" alt="Assinatura na parada ${i+1}"></div>`:""}
       ${M&&p.obs?`<span class="rdet">${esc(p.obs)}</span>`:""}
       ${btn}</div></div>`}).join("")}</div>`;
+}
+
+/* ---------- CAMPO DE LOCAL COM BUSCA E CADASTRO RÁPIDO ---------- */
+const canAddLocal=()=>S.demo||isLog()||(S.role==="sol"&&S.podeLocal===true);
+function localTxt(l){return [l.tipo,l.endereco].filter(Boolean).join(" · ")}
+function pickerHTML(hid,valueId,label,fora){
+  const l=valueId?byId(S.locais,valueId):null;
+  return `<div class="lp" data-lp="${esc(hid)}">
+    <input type="hidden" id="${esc(hid)}" value="${esc(valueId||"")}">
+    <input type="text" class="lp-in" id="${esc(hid)}-q" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${esc(hid)}-ls" aria-label="${esc(label)}" autocomplete="off" placeholder="Buscar local pelo nome…" value="${esc(l?l.nome:"")}">
+    <div class="lp-ls" id="${esc(hid)}-ls" role="listbox" hidden></div>
+    ${fora?"":`<div class="lp-new" id="${esc(hid)}-new" hidden></div>`}</div>`;
+}
+function bindPicker(hid,onChange){
+  const box=$(`[data-lp="${hid}"]`);if(!box||box.dataset.bound)return;box.dataset.bound="1";
+  const hidden=$("#"+CSS.escape(hid)),q=$("#"+CSS.escape(hid)+"-q"),ls=$("#"+CSS.escape(hid)+"-ls"),nw=$("#"+CSS.escape(hid)+"-new");
+  let hi=-1,items=[];
+  const close=()=>{ls.hidden=true;q.setAttribute("aria-expanded","false");hi=-1};
+  const escolher=id=>{const l=byId(S.locais,id);hidden.value=id||"";q.value=l?l.nome:"";close();nw.hidden=true;box.classList.remove("lp-err");if(onChange)onChange(id)};
+  const lista=()=>{
+    const t=normNome(q.value);
+    items=S.locais.filter(l=>l.ativo!==false||l.id===hidden.value).filter(l=>!t||normNome(l.nome).includes(t)||normNome(l.endereco).includes(t))
+      .sort((a,b)=>{const as=normNome(a.nome).startsWith(t)?0:1,bs=normNome(b.nome).startsWith(t)?0:1;return as-bs||(LOCAL_TIPOS.indexOf(a.tipo||"Outro")-LOCAL_TIPOS.indexOf(b.tipo||"Outro"))||sortNome(a,b)}).slice(0,40);
+    const add=canAddLocal()?`<button type="button" class="lp-add" data-lpadd>+ Cadastrar novo local${q.value.trim()?` “${esc(q.value.trim())}”`:""}</button>`:"";
+    ls.innerHTML=(items.length?items.map((l,i)=>`<button type="button" role="option" class="lp-op${i===hi?" hi":""}" data-lpid="${esc(l.id)}" aria-selected="${l.id===hidden.value}"><b>${esc(l.nome)}</b><small>${esc(localTxt(l))}</small></button>`).join("")
+      :`<p class="lp-vazio">Nenhum local encontrado${canAddLocal()?".":". Peça à logística para cadastrar."}</p>`)+add;
+    ls.hidden=false;q.setAttribute("aria-expanded","true");
+  };
+  q.addEventListener("focus",()=>{q.select();lista()});
+  q.addEventListener("input",()=>{hidden.value="";hi=-1;lista();if(onChange)onChange("")});
+  q.addEventListener("keydown",e=>{
+    if(e.key==="ArrowDown"){e.preventDefault();if(ls.hidden)lista();hi=Math.min(hi+1,items.length-1);lista()}
+    else if(e.key==="ArrowUp"){e.preventDefault();hi=Math.max(hi-1,0);lista()}
+    else if(e.key==="Enter"){if(!ls.hidden&&items[hi>=0?hi:0]){e.preventDefault();escolher(items[hi>=0?hi:0].id)}}
+    else if(e.key==="Escape"){close()}});
+  q.addEventListener("blur",()=>setTimeout(()=>{if(box.contains(document.activeElement)||nw.contains(document.activeElement))return;close();if(!nw.hidden)return;
+    if(!hidden.value&&q.value.trim()){const ex=S.locais.find(l=>l.ativo!==false&&normNome(l.nome)===normNome(q.value));if(ex)escolher(ex.id);else box.classList.add("lp-err")}
+    else box.classList.remove("lp-err")},150));
+  ls.addEventListener("pointerdown",e=>e.preventDefault());
+  ls.addEventListener("click",e=>{const op=e.target.closest("[data-lpid]");if(op){escolher(op.dataset.lpid);return}
+    if(e.target.closest("[data-lpadd]")){close();abrirNovoLocal()}});
+  function abrirNovoLocal(){
+    const nome=q.value.trim();const log=isLog()||S.demo;
+    nw.innerHTML=`<div class="lp-form"><b>Novo local</b>
+      <div class="fg"><div class="field"><label class="req" for="${esc(hid)}-nn">Nome</label><input type="text" id="${esc(hid)}-nn" value="${esc(nome)}" placeholder="Ex.: Atacadão Vila Sônia"></div>
+      <div class="field"><label for="${esc(hid)}-nt">Tipo</label>${log?`<select id="${esc(hid)}-nt">${optsS(LOCAL_TIPOS,"Fornecedor")}</select>`:`<input type="text" id="${esc(hid)}-nt" value="Fornecedor" disabled>`}</div>
+      <div class="field full"><label for="${esc(hid)}-ne">Endereço</label><input type="text" id="${esc(hid)}-ne" placeholder="Rua, número, bairro – cidade"><span class="hint">Usado no botão de rota do Maps e do Waze</span></div>
+      <div class="field full"><label for="${esc(hid)}-nc">Contato no local</label><input type="text" id="${esc(hid)}-nc" placeholder="Opcional: nome e telefone de quem atende"></div></div>
+      <p class="err" id="${esc(hid)}-nerr" role="alert"></p>
+      <div class="actions"><button type="button" class="btn pri sm" data-lpsave>Salvar local</button><button type="button" class="btn ghost sm" data-lpcx>Cancelar</button></div></div>`;
+    nw.hidden=false;const nn=$("#"+CSS.escape(hid)+"-nn");nn.focus();if(nome)$("#"+CSS.escape(hid)+"-ne").focus();
+    let forcar=false;
+    nw.querySelector("[data-lpcx]").onclick=()=>{nw.hidden=true;q.focus()};
+    nw.querySelector("[data-lpsave]").onclick=async()=>{
+      const err=$("#"+CSS.escape(hid)+"-nerr");err.innerHTML="";
+      const d={nome:nn.value.trim(),tipo:log?$("#"+CSS.escape(hid)+"-nt").value:"Fornecedor",endereco:$("#"+CSS.escape(hid)+"-ne").value.trim(),contato:$("#"+CSS.escape(hid)+"-nc").value.trim(),ativo:true};
+      if(!d.nome){err.textContent="Informe o nome do local.";nn.focus();return}
+      const n=normNome(d.nome);
+      const parecido=S.locais.find(l=>{const m=normNome(l.nome);return m===n||(n.length>=4&&(m.includes(n)||n.includes(m)&&m.length>=4))});
+      if(parecido&&!forcar){forcar=true;
+        err.innerHTML=`Já existe “${esc(parecido.nome)}”${parecido.endereco?" ("+esc(parecido.endereco)+")":""}. <button type="button" class="lnk" data-lpuse="${esc(parecido.id)}">Usar esse</button> ou toque em Salvar local de novo para cadastrar mesmo assim.`;
+        err.querySelector("[data-lpuse]").onclick=()=>escolher(parecido.id);return}
+      const b=nw.querySelector("[data-lpsave]");b.disabled=true;b.textContent="Salvando…";
+      try{
+        let novo;
+        if(S.demo){novo=Object.assign({id:novoId()},d)}
+        else{const {data,error}=await sb.from("locais").insert(d).select().single();if(error)throw error;novo=fromDb(data)}
+        S.locais.push(novo);escolher(novo.id);toast("Local “"+novo.nome+"” cadastrado");
+      }catch(e){console.error(e);b.disabled=false;b.textContent="Salvar local";
+        err.textContent=/row-level security/i.test(e.message||"")?"Seu acesso não permite cadastrar locais. Peça à logística.":"Não foi possível salvar. Verifique a conexão e tente novamente."}
+    };
+  }
+}
+function refreshPickers(){$$(".lp").forEach(box=>{const hid=box.dataset.lp;const h=$("#"+CSS.escape(hid)),q=$("#"+CSS.escape(hid)+"-q");if(!h||!q||document.activeElement===q)return;const l=byId(S.locais,h.value);if(l)q.value=l.nome})}
+function linksRota(localId){
+  const l=byId(S.locais,localId);if(!l||!l.endereco)return "";
+  const e=encodeURIComponent(l.endereco);
+  return `<span class="rlinks"><a href="https://www.google.com/maps/search/?api=1&query=${e}" target="_blank" rel="noopener">Maps</a><a href="https://waze.com/ul?q=${e}&navigate=yes" target="_blank" rel="noopener">Waze</a></span>`;
 }
 
 /* ---------- QUILOMETRAGEM ---------- */
@@ -992,8 +1101,29 @@ function msgConclusao(o){
     foto&&/^https?:/.test(foto.url)?"Foto da entrega: "+foto.url:"",
     "Logística · Grupo Monte Carlo"].filter(Boolean).join("\n\n");
 }
+const normNome=t=>String(t||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ");
+function acharContato(nome){const n=normNome(nome);return n?S.solicitantes.find(c=>c.ativo!==false&&normNome(c.nome)===n):null}
+async function salvarContato(nome,tel,setorId,perfilId){
+  nome=String(nome||"").trim();tel=String(tel||"").trim();if(!nome||!tel)return null;
+  const ex=acharContato(nome);
+  if(ex){const patch={};if(soDigitos(ex.telefone)!==soDigitos(tel))patch.telefone=tel;if(!ex.setorId&&setorId)patch.setorId=setorId;if(!ex.perfilId&&perfilId)patch.perfilId=perfilId;
+    if(Object.keys(patch).length){ if(!S.demo){const {error}=await sb.from("solicitantes").update(toDb(patch)).eq("id",ex.id);if(error)throw error;} Object.assign(ex,patch); }
+    return ex.id;}
+  const novo={id:novoId(),nome,telefone:tel,setorId:setorId||null,perfilId:perfilId||null,ativo:true};
+  if(!S.demo){const {error}=await sb.from("solicitantes").insert(toDb(novo));if(error)throw error;}
+  S.solicitantes.push(novo);return novo.id;
+}
+async function enviarAvisoAuto(o){
+  if(S.demo){await new Promise(r=>setTimeout(r,300));const patch={avisoStatus:"enviado",avisoAutoEm:nowISO(),avisadoEm:nowISO(),historico:hist(o,o.status,"Aviso de conclusão enviado automaticamente no WhatsApp (demonstração)")};localUpsertOS(o.id,patch);return {ok:true,para:foneWa(o.solicitanteTelefone)}}
+  try{
+    const {data,error}=await sb.functions.invoke("enviar-whatsapp",{body:{os_id:o.id}});
+    if(error){let det="";try{const j=await error.context.json();det=j.detalhe||j.erro||""}catch(e){}return {ok:false,erro:"falha",detalhe:det||error.message}}
+    await carregar("os");return data||{ok:false,erro:"sem_resposta"};
+  }catch(e){return {ok:false,erro:"falha",detalhe:e.message}}
+}
 function telefoneSugerido(o){
   if(o.solicitanteTelefone) return o.solicitanteTelefone;
+  const c=o.contatoId?byId(S.solicitantes,o.contatoId):acharContato(o.solicitante); if(c&&c.telefone) return c.telefone;
   if(o.pedidoId){const p=S.pedidos.find(x=>x.pid===o.pedidoId)||S.meus.find(x=>x.pid===o.pedidoId);if(p&&p.contato&&soDigitos(p.contato).length>=10)return p.contato;}
   return "";
 }
@@ -1043,7 +1173,7 @@ async function gerarRecorrentes(){
         const m=r.modelo||{};const now=nowISO();
         const pronta=!!((m.equipeIds||[]).length&&m.veiculoId);const st=pronta?"agendada":"registrada";
         const ps=limparParadas(m.paradas&&m.paradas.length?m.paradas:paradasDe({}));
-        const doc={tipo:m.tipo||TIPOS[0],prioridade:m.prioridade||"normal",setorId:m.setorId||"",solicitante:m.solicitante||"",solicitanteTelefone:m.solicitanteTelefone||"",canal:"Rota fixa",solicitadoEm:now,
+        const doc={tipo:m.tipo||TIPOS[0],prioridade:m.prioridade||"normal",setorId:m.setorId||"",solicitante:m.solicitante||"",solicitanteTelefone:m.solicitanteTelefone||"",contatoId:m.contatoId||null,canal:"Rota fixa",solicitadoEm:now,
           paradas:ps,origemId:(ps[0]||{}).localId||"",origemDetalhe:(ps[0]||{}).detalhe||"",destinoId:(ps[ps.length-1]||{}).localId||"",destinoDetalhe:(ps[ps.length-1]||{}).detalhe||"",
           itens:JSON.parse(JSON.stringify(m.itens||[])),agendadoPara:ini.toISOString(),previstoAte:new Date(ini.getTime()+(r.duracaoMin||120)*60000).toISOString(),
           equipeIds:(m.equipeIds||[]).slice(),veiculoId:m.veiculoId||"",observacoes:m.observacoes||"",recorrenciaId:r.id,dataRecorrencia:ds,
@@ -1094,13 +1224,15 @@ const CAD={
     m:x=>[x.tipo,x.endereco||x.contato]},
   setores:{t:"Setores",col:"setores",desc:"Setores que pedem serviços à logística. Base do indicador de demanda por setor.",
     f:[["nome","Nome","text"],["unidade","Unidade principal","text"]],m:x=>[x.unidade||"",""]},
+  solicitantes:{t:"Solicitantes",col:"solicitantes",desc:"Quem pede serviços à logística. O WhatsApp cadastrado recebe o aviso de conclusão.",
+    f:[["nome","Nome","text"],["telefone","WhatsApp","tel"],["setorId","Setor","setor"]],m:x=>[fFone(x.telefone),x.setorId?nomeSetor(x.setorId):""]},
   equipe:{t:"Equipe",col:"equipe",desc:"Motoristas, ajudantes e coordenação que executam as OS.",
     f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["telefone","Telefone","tel"]],m:x=>[x.funcao,x.telefone]},
   veiculos:{t:"Veículos",col:"veiculos",desc:"Frota usada nas movimentações. O painel soma horas em rota e km rodados.",
     f:[["nome","Modelo / apelido","text"],["placa","Placa","text"],["tipo","Tipo","select",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"]],["capacidade","Capacidade","text"]],m:x=>{const u=ultimoKm(x.id);return [[x.placa,x.tipo].filter(Boolean).join(" · "),u?"Odômetro: "+fKm(u.km)+" · "+fData(u.em):"Odômetro: sem registro"]}}
 };
 function renderCadastros(){
-  const tab=S.cadTab;const tabs=[["locais","Locais"],["setores","Setores"],["equipe","Equipe"],["veiculos","Veículos"],["rotas","Rotas fixas"],["usuarios","Usuários"],["config","Regras"]];
+  const tab=S.cadTab;const tabs=[["locais","Locais"],["setores","Setores"],["solicitantes","Solicitantes"],["equipe","Equipe"],["veiculos","Veículos"],["rotas","Rotas fixas"],["usuarios","Usuários"],["config","Regras"]];
   let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome.</p></div></div>${banner()}
   <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k==="rotas"?`<span class="c num">${S.recorrencias.filter(x=>x.ativo!==false).length}</span>`:k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
   if(tab==="usuarios"){ app.innerHTML=h+renderUsuarios(); bindCad(); bindUsuarios(); return; }
@@ -1109,12 +1241,17 @@ function renderCadastros(){
     h+=`<section class="card"><div class="card-h"><h2>Tolerância de atraso</h2></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:62ch">Uma OS conta como atrasada quando é concluída depois da previsão de término somada a esta tolerância. OS abertas viram atrasadas quando o relógio passa desse ponto.</p>
       <div class="filters"><div class="field"><label for="tol">Tolerância (minutos)</label><input type="number" id="tol" min="0" step="5" value="${esc(S.config.toleranciaMin)}"${isLog()?"":" disabled"}></div>${isLog()?`<button class="btn pri" id="tolOk" type="button">Salvar</button>`:""}</div></div></section>
       <section class="card" style="margin-top:16px"><div class="card-h"><h2>Checklist do veículo</h2></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:62ch">Itens que a equipe confere antes de iniciar a rota. Um item por linha. Se algum tiver problema, a descrição fica registrada na OS e soma no painel do veículo.</p>
-      <div class="field"><label for="ckTxt">Itens</label><textarea id="ckTxt" rows="8"${isLog()?"":" disabled"}>${esc(itensChecklist().join("\n"))}</textarea></div>${isLog()?`<div class="actions" style="margin-top:10px"><button class="btn pri" id="ckOk" type="button">Salvar checklist</button></div>`:""}</div></section>`;
+      <div class="field"><label for="ckTxt">Itens</label><textarea id="ckTxt" rows="8"${isLog()?"":" disabled"}>${esc(itensChecklist().join("\n"))}</textarea></div>${isLog()?`<div class="actions" style="margin-top:10px"><button class="btn pri" id="ckOk" type="button">Salvar checklist</button></div>`:""}</div></section>
+      <section class="card" style="margin-top:16px"><div class="card-h"><h2>WhatsApp automático</h2><span class="sub">${S.config.whatsappAuto?"<span style='color:var(--s-ok);font-weight:700'>Ligado</span>":"Desligado"}</span></div><div class="card-b">
+        <p style="margin:0 0 12px;color:var(--mute);max-width:66ch">Ligado, o aviso de conclusão sai sozinho pelo número oficial da empresa assim que a OS é encerrada, sem abrir o WhatsApp de quem entregou. Requer a configuração da Meta e da função enviar-whatsapp no Supabase (veja o guia). Desligado, o sistema abre a conversa no WhatsApp de quem está usando.</p>
+        ${isLog()?`<div class="filters"><div class="field"><label for="waTest">Enviar teste para</label><input type="tel" id="waTest" inputmode="tel" placeholder="(11) 99999-9999" value="${esc(S.meuTelefone||"")}"></div><button class="btn" id="waTestOk" type="button">Enviar mensagem de teste</button></div>
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="waAuto"${S.config.whatsappAuto?" checked":""}> Enviar o aviso de conclusão automaticamente</label>
+        <p class="err" id="waErr" role="alert" style="margin:8px 0 0"></p>`:""}</div></section>`;
     app.innerHTML=h;bindCad();return;
   }
   const C=CAD[tab];const list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||sortNome(a,b));
   const ed=S.cadEdit;
-  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||o[0])}</select>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
+  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${opts(ativos(S.setores),(x||{})[k]||"","Sem setor")}</select>`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||o[0])}</select>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
     <div class="actions"><button class="btn pri sm" type="submit">Salvar</button><button class="btn sm ghost" type="button" data-cx>Cancelar</button></div></form>`;
   h+=`<section class="card"><div class="card-h"><h2>${C.t}</h2><span class="sub">${esc(C.desc)}</span></div><div class="card-b">
     ${isLog()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
@@ -1129,6 +1266,19 @@ function bindCad(){
     try{ if(S.demo){S.config.toleranciaMin=v}else{ const {error}=await sb.from("config").update({tolerancia_min:v}).eq("id",1); if(error)throw error; S.config.toleranciaMin=v; } toast("Tolerância salva");}catch(e){toast("Não foi possível salvar.")}};
   const cko=$("#ckOk");if(cko)cko.onclick=async()=>{const itens=$("#ckTxt").value.split("\n").map(x=>x.trim()).filter(Boolean);if(!itens.length){toast("Informe ao menos um item.");return}
     try{ if(!S.demo){ const {error}=await sb.from("config").update({checklist:itens}).eq("id",1); if(error)throw error; } S.config.checklist=itens; toast("Checklist salvo"); }catch(e){toast("Não foi possível salvar. Rode o script 03 no Supabase.")}};
+  const wt=$("#waTestOk");if(wt)wt.onclick=async()=>{const tel=$("#waTest").value.trim();const E=$("#waErr");E.textContent="";
+    if(!foneValido(tel)){E.textContent="Informe o WhatsApp com DDD.";return}
+    if(S.demo){toast("No modo demonstração nada é enviado.");return}
+    wt.disabled=true;wt.textContent="Enviando…";
+    try{const {data,error}=await sb.functions.invoke("enviar-whatsapp",{body:{teste_numero:tel}});
+      let r=data; if(error){let det="";try{const j=await error.context.json();det=j.detalhe||j.erro}catch(e){} r={ok:false,detalhe:det||error.message}}
+      if(r&&r.ok){toast("Teste enviado para "+fFone(tel)+". Confira o celular.");}
+      else E.textContent="Não foi enviado: "+((r&&(r.detalhe||r.erro))||"sem resposta")+(r&&r.erro==="nao_configurado"?" Cadastre os segredos no Supabase.":"");
+    }catch(e){E.textContent="Não foi possível falar com a função enviar-whatsapp. Confira se ela foi publicada no Supabase."}
+    wt.disabled=false;wt.textContent="Enviar mensagem de teste";};
+  const wa=$("#waAuto");if(wa)wa.onchange=async()=>{const v=wa.checked;
+    try{ if(!S.demo){const {error}=await sb.from("config").update({whatsapp_auto:v}).eq("id",1);if(error)throw error;} S.config.whatsappAuto=v; toast(v?"Envio automático ligado":"Envio automático desligado"); renderCadastros(); }
+    catch(e){wa.checked=!v;toast("Não foi possível salvar. Rode o script 05 no Supabase.")}};
   const nb=$("[data-new]");if(nb)nb.onclick=()=>{S.cadEdit="__new";renderCadastros();const f=$("#ce-nome");if(f)f.focus()};
   $$("[data-ed]").forEach(b=>b.onclick=()=>{S.cadEdit=b.dataset.ed;renderCadastros()});
   $$("[data-cx]").forEach(b=>b.onclick=()=>{S.cadEdit=null;renderCadastros()});
@@ -1136,10 +1286,11 @@ function bindCad(){
     try{ if(S.demo){x.ativo=on;renderCadastros()} else { const {error}=await sb.from(CAD[S.cadTab].col).update({ativo:on}).eq("id",x.id); if(error)throw error; await carregar(CAD[S.cadTab].col); renderCadastros(); } }catch(e){toast("Não foi possível alterar.")}});
   $$("[data-form]").forEach(f=>f.onsubmit=async e=>{e.preventDefault();const C=CAD[S.cadTab];const d={};C.f.forEach(([k])=>d[k]=$("#ce-"+k).value.trim());
     if(!d.nome){toast("Informe o nome.");return}
+    if(S.cadTab==="solicitantes"){ if(!foneValido(d.telefone)){toast("Informe o WhatsApp com DDD.");return} if(!d.setorId) d.setorId=null; }
     const id=f.dataset.form||novoId();
     try{
       if(S.demo){const x=byId(S[S.cadTab],id);if(x)Object.assign(x,d);else S[S.cadTab].push(Object.assign({id,ativo:true},d))}
-      else{ const r=f.dataset.form? await sb.from(C.col).update(d).eq("id",f.dataset.form) : await sb.from(C.col).insert(Object.assign({ativo:true},d)); if(r.error) throw r.error; await carregar(C.col); }
+      else{ const r=f.dataset.form? await sb.from(C.col).update(toDb(d)).eq("id",f.dataset.form) : await sb.from(C.col).insert(toDb(Object.assign({ativo:true},d))); if(r.error) throw r.error; await carregar(C.col); }
       S.cadEdit=null;renderCadastros();toast("Salvo");
     }catch(err){toast("Não foi possível salvar.")}
   });
@@ -1217,12 +1368,12 @@ function renderSolicitar(){
       <div class="field"><label class="req" for="tipo">Tipo de serviço</label><select id="tipo">${optsS(TIPOS,FD.tipo)}</select></div>
       <div class="field"><label for="prio">Urgência</label><select id="prio">${optsS(PRIOS,FD.prioridade)}</select></div>
       <div class="field"><label class="req" for="setor">Seu setor</label><select id="setor"></select></div>
-      <div class="field"><label for="cont">Telefone ou ramal para contato</label><input type="tel" id="cont" placeholder="Opcional"></div>
+      <div class="field"><label class="req" for="cont">Seu WhatsApp</label><input type="tel" id="cont" inputmode="tel" value="${esc(S.meuTelefone||"")}" placeholder="(11) 99999-9999"><span class="hint">Você recebe aqui o aviso de entrega</span></div>
     </div></section>
     <section class="fs"><h2>Trajeto</h2><div class="fg">
-      <div class="field"><label class="req" for="orig">Retirar em</label><select id="orig"></select></div>
+      <div class="field"><label class="req" for="orig-q">Retirar em</label>${pickerHTML("orig",FD.origemId,"Retirar em")}</div>
       <div class="field"><label for="origD">Detalhe da retirada</label><input type="text" id="origD" placeholder="Ex.: estoque seco, falar com…"></div>
-      <div class="field"><label class="req" for="dest">Entregar em</label><select id="dest"></select></div>
+      <div class="field"><label class="req" for="dest-q">Entregar em</label>${pickerHTML("dest",FD.destinoId,"Entregar em")}</div>
       <div class="field"><label for="destD">Detalhe da entrega</label><input type="text" id="destD" placeholder="Ex.: cozinha, salão principal…"></div>
     </div></section>
     <section class="fs"><h2>Itens</h2><div class="items" id="items"></div><div style="margin-top:10px"><button type="button" class="btn sm" id="addIt">Adicionar item</button></div></section>
@@ -1234,7 +1385,7 @@ function renderSolicitar(){
   </form>`;
   refreshPedOptions();renderItems();
   $("#addIt").onclick=()=>{readItems();FD.itens.push({desc:"",qtd:"",un:"un"});renderItems();const ins=$$("#items .item input[type=text]");ins[ins.length-1].focus()};
-  ["#orig","#dest"].forEach(sel=>$(sel).addEventListener("change",()=>{FD.mesmoOk=false}));
+  ["orig","dest"].forEach(h=>bindPicker(h,()=>{FD.mesmoOk=false}));
   $("#fOS").onsubmit=submitPedido;
 }
 function refreshPedOptions(){
@@ -1243,13 +1394,14 @@ function refreshPedOptions(){
   FD.setorId=keep("#setor",FD.setorId);FD.origemId=keep("#orig",FD.origemId);FD.destinoId=keep("#dest",FD.destinoId);
   const grp=id=>{const g={};ativos(S.locais).forEach(l=>{(g[l.tipo||"Outro"]=g[l.tipo||"Outro"]||[]).push(l)});
     return `<option value="">Selecione…</option>`+Object.keys(g).sort((a,b)=>LOCAL_TIPOS.indexOf(a)-LOCAL_TIPOS.indexOf(b)).map(k=>`<optgroup label="${esc(k)}">${g[k].map(x=>`<option value="${esc(x.id)}"${x.id===id?" selected":""}>${esc(x.nome)}</option>`).join("")}</optgroup>`).join("")};
-  $("#setor").innerHTML=opts(ativos(S.setores),FD.setorId,"Selecione…");$("#orig").innerHTML=grp(FD.origemId);$("#dest").innerHTML=grp(FD.destinoId);
+  $("#setor").innerHTML=opts(ativos(S.setores),FD.setorId,"Selecione…");refreshPickers();
 }
 async function submitPedido(e){
   e.preventDefault();readItems();const v=id=>$(id).value;
   const d={tipo:v("#tipo"),prioridade:v("#prio"),setorId:v("#setor"),contato:v("#cont").trim(),origemId:v("#orig"),origemDetalhe:v("#origD").trim(),destinoId:v("#dest"),destinoDetalhe:v("#destD").trim(),
     itens:FD.itens.filter(i=>i.desc).map(i=>({desc:i.desc,qtd:i.qtd===""?"":Number(i.qtd),un:i.un})),desejadoPara:fromInput(v("#agPara")),observacoes:v("#obs").trim(),status:"aguardando",criadoEm:nowISO()};
-  const errs=[];if(!d.setorId)errs.push("seu setor");if(!d.origemId)errs.push("onde retirar");if(!d.destinoId)errs.push("onde entregar");if(!d.itens.length)errs.push("pelo menos um item");
+  const errs=[];if(!d.setorId)errs.push("seu setor");if(!d.contato)errs.push("seu WhatsApp");
+  if(d.contato&&!foneValido(d.contato)){$("#fErr").textContent="Informe o WhatsApp com DDD, por exemplo (11) 99999-9999.";return}if(!d.origemId)errs.push("onde retirar");if(!d.destinoId)errs.push("onde entregar");if(!d.itens.length)errs.push("pelo menos um item");
   if(errs.length){$("#fErr").textContent="Preencha: "+errs.join(", ")+".";return}
   if(d.origemId===d.destinoId&&!FD.mesmoOk){FD.mesmoOk=true;$("#fErr").textContent="Retirada e entrega estão no mesmo local ("+nomeLocal(d.origemId)+"). Se estiver certo, toque em Enviar pedido de novo.";return}
   const btn=$("#fSave");btn.disabled=true;btn.textContent="Enviando…";$("#fErr").textContent="";
@@ -1257,6 +1409,7 @@ async function submitPedido(e){
   try{
     if(S.demo){S.meus.unshift(Object.assign({uid:S.uid,pid},d));S.pedidos.unshift(Object.assign({uid:S.uid,pid},d));}
     else{ const row=Object.assign({},d); delete row.criadoEm; const {error}=await sb.from("pedidos").insert(toDb(row)); if(error) throw error; await carregar("pedidos"); }
+    if(!S.demo&&soDigitos(d.contato)!==soDigitos(S.meuTelefone)){ try{ const {error}=await sb.from("perfis").update({telefone:d.contato}).eq("id",S.uid); if(!error) S.meuTelefone=d.contato; }catch(e){} } else S.meuTelefone=d.contato;
     toast("Pedido enviado à logística");location.hash="#meus";
   }catch(err){console.error(err);btn.disabled=false;btn.textContent="Enviar pedido";
     $("#fErr").textContent=err&&/row-level security/i.test(err.message||"")?"Seu acesso não permite enviar pedidos. Peça à coordenação o acesso de Setor.":"Não foi possível enviar. Verifique a conexão e tente novamente.";}
@@ -1359,6 +1512,7 @@ function loadDemo(){
   ["Ana (Cozinha)","Bruno (Eventos)","Carla (Bar)","Diego (Compras)"].forEach((n,i)=>S.names["demo-u"+i]=n);
   S.meus=S.pedidos.slice(1,4).map(x=>Object.assign({},x,{uid:"demo"}));S.uid="demo";S.names.demo="Você";
   const pm=new Date();pm.setDate(1);pm.setMonth(pm.getMonth()-1);
+  S.solicitantes=[{id:"c1",nome:"Laura Souza",telefone:"(11) 99999-8888",setorId:"s4",ativo:true},{id:"c2",nome:"Marcos Lima",telefone:"(11) 98888-7777",setorId:"s1",ativo:true}];
   S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
     modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];
   S.relatorios=[{id:pm.getFullYear()+"-"+pad(pm.getMonth()+1),geradoEm:new Date(now-12*86400000).toISOString(),resumo:"Exemplo de fechamento. O volume cresceu puxado por Eventos e Bar, e a rota CD → Mirage concentrou a maior parte das transferências. O tempo de resposta caiu, mas um terço das OS concluídas passou da previsão de término, quase todas em retiradas de fornecedor.",destaques:["Rever a previsão de término das retiradas em fornecedor, que costumam levar mais de 2 h.","Concentrar as entregas CD → Mirage em uma rota fixa pela manhã."]}];
