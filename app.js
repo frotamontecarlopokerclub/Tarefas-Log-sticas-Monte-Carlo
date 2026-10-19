@@ -27,7 +27,20 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const byId=(arr,id)=>arr.find(x=>x.id===id);
 const nomeLocal=id=>(byId(S.locais,id)||{}).nome||"—";
-const nomeSetor=id=>(byId(S.setores,id)||{}).nome||"—";
+const siglaLocal=l=>l?(l.sigla||l.nome):"";
+const nomeSetor=id=>{const st=byId(S.setores,id);if(!st)return "—";const l=st.localId?byId(S.locais,st.localId):null;return st.nome+(l?" · "+siglaLocal(l):"")};
+const ORDEM_SIGLA=["M.C.","M.G.","Doryo","Cardoso","CD 1"];
+function gruposSetores(lista){
+  const g=new Map();
+  lista.forEach(st=>{const k=st.localId||"";if(!g.has(k))g.set(k,[]);g.get(k).push(st)});
+  const chave=k=>{const l=byId(S.locais,k);const i=l?ORDEM_SIGLA.indexOf(l.sigla):-1;return [k?0:1,i<0?99:i,l?l.nome:"zzz"]};
+  return [...g.entries()].sort((a,b)=>{const x=chave(a[0]),y=chave(b[0]);return x[0]-y[0]||x[1]-y[1]||String(x[2]).localeCompare(String(y[2]),"pt-BR")})
+    .map(([k,arr])=>({local:byId(S.locais,k),itens:arr.sort(sortNome)}));
+}
+function optsSetores(sel,vazio,incluirId){
+  const lista=S.setores.filter(x=>x.ativo!==false||x.id===sel||x.id===incluirId);
+  return (vazio!=null?`<option value="">${esc(vazio)}</option>`:"")+gruposSetores(lista).map(gp=>`<optgroup label="${esc(gp.local?gp.local.nome+(gp.local.sigla&&gp.local.sigla!==gp.local.nome?" ("+gp.local.sigla+")":""):"Sem local")}">${gp.itens.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.nome)}${gp.local?" · "+esc(siglaLocal(gp.local)):""}</option>`).join("")}</optgroup>`).join("");
+}
 const nomeVeic=id=>{const v=byId(S.veiculos,id);return v?(v.nome+(v.placa?" · "+v.placa:"")):"—"};
 const nomeEquipe=ids=>(ids||[]).map(i=>(byId(S.equipe,i)||{}).nome).filter(Boolean).join(", ")||"—";
 const T=iso=>iso?new Date(iso).getTime():NaN;
@@ -192,7 +205,7 @@ function renderUsuarios(){
     ${ps.map(p=>`<div class="usr-row${p.papel==="bloqueado"?" off":""}"><span class="n">${esc(p.nome||"Sem nome")}${p.id===S.uid?' <span style="color:var(--faint);font-weight:500">você</span>':""}</span>
       <span class="m">${esc(p.email||"")}</span>
       <select id="pp-${esc(p.id)}" aria-label="Acesso de ${esc(p.nome||"")}"${p.id===S.uid?" disabled":""}>${optsS(PAPEIS,p.papel)}</select>
-      <select id="ps-${esc(p.id)}" aria-label="Setor de ${esc(p.nome||"")}"${p.id===S.uid?" disabled":""}><option value="">Sem setor</option>${optsS(ativos(S.setores).map(s=>[s.id,s.nome]),p.setorId||"")}</select>
+      <select id="ps-${esc(p.id)}" aria-label="Setor de ${esc(p.nome||"")}"${p.id===S.uid?" disabled":""}>${optsSetores(p.setorId||"","Sem setor")}</select>
       <label class="chk sm" title="Pode cadastrar fornecedor novo ao fazer pedido"><input type="checkbox" id="pl-${esc(p.id)}"${p.papel==="logistica"||p.podeCadastrarLocal?" checked":""}${p.papel!=="setor"||p.id===S.uid?" disabled":""}> Cadastra fornecedor</label>
       ${p.id===S.uid?"<span></span>":`<button class="btn sm pri" data-pp="${esc(p.id)}" type="button">Salvar</button>`}</div>`).join("")}
   </div></section>`;
@@ -318,7 +331,7 @@ function renderPainel(){
   <div class="act"><button class="btn" id="exp" type="button">Exportar CSV</button></div></div>${banner()}
   <div class="filters">
     <div class="field"><label for="fPer">Período</label><select id="fPer">${optsS(perOpts,S.f.periodo)}</select></div>
-    <div class="field"><label for="fSet">Setor solicitante</label><select id="fSet">${opts(ativos(S.setores),S.f.setor,"Todos os setores")}</select></div>
+    <div class="field"><label for="fSet">Setor solicitante</label><select id="fSet">${optsSetores(S.f.setor,"Todos os setores")}</select></div>
     <div class="field"><label for="fLoc">Unidade (origem ou destino)</label><select id="fLoc">${opts(ativos(S.locais),S.f.local,"Todas as unidades")}</select></div>
   </div>`;
   if(L){app.innerHTML=h+L;bindPainel();return}
@@ -477,7 +490,7 @@ function renderOrdens(){
   <div class="filters">
     <div class="field grow"><label for="lq">Buscar</label><input type="search" id="lq" placeholder="Número, solicitante, item, local, equipe…" value="${esc(f.q)}"></div>
     <details class="fx" id="fx"${f.more||window.innerWidth>760?" open":""}><summary class="btn sm">Filtros${(f.setor||f.local||f.tipo)?" ativos":""}</summary><div class="fx-in">
-    <div class="field"><label for="lSet">Setor</label><select id="lSet">${opts(ativos(S.setores),f.setor,"Todos")}</select></div>
+    <div class="field"><label for="lSet">Setor</label><select id="lSet">${optsSetores(f.setor,"Todos")}</select></div>
     <div class="field"><label for="lLoc">Unidade</label><select id="lLoc">${opts(ativos(S.locais),f.local,"Todas")}</select></div>
     <div class="field"><label for="lTip">Tipo</label><select id="lTip"><option value="">Todos</option>${optsS(TIPOS,f.tipo)}</select></div>
   </div></details></div>`;
@@ -612,7 +625,7 @@ function refreshFormOptions(){
   FD.setorId=keep("#setor",FD.setorId);FD.veiculoId=keep("#veic",FD.veiculoId);
   if(!$("#stops .lp")){ readStops(); renderStops(); } else refreshPickers();
   const inc=(arr,id)=>arr.filter(x=>x.ativo!==false||x.id===id).sort(sortNome);
-  $("#setor").innerHTML=opts(inc(S.setores,FD.setorId),FD.setorId,"Selecione…");
+  $("#setor").innerHTML=optsSetores(FD.setorId,"Selecione…");
   $("#veic").innerHTML=`<option value="">A definir</option>`+inc(S.veiculos,FD.veiculoId).map(v=>`<option value="${esc(v.id)}"${v.id===FD.veiculoId?" selected":""}>${esc(v.nome)}${v.placa?" · "+esc(v.placa):""}</option>`).join("");
   const eq=inc(S.equipe,null).concat(S.equipe.filter(p=>p.ativo===false&&FD.equipeIds.includes(p.id)));
   $("#eqChips").innerHTML=eq.length?eq.map(p=>`<button type="button" class="chip" data-eq="${esc(p.id)}" aria-pressed="${FD.equipeIds.includes(p.id)}">${esc(p.nome)}${p.funcao?`<small>${esc(p.funcao)}</small>`:""}</button>`).join(""):`<span class="hint">Cadastre a equipe em Cadastros.</span>`;
@@ -971,14 +984,14 @@ function renderStops(){
     <span class="sn num" aria-hidden="true">${i+1}</span>
     <select id="st-t-${i}" aria-label="Tipo da parada ${i+1}">${optsS(PTIPOS,p.tipo)}</select>
     ${pickerHTML("st-l-"+i,p.localId,"Local da parada "+(i+1),true)}
-    <input type="text" id="st-d-${i}" aria-label="Detalhe da parada ${i+1}" placeholder="Detalhe (setor, doca, falar com…)" value="${esc(p.detalhe||"")}">
+    <input type="text" id="st-d-${i}" list="dl-st-${i}" autocomplete="off" aria-label="Detalhe da parada ${i+1}" placeholder="Setor ou detalhe (ex.: Cozinha 2º Andar)" value="${esc(p.detalhe||"")}"><datalist id="dl-st-${i}">${subsetoresOpts(p.localId)}</datalist>
     <button type="button" class="x" data-stup="${i}" aria-label="Subir parada ${i+1}"${i===0?" disabled":""}>↑</button>
     <button type="button" class="x" data-strm="${i}" aria-label="Remover parada ${i+1}"${FD.paradas.length<=2?" disabled":""}>×</button></div>
     <div class="lp-new stop-new" id="st-l-${i}-new" hidden></div>`).join("");
   $$("[data-strm]").forEach(b=>b.onclick=()=>{readStops();FD.paradas.splice(+b.dataset.strm,1);FD.mesmoOk=false;renderStops()});
   $$("[data-stup]").forEach(b=>b.onclick=()=>{readStops();const i=+b.dataset.stup;const t=FD.paradas[i-1];FD.paradas[i-1]=FD.paradas[i];FD.paradas[i]=t;renderStops()});
   $$("#stops select").forEach(s=>s.addEventListener("change",()=>{FD.mesmoOk=false}));
-  FD.paradas.forEach((_,i)=>bindPicker("st-l-"+i,()=>{FD.mesmoOk=false}));
+  FD.paradas.forEach((_,i)=>bindPicker("st-l-"+i,id=>{FD.mesmoOk=false;const dl=$("#dl-st-"+i);if(dl)dl.innerHTML=subsetoresOpts(id)}));
 }
 function readStops(){ if(!$("#stops"))return; FD.paradas=FD.paradas.map((p,i)=>{const t=$("#st-t-"+i);if(!t)return p;return Object.assign({},p,{tipo:t.value,localId:$("#st-l-"+i).value,detalhe:$("#st-d-"+i).value.trim()})}); }
 function stopsHTML(o,canAct){
@@ -1000,6 +1013,7 @@ function stopsHTML(o,canAct){
 
 /* ---------- CAMPO DE LOCAL COM BUSCA E CADASTRO RÁPIDO ---------- */
 const canAddLocal=()=>S.demo||isLog()||(S.role==="sol"&&S.podeLocal===true);
+function subsetoresOpts(localId){return localId?S.setores.filter(x=>x.ativo!==false&&x.localId===localId).sort(sortNome).map(x=>`<option value="${esc(x.nome)}"></option>`).join(""):""}
 function localTxt(l){return [l.tipo,l.endereco].filter(Boolean).join(" · ")}
 function pickerHTML(hid,valueId,label,fora){
   const l=valueId?byId(S.locais,valueId):null;
@@ -1220,10 +1234,10 @@ function bindRotasFixas(){
 /* ---------- CADASTROS ---------- */
 const CAD={
   locais:{t:"Locais",col:"locais",desc:"Clubes, restaurante, centros de distribuição, escritórios, prédio e residências atendidas.",
-    f:[["nome","Nome","text"],["tipo","Tipo","select",LOCAL_TIPOS],["endereco","Endereço","text"],["contato","Contato no local","text"]],
-    m:x=>[x.tipo,x.endereco||x.contato]},
+    f:[["nome","Nome","text"],["sigla","Sigla","text"],["tipo","Tipo","select",LOCAL_TIPOS],["endereco","Endereço","text"],["contato","Contato no local","text"]],
+    m:x=>[[x.sigla,x.tipo].filter(Boolean).join(" · "),x.endereco||x.contato]},
   setores:{t:"Setores",col:"setores",desc:"Setores que pedem serviços à logística. Base do indicador de demanda por setor.",
-    f:[["nome","Nome","text"],["unidade","Unidade principal","text"]],m:x=>[x.unidade||"",""]},
+    f:[["nome","Nome","text"],["localId","Local","local"]],m:x=>{const l=byId(S.locais,x.localId);return [l?l.nome:(x.unidade||"Sem local"),""]}},
   solicitantes:{t:"Solicitantes",col:"solicitantes",desc:"Quem pede serviços à logística. O WhatsApp cadastrado recebe o aviso de conclusão.",
     f:[["nome","Nome","text"],["telefone","WhatsApp","tel"],["setorId","Setor","setor"]],m:x=>[fFone(x.telefone),x.setorId?nomeSetor(x.setorId):""]},
   equipe:{t:"Equipe",col:"equipe",desc:"Motoristas, ajudantes e coordenação que executam as OS.",
@@ -1249,9 +1263,10 @@ function renderCadastros(){
         <p class="err" id="waErr" role="alert" style="margin:8px 0 0"></p>`:""}</div></section>`;
     app.innerHTML=h;bindCad();return;
   }
-  const C=CAD[tab];const list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||sortNome(a,b));
+  const C=CAD[tab];let list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||sortNome(a,b));
+  if(tab==="setores"){const at=gruposSetores(list.filter(x=>x.ativo!==false)).flatMap(g=>g.itens);list=at.concat(list.filter(x=>x.ativo===false))}
   const ed=S.cadEdit;
-  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${opts(ativos(S.setores),(x||{})[k]||"","Sem setor")}</select>`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||o[0])}</select>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
+  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${optsSetores((x||{})[k]||"","Sem setor")}</select>`:t==="local"?`<select id="ce-${k}">${opts(S.locais.filter(l=>l.ativo!==false||l.id===(x||{})[k]).sort(sortNome),(x||{})[k]||"","Sem local")}</select>`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||o[0])}</select>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
     <div class="actions"><button class="btn pri sm" type="submit">Salvar</button><button class="btn sm ghost" type="button" data-cx>Cancelar</button></div></form>`;
   h+=`<section class="card"><div class="card-h"><h2>${C.t}</h2><span class="sub">${esc(C.desc)}</span></div><div class="card-b">
     ${isLog()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
@@ -1286,6 +1301,7 @@ function bindCad(){
     try{ if(S.demo){x.ativo=on;renderCadastros()} else { const {error}=await sb.from(CAD[S.cadTab].col).update({ativo:on}).eq("id",x.id); if(error)throw error; await carregar(CAD[S.cadTab].col); renderCadastros(); } }catch(e){toast("Não foi possível alterar.")}});
   $$("[data-form]").forEach(f=>f.onsubmit=async e=>{e.preventDefault();const C=CAD[S.cadTab];const d={};C.f.forEach(([k])=>d[k]=$("#ce-"+k).value.trim());
     if(!d.nome){toast("Informe o nome.");return}
+    if(S.cadTab==="setores"&&!d.localId) d.localId=null;
     if(S.cadTab==="solicitantes"){ if(!foneValido(d.telefone)){toast("Informe o WhatsApp com DDD.");return} if(!d.setorId) d.setorId=null; }
     const id=f.dataset.form||novoId();
     try{
@@ -1372,9 +1388,9 @@ function renderSolicitar(){
     </div></section>
     <section class="fs"><h2>Trajeto</h2><div class="fg">
       <div class="field"><label class="req" for="orig-q">Retirar em</label>${pickerHTML("orig",FD.origemId,"Retirar em")}</div>
-      <div class="field"><label for="origD">Detalhe da retirada</label><input type="text" id="origD" placeholder="Ex.: estoque seco, falar com…"></div>
+      <div class="field"><label for="origD">Detalhe da retirada</label><input type="text" id="origD" list="dl-origD" autocomplete="off" placeholder="Setor ou detalhe (ex.: estoque seco)"><datalist id="dl-origD"></datalist></div>
       <div class="field"><label class="req" for="dest-q">Entregar em</label>${pickerHTML("dest",FD.destinoId,"Entregar em")}</div>
-      <div class="field"><label for="destD">Detalhe da entrega</label><input type="text" id="destD" placeholder="Ex.: cozinha, salão principal…"></div>
+      <div class="field"><label for="destD">Detalhe da entrega</label><input type="text" id="destD" list="dl-destD" autocomplete="off" placeholder="Setor ou detalhe (ex.: Cozinha 2º Andar)"><datalist id="dl-destD"></datalist></div>
     </div></section>
     <section class="fs"><h2>Itens</h2><div class="items" id="items"></div><div style="margin-top:10px"><button type="button" class="btn sm" id="addIt">Adicionar item</button></div></section>
     <section class="fs"><h2>Quando</h2><div class="fg">
@@ -1385,7 +1401,7 @@ function renderSolicitar(){
   </form>`;
   refreshPedOptions();renderItems();
   $("#addIt").onclick=()=>{readItems();FD.itens.push({desc:"",qtd:"",un:"un"});renderItems();const ins=$$("#items .item input[type=text]");ins[ins.length-1].focus()};
-  ["orig","dest"].forEach(h=>bindPicker(h,()=>{FD.mesmoOk=false}));
+  ["orig","dest"].forEach(h=>bindPicker(h,id=>{FD.mesmoOk=false;const dl=$("#dl-"+h+"D");if(dl)dl.innerHTML=subsetoresOpts(id)}));
   $("#fOS").onsubmit=submitPedido;
 }
 function refreshPedOptions(){
@@ -1394,7 +1410,7 @@ function refreshPedOptions(){
   FD.setorId=keep("#setor",FD.setorId);FD.origemId=keep("#orig",FD.origemId);FD.destinoId=keep("#dest",FD.destinoId);
   const grp=id=>{const g={};ativos(S.locais).forEach(l=>{(g[l.tipo||"Outro"]=g[l.tipo||"Outro"]||[]).push(l)});
     return `<option value="">Selecione…</option>`+Object.keys(g).sort((a,b)=>LOCAL_TIPOS.indexOf(a)-LOCAL_TIPOS.indexOf(b)).map(k=>`<optgroup label="${esc(k)}">${g[k].map(x=>`<option value="${esc(x.id)}"${x.id===id?" selected":""}>${esc(x.nome)}</option>`).join("")}</optgroup>`).join("")};
-  $("#setor").innerHTML=opts(ativos(S.setores),FD.setorId,"Selecione…");refreshPickers();
+  $("#setor").innerHTML=optsSetores(FD.setorId,"Selecione…");refreshPickers();
 }
 async function submitPedido(e){
   e.preventDefault();readItems();const v=id=>$(id).value;
@@ -1512,6 +1528,9 @@ function loadDemo(){
   ["Ana (Cozinha)","Bruno (Eventos)","Carla (Bar)","Diego (Compras)"].forEach((n,i)=>S.names["demo-u"+i]=n);
   S.meus=S.pedidos.slice(1,4).map(x=>Object.assign({},x,{uid:"demo"}));S.uid="demo";S.names.demo="Você";
   const pm=new Date();pm.setDate(1);pm.setMonth(pm.getMonth()-1);
+  S.locais.forEach(l=>{l.sigla={mc:"M.C.",mg:"M.G.",dr:"Doryo",cm:"Cardoso",cd1:"CD 1"}[l.id]||""});
+  S.setores=[["Bar 2 Andar","mc"],["Cozinha 2º Andar","mc"],["Decoração e Eventos","mc"],["Manutenção","mc"],["Compras","mc"],["Valet","mc"],["Bar (Vip)","mg"],["Cozinha (VIP)","mg"],["Valet","mg"],["Decoração e Eventos","dr"],["Garagem","cm"],["Disponível","cd1"]]
+    .map(([n,l],i)=>({id:"s"+i,nome:n,localId:l,ativo:true}));
   S.solicitantes=[{id:"c1",nome:"Laura Souza",telefone:"(11) 99999-8888",setorId:"s4",ativo:true},{id:"c2",nome:"Marcos Lima",telefone:"(11) 98888-7777",setorId:"s1",ativo:true}];
   S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
     modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];
