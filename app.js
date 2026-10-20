@@ -721,18 +721,20 @@ function renderDrawer(){
   if(isLog()){
     if(o.status==="registrada") acts=`<button class="btn pri" data-act="editar">Agendar equipe e veículo</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
     if(o.status==="agendada") acts=`<button class="btn pri" data-act="iniciar">Iniciar rota</button><button class="btn" data-act="editar">Editar</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
-    if(o.status==="em_rota") acts=`<button class="btn pri" data-act="concluir">Concluir com foto</button><button class="btn" data-act="editar">Editar</button>`;
+    if(o.status==="em_rota"){const ps=paradasDe(o),nx=proximaParada(o),ult=ps[ps.length-1];
+      acts=(nx>=0?`<button class="btn pri" data-parada="${nx}">Registrar ${verboParada(ps[nx])} em ${esc(nomeLocal(ps[nx].localId))}</button>`
+        :`<button class="btn pri" data-act="concluir">Concluir ${verboParada(ult)} em ${esc(nomeLocal(ult.localId))}</button>`)+`<button class="btn" data-act="editar">Editar</button>`;}
     if(o.status==="cancelada") acts=`<button class="btn" data-act="reabrir">Reabrir OS</button>`;
   }
   const A=S.action;
   let panel="";
-  if(A&&A.t==="iniciar") panel=`<div class="panel" id="pan"><h3>Iniciar rota</h3>${checklistPanelHTML(A)}<div class="fg">
+  if(A&&A.t==="iniciar") panel=`<div class="panel" id="pan"><h3>Iniciar rota · saída do veículo</h3>${checklistPanelHTML(A)}<div class="fg">
       <div class="field"><label class="${o.veiculoId?"req":""}" for="kmI">Km inicial (odômetro na saída)</label><input type="number" id="kmI" inputmode="numeric" min="0" value="${esc(A.kmI==null?"":A.kmI)}" placeholder="${o.veiculoId?"Ex.: 124300":"Sem veículo definido"}">
         <span class="hint">${(()=>{const u=o.veiculoId?ultimoKm(o.veiculoId,o.id):null;return u?"Último registro deste veículo: "+fKm(u.km)+" ("+codigo(u.os)+", "+fDH(u.em)+")":o.veiculoId?"Primeiro registro deste veículo":""})()}</span></div></div>
-      <div class="field"><span class="lbl">Foto da carga na retirada (opcional)</span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upI" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upIg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div></div>
+      <p class="hint" style="margin:0">As fotos são tiradas em cada parada: na retirada, a mercadoria; na entrega, o material entregue a quem recebeu.</p>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk">Confirmar saída</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
-  if(A&&A.t==="concluir") panel=`<div class="panel" id="pan"><h3>${multi(o)?"Última parada: "+esc(nomeLocal(paradasDe(o)[paradasDe(o).length-1].localId)):"Concluir com foto"}</h3>
-      <div class="field"><span class="lbl req">Fotos da entrega</span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upC" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upCg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div><span class="hint">Mostre os itens entregues no local. Ao menos uma foto.</span></div>
+  if(A&&A.t==="concluir") panel=`<div class="panel" id="pan"><h3>${(()=>{const ps=paradasDe(o),u=ps[ps.length-1];return (u.tipo==="retirada"?"Retirada final":"Entrega")+" em "+esc(nomeLocal(u.localId))+(ps.length>1?` · parada ${ps.length} de ${ps.length}`:"")})()}</h3>
+      <div class="field"><span class="lbl req">${paradasDe(o).slice(-1)[0].tipo==="retirada"?"Fotos da mercadoria":"Fotos do material entregue"}</span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upC" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upCg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div><span class="hint">Mostre os itens no local, de preferência com quem recebeu. Ao menos uma foto.</span></div>
       <div class="field"><span class="lbl">Assinatura de quem recebeu</span><div class="sig" id="sigBox"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Assine aqui com o dedo</span></div>
         <div class="actions"><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div></div>
       <div class="fg"><div class="field"><label for="rec">Recebido por</label><input type="text" id="rec" value="${esc(A.rec||"")}" placeholder="Nome de quem recebeu"></div>
@@ -741,13 +743,13 @@ function renderDrawer(){
       <div class="field full"><label for="cObs">Observações da entrega</label><textarea id="cObs" placeholder="Divergências, avarias, itens faltantes…">${esc(A.obs||"")}</textarea></div></div>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>Encerrar OS</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
   if(A&&A.t==="parada"){const pp=paradasDe(o)[A.idx];const ent=pp.tipo==="entrega";
-    panel=`<div class="panel" id="pan"><h3>Parada ${A.idx+1}: ${ent?"entrega":"retirada"} em ${esc(nomeLocal(pp.localId))}</h3>
-      <div class="field"><span class="lbl${ent?" req":""}">Fotos ${ent?"da entrega":"da retirada (opcional)"}</span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upP" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upPg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div></div>
+    panel=`<div class="panel" id="pan"><h3>${ent?"Entrega":"Retirada"} em ${esc(nomeLocal(pp.localId))} · parada ${A.idx+1} de ${paradasDe(o).length}</h3>
+      <div class="field"><span class="lbl req">${ent?"Fotos do material entregue":"Fotos da mercadoria retirada"}</span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upP" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upPg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div></div>
       ${ent?`<div class="field"><span class="lbl">Assinatura de quem recebeu</span><div class="sig" id="sigBox"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Assine aqui com o dedo</span></div>
         <div class="actions"><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div></div>`:""}
-      <div class="fg"><div class="field"><label for="rec">${ent?"Recebido por":"Entregue por"}</label><input type="text" id="rec" value="${esc(A.rec||"")}" placeholder="Nome da pessoa no local"></div>
+      <div class="fg"><div class="field"><label for="rec">${ent?"Recebido por":"Quem liberou no local"}</label><input type="text" id="rec" value="${esc(A.rec||"")}" placeholder="${ent?"Nome de quem recebeu":"Opcional: nome de quem entregou a mercadoria"}"></div>
       <div class="field full"><label for="cObs">Observações</label><textarea id="cObs" placeholder="Divergências, avarias, itens faltantes…">${esc(A.obs||"")}</textarea></div></div>
-      <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>Registrar parada</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;}
+      <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>Registrar ${ent?"entrega":"retirada"}</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;}
   if(A&&A.t==="avisar") panel=`<div class="panel" id="pan"><h3>Avisar quem pediu no WhatsApp</h3>
       ${A.falhaAuto?`<p class="err" style="margin:0">O envio automático não foi concluído: ${esc(A.falhaAuto)}. Você pode tentar de novo ou enviar pelo seu WhatsApp.</p>`:""}
       <div class="fg"><div class="field"><label class="req" for="waTel">WhatsApp${o.solicitante?" de "+esc(o.solicitante):""}</label><input type="tel" id="waTel" inputmode="tel" value="${esc(A.fone||"")}" placeholder="(11) 99999-9999"><span class="hint">Com DDD. O número fica salvo na OS.</span></div></div>
@@ -821,7 +823,7 @@ async function doAct(o,a){
     if(ok){toast("Resumo copiado. Cole no WhatsApp.");S.copyOpen=true;renderDrawer();}else{S.copyOpen=true;renderDrawer();}return}
   if(a==="avisar"){S.copyOpen=false;S.action={t:"avisar",fone:telefoneSugerido(o),msg:msgConclusao(o)};renderDrawer();const p=$("#pan");if(p)p.scrollIntoView({block:"nearest"});return}
   if(a==="duplicar"){S.dupFrom=o.id;S.editId=null;S.fromPedido=null;S.editRec=null;closeOS();if(location.hash==="#nova")route();else location.hash="#nova";return}
-  if(a==="concluir"&&multi(o)){const ps=paradasDe(o);const falta=ps.slice(0,-1).map((p,i)=>p.status==="feita"?null:i+1).filter(Boolean);
+  if(a==="concluir"){const ps=paradasDe(o);const falta=ps.slice(0,-1).map((p,i)=>paradaFeita(o,p,i)?null:i+1).filter(Boolean);
     if(falta.length){toast("Registre antes a"+(falta.length>1?"s paradas ":" parada ")+falta.join(", ")+".");return}}
   if(a==="editar"){S.editId=o.id;closeOS();if(location.hash==="#nova")route();else location.hash="#nova";return}
   if(a==="reabrir"){const st=(o.agendadoPara&&(o.equipeIds||[]).length&&o.veiculoId)?"agendada":"registrada";
@@ -902,7 +904,7 @@ function bindPanel(o){
         if(km!=null&&u&&km<u.km&&!A.kmOk){A.kmOk=true;err.textContent="O km informado ("+fKm(km)+") é menor que o último registro do veículo ("+fKm(u.km)+" na "+codigo(u.os)+"). Confira o odômetro. Se estiver certo, toque em Confirmar saída de novo.";return}
         btn.disabled=true;const probs=A.ck.filter(c=>!c.ok).length;
         const checklist={itens:A.ck.map(c=>({nome:c.nome,ok:c.ok,obs:(c.obs||"").trim()})),problemas:probs,em:nowISO(),por:S.uid||null};
-        await saveOS(o.id,{status:"em_rota",iniciadoEm:nowISO(),kmInicial:km,checklist,fotosRetirada:(o.fotosRetirada||[]).concat(A.fotos),atualizadoEm:nowISO(),historico:hist(o,"em_rota","Saída para retirada"+(probs?" · checklist com "+probs+" problema"+(probs>1?"s":""):""))});
+        await saveOS(o.id,{status:"em_rota",iniciadoEm:nowISO(),kmInicial:km,checklist,atualizadoEm:nowISO(),historico:hist(o,"em_rota","Saída do veículo"+(probs?" · checklist com "+probs+" problema"+(probs>1?"s":""):""))});
         S.action=null;toast(codigo(o)+" em rota");}
       if(A.t==="concluir"){
         if(!A.fotos.length){err.textContent="Anexe ao menos uma foto da entrega.";return}
@@ -920,7 +922,7 @@ function bindPanel(o){
           if(S.demo) assinatura={id:"local",url:URL.createObjectURL(b)};
           else { try{assinatura=await enviarArquivo(b,"png","image/png")}catch(e){btn.disabled=false;btn.textContent="Encerrar OS";err.textContent="Falha ao enviar a assinatura. Tente novamente.";return} }}
         const extraP={};
-        if(multi(o)){const ps=JSON.parse(JSON.stringify(paradasDe(o)));const u=ps.length-1;ps[u]=Object.assign(ps[u],{status:"feita",feitoEm:nowISO(),fotos:A.fotos,assinatura,pessoa:(A.rec||"").trim(),obs:(A.obs||"").trim()});extraP.paradas=ps;}
+        {const ps=JSON.parse(JSON.stringify(paradasDe(o)));const u=ps.length-1;ps[u]=Object.assign(ps[u],{status:"feita",feitoEm:nowISO(),fotos:A.fotos,assinatura,pessoa:(A.rec||"").trim(),obs:(A.obs||"").trim()});extraP.paradas=ps;}
         await saveOS(o.id,Object.assign(extraP,{status:"concluida",concluidoEm:nowISO(),kmFinal:km,conclusao:{fotos:A.fotos,assinatura,recebidoPor:(A.rec||"").trim(),obs:(A.obs||"").trim()},atualizadoEm:nowISO(),historico:hist(o,"concluida","Entrega confirmada com foto")}));
         S.action=null;toast(codigo(o)+" concluída");
         const o2=byId(S.os,o.id)||o; const fone=telefoneSugerido(o2);
@@ -933,16 +935,16 @@ function bindPanel(o){
         } else S.action={t:"avisar",fone,msg:msgConclusao(o2)}; }
       if(A.t==="parada"){
         const ps=JSON.parse(JSON.stringify(paradasDe(o)));const pp=ps[A.idx];const ent=pp.tipo==="entrega";
-        if(ent&&!A.fotos.length){err.textContent="Anexe ao menos uma foto da entrega.";return}
+        if(!A.fotos.length){err.textContent=ent?"Anexe ao menos uma foto do material entregue.":"Anexe ao menos uma foto da mercadoria retirada.";return}
         const temSig=(A.sig||[]).some(st=>st.length>1);
         if(temSig&&!(A.rec||"").trim()){err.textContent="Informe o nome de quem assinou.";return}
         btn.disabled=true;btn.textContent="Salvando…";let assinatura=null;
         if(temSig){const b=await sigBlob(A);
           if(S.demo) assinatura={id:"local",url:URL.createObjectURL(b)};
-          else { try{assinatura=await enviarArquivo(b,"png","image/png")}catch(e){btn.disabled=false;btn.textContent="Registrar parada";err.textContent="Falha ao enviar a assinatura. Tente novamente.";return} }}
+          else { try{assinatura=await enviarArquivo(b,"png","image/png")}catch(e){btn.disabled=false;btn.textContent="Registrar "+(ent?"entrega":"retirada");err.textContent="Falha ao enviar a assinatura. Tente novamente.";return} }}
         Object.assign(pp,{status:"feita",feitoEm:nowISO(),fotos:A.fotos,assinatura,pessoa:(A.rec||"").trim(),obs:(A.obs||"").trim()});
-        await saveOS(o.id,{paradas:ps,atualizadoEm:nowISO(),historico:hist(o,"em_rota","Parada "+(A.idx+1)+" · "+(ent?"entrega":"retirada")+" em "+nomeLocal(pp.localId))});
-        S.action=null;toast("Parada "+(A.idx+1)+" registrada");}
+        await saveOS(o.id,{paradas:ps,atualizadoEm:nowISO(),historico:hist(o,"em_rota",(ent?"Entrega":"Retirada")+" em "+nomeLocal(pp.localId)+" registrada com foto (parada "+(A.idx+1)+")")});
+        S.action=null;toast((ent?"Entrega":"Retirada")+" em "+nomeLocal(pp.localId)+" registrada");}
       if(A.t==="avisar"){
         const tel=(A.fone||"").trim(); if(!foneValido(tel)){err.textContent="Informe o WhatsApp com DDD, por exemplo (11) 99999-9999.";return}
         const url="https://wa.me/"+foneWa(tel)+"?text="+encodeURIComponent(A.msg||msgConclusao(o));
@@ -969,6 +971,10 @@ function paradasDe(o){
           {id:"p1",tipo:"entrega",localId:o.destinoId||"",detalhe:o.destinoDetalhe||"",status:"pendente"}];
 }
 const multi=o=>(o.paradas||[]).length>2;
+// Parada já registrada? (OS antigas iniciadas com foto na saída contam a 1ª retirada como feita)
+function paradaFeita(o,p,i){return p.status==="feita"||(i===0&&p.tipo==="retirada"&&(o.fotosRetirada||[]).length>0)}
+function proximaParada(o){const ps=paradasDe(o);for(let i=0;i<ps.length-1;i++)if(!paradaFeita(o,ps[i],i))return i;return -1}
+const verboParada=p=>p.tipo==="retirada"?"retirada":"entrega";
 const extraParadas=o=>multi(o)?` (+${o.paradas.length-2} parada${o.paradas.length>3?"s":""})`:"";
 const novaParada=(tipo,localId,detalhe)=>({id:"p"+Math.random().toString(36).slice(2,8),tipo:tipo||"entrega",localId:localId||"",detalhe:detalhe||"",status:"pendente"});
 const limparParadas=ps=>(ps||[]).map(p=>({id:p.id||novaParada().id,tipo:p.tipo,localId:p.localId,detalhe:p.detalhe||"",status:"pendente"}));
@@ -995,18 +1001,18 @@ function renderStops(){
 function readStops(){ if(!$("#stops"))return; FD.paradas=FD.paradas.map((p,i)=>{const t=$("#st-t-"+i);if(!t)return p;return Object.assign({},p,{tipo:t.value,localId:$("#st-l-"+i).value,detalhe:$("#st-d-"+i).value.trim()})}); }
 function stopsHTML(o,canAct){
   const ps=paradasDe(o);const M=multi(o);
-  const ultimo=ps.length-1;
+  const ultimo=ps.length-1;const nx=o.status==="em_rota"?proximaParada(o):-2;
   return `<div class="route2">${ps.map((p,i)=>{
-    const feita=p.status==="feita";
-    const btn=M&&canAct&&o.status==="em_rota"&&!feita&&i!==ultimo?`<button class="btn sm pri" data-parada="${i}" type="button">Registrar parada</button>`:"";
+    const feita=paradaFeita(o,p,i)||(i===ultimo&&o.status==="concluida");
+    const btn=canAct&&o.status==="em_rota"&&!feita&&i!==ultimo&&i!==nx?`<button class="btn sm" data-parada="${i}" type="button">Registrar ${verboParada(p)}</button>`:"";
     return `<div class="rs${feita?" ok":""}"><span class="rd ${p.tipo}" aria-hidden="true"></span><div class="rc">
-      <div class="rt1"><b>${esc(nomeLocal(p.localId))}</b><span class="rk">${p.tipo==="retirada"?"Retirada":"Entrega"}${M?` · parada ${i+1}`:""}</span>${linksRota(p.localId)}</div>
+      <div class="rt1"><b>${esc(nomeLocal(p.localId))}</b><span class="rk">${p.tipo==="retirada"?"Retirada":"Entrega"}${M?` · parada ${i+1}`:""}${i===nx||(nx===-1&&i===ultimo&&o.status==="em_rota")?` · <b class="prox">próxima</b>`:""}</span>${linksRota(p.localId)}</div>
       ${(byId(S.locais,p.localId)||{}).endereco?`<span class="rdet">${esc(byId(S.locais,p.localId).endereco)}</span>`:""}
       ${p.detalhe?`<span class="rdet">${esc(p.detalhe)}</span>`:""}
-      ${M&&feita?`<span class="rdone">Feita ${fDH(p.feitoEm)}${p.pessoa?" · "+esc(p.pessoa):""}</span>`:""}
-      ${M&&(p.fotos||[]).length?`<div class="photos sm">${p.fotos.map((f,j)=>`<div class="ph"><button type="button" data-zoom="${esc(f.url)}" aria-label="Ampliar foto da parada ${i+1}"><img src="${esc(f.url)}" alt="Foto da parada ${i+1}" loading="lazy"></button></div>`).join("")}</div>`:""}
-      ${M&&p.assinatura?`<div class="sig-view sm"><img src="${esc(p.assinatura.url)}" alt="Assinatura na parada ${i+1}"></div>`:""}
-      ${M&&p.obs?`<span class="rdet">${esc(p.obs)}</span>`:""}
+      ${feita&&p.feitoEm?`<span class="rdone">Feita ${fDH(p.feitoEm)}${p.pessoa?" · "+esc(p.pessoa):""}</span>`:""}
+      ${(p.fotos||[]).length?`<div class="photos sm">${p.fotos.map((f,j)=>`<div class="ph"><button type="button" data-zoom="${esc(f.url)}" aria-label="Ampliar foto da parada ${i+1}"><img src="${esc(f.url)}" alt="Foto da parada ${i+1}" loading="lazy"></button></div>`).join("")}</div>`:""}
+      ${p.assinatura?`<div class="sig-view sm"><img src="${esc(p.assinatura.url)}" alt="Assinatura na parada ${i+1}"></div>`:""}
+      ${p.obs?`<span class="rdet">${esc(p.obs)}</span>`:""}
       ${btn}</div></div>`}).join("")}</div>`;
 }
 

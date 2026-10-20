@@ -433,3 +433,4 @@ input[type=email],input[type=password]{width:100%;background:var(--card);border:
 .upl.alt{border-style:solid;border-color:var(--line-strong);color:var(--ink)}
 @media (max-width:380px){.upl-row{grid-template-columns:1fr}}
 .upl-i{width:20px;height:20px;flex:none}
+.prox{color:var(--gold-ink);font-weight:800}

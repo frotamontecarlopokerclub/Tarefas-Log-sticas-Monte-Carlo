@@ -20,6 +20,13 @@ Não há instalação nem programação. São três contas gratuitas e cerca de 
 | `manifest.webmanifest`, `assets/` | Ícone e nome do app no celular |
 | `supabase/01_estrutura.sql` | Cria tabelas, regras de segurança e o armazenamento de fotos |
 | `supabase/02_cadastros.sql` | Carrega locais, setores, equipe e veículos atuais |
+| `supabase/03_novidades.sql` | Várias paradas, checklist do veículo e rotas fixas |
+| `supabase/04_km_whatsapp.sql` | WhatsApp de quem pediu, aviso de conclusão e visão de km rodados |
+| `supabase/05_solicitantes_whatsapp_auto.sql` | Cadastro de solicitantes e envio automático do aviso |
+| `supabase/06_locais_permissoes.sql` | Cadastro de local direto na OS e permissão por usuário para cadastrar fornecedor |
+| `supabase/07_setores_por_local.sql` | Os 72 setores de cada unidade (M.C., M.G., Doryo, Prédio Cardoso e CD 1) |
+| `supabase/functions/enviar-whatsapp/index.ts` | Função do servidor que envia o WhatsApp automático |
+| `WHATSAPP-AUTOMATICO.md` | Passo a passo da Meta e do Supabase para o envio automático (opcional) |
 
 ---
 
@@ -41,7 +48,8 @@ Entrar no Supabase e na Vercel com o GitHub deixa tudo ligado com um único logi
 3. No menu da esquerda, abra **SQL Editor** e clique em **New query**.
 4. Abra o arquivo `supabase/01_estrutura.sql` no Bloco de Notas, copie tudo, cole no editor e clique em **Run**. Deve aparecer *Success. No rows returned*.
 5. Abra outra *New query*, faça o mesmo com `supabase/02_cadastros.sql` e clique em **Run**.
-6. Confira em **Table Editor**: devem aparecer as tabelas `os`, `pedidos`, `locais` e as outras, com os seus locais e setores já preenchidos.
+6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql` e por fim `supabase/07_setores_por_local.sql`.
+7. Confira em **Table Editor**: devem aparecer as tabelas `os`, `pedidos`, `locais` e as outras, com os seus locais e setores já preenchidos.
 
 ## Etapa 3 · Ajustar o login no Supabase
 
@@ -121,3 +129,45 @@ Qualquer arquivo alterado e enviado de novo ao GitHub (**Add file → Upload fil
 - **Planilha:** o botão *Exportar CSV* no Painel e no Relatório gera uma planilha que abre no Excel.
 - **Banco:** o plano gratuito não inclui backup automático para baixar. Exporte o CSV todo mês; quando o uso crescer, avalie o plano pago. No plano gratuito, projetos parados por alguns dias são pausados; com uso diário, isso não acontece.
 - **Power BI:** pode se conectar direto ao PostgreSQL do Supabase, com os dados de conexão em *Connect → Connection string*.
+
+---
+
+## Funções da atualização 03
+
+- **Várias paradas:** no formulário, use *Adicionar parada* para montar rotas com várias retiradas e entregas, por exemplo CD 1 → CD 2 → Doryo. Em rota, cada parada é registrada com foto e assinatura. A última parada fecha a OS.
+- **Rotas fixas:** marque *Repetir toda semana* e escolha os dias. O sistema cria as OS sozinho com 7 dias de antecedência, sem duplicar. Gerencie em **Cadastros → Rotas fixas**: editar, pausar ou excluir.
+- **Checklist do veículo:** antes de *Iniciar rota*, a equipe responde OK ou Problema em cada item. Problemas ficam registrados na OS e aparecem no Painel, na tabela de veículos. Os itens são editados em **Cadastros → Regras**.
+- **Duplicar e excluir:** no detalhe da OS. Excluir apaga de vez; para manter o registro, use *Cancelar*.
+
+## Funções da atualização 04
+
+- **Quilometragem:** com veículo definido, o km de saída e o km de chegada são obrigatórios. O sistema sugere o último km registrado do veículo, alerta se o número for menor que o último registro ou se a missão passar de 1.500 km, e mostra quanto rodou em cada OS. O Painel ganhou o indicador *Km rodados*, e o cadastro de veículos mostra o odômetro atual.
+- **Aviso no WhatsApp:** informe o WhatsApp de quem pediu na OS. Ao concluir, o sistema abre o aviso com a mensagem de conclusão pronta; um toque abre a conversa direto com a pessoa. O botão *Avisar no WhatsApp* também fica no detalhe da OS concluída.
+- **Relatórios externos:** a visão `os_km` no Supabase traz os km rodados de cada OS, pronta para Power BI ou planilhas.
+
+## Funções da atualização 05
+
+- **Solicitantes:** nome e WhatsApp de quem pediu passam a ser obrigatórios em toda OS. Ao digitar o nome, os contatos cadastrados aparecem na lista e o WhatsApp é preenchido sozinho. Quem é novo é salvo automaticamente ao registrar a OS. A lista fica em **Cadastros → Solicitantes**. Nos pedidos feitos pelos setores, o WhatsApp de quem pede também é obrigatório e fica lembrado para os próximos pedidos.
+- **WhatsApp automático:** com a configuração do guia `WHATSAPP-AUTOMATICO.md`, o aviso de conclusão sai sozinho pelo número oficial da empresa assim que a OS é encerrada. Sem a configuração, o sistema continua abrindo a conversa no WhatsApp de quem está usando.
+
+## Funções da atualização 06
+
+- **Busca de local:** nas paradas da OS e no pedido do setor, digite parte do nome ou do endereço e escolha na lista.
+- **Cadastrar local sem sair da tela:** se o local não existir, toque em *+ Cadastrar novo local*, informe nome, endereço e contato e salve. Ele já fica escolhido na parada. O sistema avisa quando já existe um local com nome parecido.
+- **Maps e Waze:** no detalhe da OS, cada parada com endereço tem os botões para abrir a rota.
+- **Permissões por usuário (Cadastros → Usuários):** *Solicitante* faz pedidos; *Somente leitura* acompanha sem fazer pedidos. Para solicitantes, marque *Cadastra fornecedor* para permitir incluir fornecedores novos no pedido (só do tipo Fornecedor; clubes, CDs e demais locais continuam com a logística).
+
+## Funções da atualização 07
+
+- **Setores por local:** cada setor pertence a uma unidade e aparece sempre com a sigla, por exemplo *Valet · M.G.* ou *Cozinha 2º Andar · M.C.*. Nas listas, os setores vêm agrupados por unidade.
+- **Sugestão de setor na parada:** ao escolher o local de uma parada, o campo de detalhe sugere os setores daquela unidade.
+- **Cadastros:** em *Setores*, cada um tem o campo *Local*; em *Locais*, cada um tem uma *Sigla*.
+
+## Funções da atualização 09
+
+- **Iniciar rota = saída do veículo:** ao sair (por exemplo, do Monte Carlo rumo ao fornecedor), basta o checklist e o km. Não pede mais foto na saída.
+- **Foto em cada parada:** em rota, o botão principal mostra sempre o próximo passo: *Registrar retirada em Fornecedor A*, depois *Registrar retirada em Fornecedor B*, e por fim *Concluir entrega em Destino*.
+  - **Retirada:** foto da mercadoria obrigatória; nome de quem liberou é opcional.
+  - **Entrega:** foto do material entregue, assinatura e nome de quem recebeu.
+- **Ordem garantida:** a OS só é concluída depois que todas as retiradas foram registradas com foto. Vale para qualquer OS, com 2 ou mais paradas.
+- **OS antigas** que já saíram com foto na saída continuam valendo: aquela foto conta como a primeira retirada.
