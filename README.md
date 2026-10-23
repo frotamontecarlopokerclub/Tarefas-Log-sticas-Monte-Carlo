@@ -26,6 +26,7 @@ Não há instalação nem programação. São três contas gratuitas e cerca de 
 | `supabase/06_locais_permissoes.sql` | Cadastro de local direto na OS e permissão por usuário para cadastrar fornecedor |
 | `supabase/07_setores_por_local.sql` | Os 72 setores de cada unidade (M.C., M.G., Doryo, Prédio Cardoso e CD 1) |
 | `supabase/08_manutencao.sql` | Manutenção: chamados, OS, equipamentos, prestadores, preventivas e custos |
+| `supabase/09_acesso_por_area.sql` | Acesso da equipe por área (só logística, só manutenção ou as duas) |
 | `assets/qrcode.js` | Gerador das etiquetas com QR Code dos equipamentos |
 | `supabase/functions/enviar-whatsapp/index.ts` | Função do servidor que envia o WhatsApp automático |
 | `WHATSAPP-AUTOMATICO.md` | Passo a passo da Meta e do Supabase para o envio automático (opcional) |
@@ -50,7 +51,7 @@ Entrar no Supabase e na Vercel com o GitHub deixa tudo ligado com um único logi
 3. No menu da esquerda, abra **SQL Editor** e clique em **New query**.
 4. Abra o arquivo `supabase/01_estrutura.sql` no Bloco de Notas, copie tudo, cole no editor e clique em **Run**. Deve aparecer *Success. No rows returned*.
 5. Abra outra *New query*, faça o mesmo com `supabase/02_cadastros.sql` e clique em **Run**.
-6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql` e por fim `supabase/08_manutencao.sql`.
+6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql` e por fim `supabase/09_acesso_por_area.sql`.
 7. Confira em **Table Editor**: devem aparecer as tabelas `os`, `pedidos`, `locais` e as outras, com os seus locais e setores já preenchidos.
 
 ## Etapa 3 · Ajustar o login no Supabase
@@ -194,3 +195,14 @@ O sistema passa a se chamar **Facilities MC**. No topo, o seletor **Logística |
 - **Painel da manutenção:** chamados por dia, aguardando triagem, atrasadas, % no prazo, tempo até o atendimento, tempo de solução, custo, categorias, locais, equipamentos com mais chamados, prestadores e equipe. *Exportar CSV* gera a planilha. A visão `manutencoes_custos` do Supabase traz o custo de cada OS para o Power BI.
 
 **Logística mais rápida:** a Nova OS mostra só o essencial: de onde e para onde, o que vai, quem pediu, quando, equipe e veículo. Tipo, prioridade, canal, previsão, observações e rota fixa ficam em *Mais detalhes*. Se o tipo não for escolhido, o sistema define pelo trajeto (fornecedor → *Coleta em fornecedor*; CD → unidade → *Abastecimento de estoque*; para residência → *Entrega*).
+
+## Funções da atualização 11 · Acesso por área
+
+Em **Cadastros → Usuários**, quem tem acesso *Facilities · equipe* ganhou a coluna **Área**:
+- **Só logística** (motoristas e ajudantes): veem e operam apenas OS de logística, pedidos, agenda, rotas fixas e veículos.
+- **Só manutenção** (técnicos): veem e operam apenas chamados, OS de manutenção, preventivas, equipamentos e prestadores.
+- **As duas áreas** (coordenação): veem tudo, trocam de área no topo e são os únicos que liberam usuários e definem acessos.
+
+Locais, setores, solicitantes e equipe são compartilhados e podem ser editados pelas duas áreas. Cada área vê só as suas regras em *Cadastros → Regras*. A separação vale também no banco de dados: mesmo que alguém tente acessar a outra área por fora do app, o Supabase bloqueia. Solicitantes e somente leitura não mudam.
+
+**Como instalar:** no Supabase, rode `supabase/09_acesso_por_area.sql` no SQL Editor. No GitHub, envie `app.js`, `styles.css`, `README.md` e o `09_acesso_por_area.sql` dentro da pasta `supabase`. Quem já é da equipe continua com as duas áreas até você mudar.

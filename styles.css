@@ -500,3 +500,6 @@ details.fs>summary{flex-wrap:wrap}
 details.fs>summary small{flex-basis:100%;padding-left:18px;margin-top:-6px}
 .kpi.money-k .v{font-size:clamp(18px,2.1vw,24px);overflow-wrap:anywhere}
 @media (max-width:760px){.form-foot{bottom:calc(58px + env(safe-area-inset-bottom,0px))}}
+.usr-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,170px) minmax(0,170px) minmax(0,190px) 150px 76px}
+@media (max-width:1100px){.usr-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)}.usr-row .n,.usr-row .m{grid-column:auto}}
+@media (max-width:760px){.usr-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.usr-row .n,.usr-row .m{grid-column:1 / -1}}

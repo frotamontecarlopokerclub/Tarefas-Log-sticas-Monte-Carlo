@@ -23,7 +23,7 @@ const ESPERAS=["Peça ou material","Orçamento","Prestador","Liberação do seto
 const AREAS=[["logistica","Logística"],["manutencao","Manutenção"],["ambas","Logística e manutenção"]];
 
 /* ---------- Estado ---------- */
-const S={os:[],locais:[],setores:[],equipe:[],veiculos:[],config:{toleranciaMin:15},
+const S={areaAcesso:"ambas",os:[],locais:[],setores:[],equipe:[],veiculos:[],config:{toleranciaMin:15},
   uid:null,role:null,meName:"",demo:false,loaded:{os:false},names:{},pedidos:[],meus:[],relatorios:[],perfis:[],recovery:false,authMsg:"",meuSetor:null,
   fromPedido:null,recusando:null,pTab:"aguardando",rm:null,copyOpen:false,recorrencias:[],solicitantes:[],meuTelefone:"",dupFrom:null,editRec:null,novaRec:false,recDel:null,
   route:"painel",openId:null,action:null,editId:null,routeArg:null,
@@ -108,14 +108,15 @@ async function startSession(session){
   let perfil=null;
   for(let i=0;i<3&&!perfil;i++){ const r=await sb.from("perfis").select("*").eq("id",S.uid).maybeSingle(); perfil=r.data; if(!perfil) await new Promise(r=>setTimeout(r,600)); }
   if(!perfil) return renderAuth("pendente");
-  S.meName=perfil.nome||session.user.email; S.meuSetor=perfil.setor_id; S.meuTelefone=perfil.telefone||""; S.podeLocal=perfil.pode_cadastrar_local===true;
+  S.meName=perfil.nome||session.user.email; S.meuSetor=perfil.setor_id; S.meuTelefone=perfil.telefone||""; S.podeLocal=perfil.pode_cadastrar_local===true; S.areaAcesso=perfil.area_acesso||"ambas";
   if(!PAPEL_ROLE[perfil.papel]) return renderAuth(perfil.papel==="bloqueado"?"bloqueado":"pendente");
   S.role=PAPEL_ROLE[perfil.papel];
+  if(areaFixa()) S.area=areaFixa();
   document.body.classList.remove("auth");
   buildNav(); if(!location.hash||location.hash.length<2) location.replace("#"+navCfg().home); route();
   await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes","manutencoes","equipamentos","prestadores","planos"].map(carregar));
   buildNav(); render();
-  if(S.role==="log"){ gerarRecorrentes(); gerarPreventivas(); }
+  if(isLog()) gerarRecorrentes(); if(isMan()) gerarPreventivas();
   assinarTempoReal();
 }
 async function carregar(t){
@@ -129,14 +130,14 @@ async function carregar(t){
   if(t==="config"){ const c=data[0]; if(c) S.config={toleranciaMin:c.tolerancia_min,checklist:Array.isArray(c.checklist)?c.checklist:null,whatsappAuto:c.whatsapp_auto===true,slaMan:c.sla_manutencao&&typeof c.sla_manutencao==="object"?c.sla_manutencao:null}; return; }
   if(t==="perfis"){ S.perfis=data.map(fromDb); S.perfis.forEach(p=>S.names[p.id]=p.nome||p.email||""); return; }
   if(t==="pedidos"){ const l=data.map(r=>{const p=fromDb(r);p.pid=p.id;p.uid=p.solicitanteId;return p});
-    if(S.role==="log"){S.pedidos=l;S.loaded.pedidos=true} else {S.meus=l.filter(p=>p.uid===S.uid);S.loaded.meus=true} return; }
+    if(isLog()){S.pedidos=l;S.loaded.pedidos=true} else {S.meus=l.filter(p=>p.uid===S.uid);S.loaded.meus=true} return; }
   S[t]=data.map(fromDb); S.loaded[t]=true;
 }
 const recarga={};
 function assinarTempoReal(){
   sb.channel("logistica-mc").on("postgres_changes",{event:"*",schema:"public"},pl=>{
     const t=pl.table; clearTimeout(recarga[t]);
-    recarga[t]=setTimeout(async()=>{ await carregar(t); if(t==="pedidos"||t==="perfis") buildNav(); if(t==="recorrencias") gerarRecorrentes(); if(t==="planos") gerarPreventivas(); if(t==="manutencoes") buildNav(); render(); },250);
+    recarga[t]=setTimeout(async()=>{ await carregar(t); if(t==="pedidos"||t==="perfis") buildNav(); if(t==="recorrencias"&&isLog()) gerarRecorrentes(); if(t==="planos"&&isMan()) gerarPreventivas(); if(t==="perfis"){const me=S.perfis.find(x=>x.id===S.uid);if(me&&(me.areaAcesso||"ambas")!==S.areaAcesso){location.reload();return}} if(t==="manutencoes") buildNav(); render(); },250);
   }).subscribe();
   document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&sb) Promise.all(["os","pedidos","manutencoes"].map(carregar)).then(()=>{buildNav();render()}); });
 }
@@ -211,30 +212,38 @@ function renderAuth(mode){
 }
 
 /* ---------- Usuários (cadastro de acessos) ---------- */
-const PAPEIS=[["pendente","Aguardando liberação"],["logistica","Facilities · equipe (administra)"],["setor","Solicitante (pedidos e chamados)"],["leitura","Somente leitura"],["bloqueado","Bloqueado"]];
+const PAPEIS=[["pendente","Aguardando liberação"],["logistica","Facilities · equipe"],["setor","Solicitante (pedidos e chamados)"],["leitura","Somente leitura"],["bloqueado","Bloqueado"]];
 function renderUsuarios(){
   const ps=(S.perfis||[]).slice().sort((a,b)=>((a.papel!=="pendente")-(b.papel!=="pendente"))||(a.nome||"").localeCompare(b.nome||"","pt-BR"));
-  return `<section class="card"><div class="card-h"><h2>Usuários</h2><span class="sub">Quem se cadastra fica aguardando até a logística liberar</span></div><div class="card-b">
-    <p style="margin:0 0 10px;color:var(--mute);max-width:72ch">Facilities · equipe opera a logística e a manutenção: motoristas, técnicos e coordenação. Solicitante faz pedidos à logística, abre chamados de manutenção e acompanha os seus. Marque “Cadastra fornecedor” para que ele possa incluir um fornecedor novo direto no pedido. Somente leitura vê OS e painel, mas não faz pedidos.</p>
+  return `<section class="card"><div class="card-h"><h2>Usuários</h2><span class="sub">Quem se cadastra fica aguardando até a coordenação liberar</span></div><div class="card-b">
+    <p style="margin:0 0 10px;color:var(--mute);max-width:72ch">Facilities · equipe opera as OS. Na coluna de área, escolha <b>Só logística</b> para motoristas e ajudantes, <b>Só manutenção</b> para técnicos, ou <b>As duas áreas</b> para a coordenação. Só quem tem as duas áreas administra os usuários. Solicitante faz pedidos à logística, abre chamados de manutenção e acompanha os seus. Marque “Cadastra fornecedor” para que ele possa incluir um fornecedor novo direto no pedido. Somente leitura vê OS e painel, mas não faz pedidos.</p>
     ${S.demo?`<p style="color:var(--mute)">No modo demonstração não há usuários.</p>`:""}
     ${ps.map(p=>`<div class="usr-row${p.papel==="bloqueado"?" off":""}"><span class="n">${esc(p.nome||"Sem nome")}${p.id===S.uid?' <span style="color:var(--faint);font-weight:500">você</span>':""}</span>
       <span class="m">${esc(p.email||"")}</span>
       <select id="pp-${esc(p.id)}" aria-label="Acesso de ${esc(p.nome||"")}"${p.id===S.uid?" disabled":""}>${optsS(PAPEIS,p.papel)}</select>
+      <select id="pa-${esc(p.id)}" aria-label="Área de ${esc(p.nome||"")}" title="Área de atuação na equipe de Facilities"${p.id===S.uid||p.papel!=="logistica"?" disabled":""}>${optsS(AREAS_ACESSO,p.papel==="logistica"?(p.areaAcesso||"ambas"):"ambas")}</select>
       <select id="ps-${esc(p.id)}" aria-label="Setor de ${esc(p.nome||"")}"${p.id===S.uid?" disabled":""}>${optsSetores(p.setorId||"","Sem setor")}</select>
       <label class="chk sm" title="Pode cadastrar fornecedor novo ao fazer pedido"><input type="checkbox" id="pl-${esc(p.id)}"${p.papel==="logistica"||p.podeCadastrarLocal?" checked":""}${p.papel!=="setor"||p.id===S.uid?" disabled":""}> Cadastra fornecedor</label>
       ${p.id===S.uid?"<span></span>":`<button class="btn sm pri" data-pp="${esc(p.id)}" type="button">Salvar</button>`}</div>`).join("")}
   </div></section>`;
 }
 function bindUsuarios(){
-  $$("[id^='pp-']").forEach(sel=>sel.addEventListener("change",()=>{const id=sel.id.slice(3);const c=$("#pl-"+id);if(!c)return;c.disabled=sel.value!=="setor";if(sel.value==="logistica")c.checked=true;else if(sel.value!=="setor")c.checked=false}));
+  $$("[id^='pp-']").forEach(sel=>sel.addEventListener("change",()=>{const id=sel.id.slice(3);const ar=$("#pa-"+id);if(ar){ar.disabled=sel.value!=="logistica";if(sel.value!=="logistica")ar.value="ambas"}const c=$("#pl-"+id);if(!c)return;c.disabled=sel.value!=="setor";if(sel.value==="logistica")c.checked=true;else if(sel.value!=="setor")c.checked=false}));
   $$("[data-pp]").forEach(b=>b.onclick=async()=>{const id=b.dataset.pp;b.disabled=true;
     const papel=$("#pp-"+id).value;
-    let {error}=await sb.rpc("definir_acesso",{alvo:id,novo_papel:papel,novo_setor:$("#ps-"+id).value||null,pode_local:papel==="setor"&&$("#pl-"+id).checked});
+    const area=papel==="logistica"?$("#pa-"+id).value:"ambas";
+    let {error}=await sb.rpc("definir_acesso_area",{alvo:id,novo_papel:papel,novo_setor:$("#ps-"+id).value||null,pode_local:papel==="setor"&&$("#pl-"+id).checked,nova_area:area});
+    if(error&&/definir_acesso_area|schema cache|Could not find the function/i.test(error.message||"")){ ({error}=await sb.rpc("definir_acesso",{alvo:id,novo_papel:papel,novo_setor:$("#ps-"+id).value||null,pode_local:papel==="setor"&&$("#pl-"+id).checked})); if(!error&&area!=="ambas") toast("Rode o script 09 no Supabase para salvar a área."); }
     if(error&&/definir_acesso|function|schema cache/i.test(error.message||"")){ ({error}=await sb.rpc("definir_papel",{alvo:id,novo_papel:papel,novo_setor:$("#ps-"+id).value||null})); if(!error) toast("Rode o script 06 no Supabase para salvar a permissão de fornecedor."); }
     b.disabled=false; if(error){toast(error.message||"Não foi possível salvar.");return} await carregar("perfis"); buildNav(); toast("Acesso atualizado"); renderCadastros();});
 }
 
-function isLog(){return S.role==="log"}
+const AREAS_ACESSO=[["ambas","As duas áreas"],["logistica","Só logística"],["manutencao","Só manutenção"]];
+function isStaff(){return S.role==="log"}
+function isLog(){return S.role==="log"&&S.areaAcesso!=="manutencao"}
+function isMan(){return S.role==="log"&&S.areaAcesso!=="logistica"}
+function isAdmin(){return S.role==="log"&&S.areaAcesso==="ambas"}
+function areaFixa(){return S.role!=="log"?null:S.areaAcesso==="logistica"?"log":S.areaAcesso==="manutencao"?"man":null}
 const LABELS={painel:"Painel",ordens:"Ordens",pedidos:"Pedidos",agenda:"Agenda",relatorio:"Relatório",cadastros:"Cadastros",nova:"Nova OS",solicitar:"Novo pedido",meus:"Meus pedidos",
   "m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento"};
 const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>',
@@ -257,11 +266,11 @@ function navCfg(){
   return {top:["painel","ordens","agenda","relatorio"],cta:null,mob:["painel","ordens","agenda","relatorio"],more:[],home:"painel"};
 }
 const pendentes=()=>S.pedidos.filter(x=>x.status==="aguardando").length;
-const chamadosNovos=()=>S.role==="log"?S.manutencoes.filter(m=>m.status==="aberto").length:0;
-const usuariosPendentes=()=>S.role==="log"?(S.perfis||[]).filter(p=>p.papel==="pendente").length:0;
+const chamadosNovos=()=>isMan()?S.manutencoes.filter(m=>m.status==="aberto").length:0;
+const usuariosPendentes=()=>isAdmin()?(S.perfis||[]).filter(p=>p.papel==="pendente").length:0;
 function buildNav(){
   const c=navCfg(),pd=pendentes(),up=usuariosPendentes(),cn=chamadosNovos(),bd=r=>r==="pedidos"&&pd?`<span class="bdg">${pd}</span>`:r==="m-ordens"&&cn?`<span class="bdg" title="Chamados aguardando triagem">${cn}</span>`:r==="cadastros"&&up?`<span class="bdg" title="Usuários aguardando liberação">${up}</span>`:"";
-  const sw=$("#areaSw");if(sw){sw.innerHTML=S.role?`<button type="button" data-area="log" aria-pressed="${S.area!=="man"}">Logística${S.area==="man"&&pd?` <span class="bdg">${pd}</span>`:""}</button><button type="button" data-area="man" aria-pressed="${S.area==="man"}">Manutenção${S.area!=="man"&&cn?` <span class="bdg">${cn}</span>`:""}</button>`:"";
+  const sw=$("#areaSw");if(sw){sw.innerHTML=S.role&&!areaFixa()?`<button type="button" data-area="log" aria-pressed="${S.area!=="man"}">Logística${S.area==="man"&&pd?` <span class="bdg">${pd}</span>`:""}</button><button type="button" data-area="man" aria-pressed="${S.area==="man"}">Manutenção${S.area!=="man"&&cn?` <span class="bdg">${cn}</span>`:""}</button>`:"";
     $$("[data-area]",sw).forEach(b=>b.onclick=()=>{if(S.area===b.dataset.area)return;S.area=b.dataset.area;try{localStorage.setItem("mc-area",S.area)}catch(e){}const h="#"+navCfg().home;buildNav();if(location.hash===h)route();else location.hash=h;});}
   $("#topnav").innerHTML=c.top.map(r=>`<a href="#${r}" data-r="${r}">${LABELS[r]}${bd(r)}</a>`).join("")+(c.cta?`<a href="#${c.cta}" class="btn-new" data-r="${c.cta}">${LABELS[c.cta]}</a>`:"")+(S.demo?"":`<button class="who" id="sairTop" type="button" title="Sair do sistema">${esc(S.meName)} · Sair</button>`);
   const LM=Object.assign({},LABELS,{meus:"Pedidos",solicitar:"Pedir","m-ordens":"Chamados","m-equip":"Equip.","m-chamado":"Chamado","m-meus":"Chamados"});
@@ -284,11 +293,13 @@ function route(){
   const hh=(location.hash||"").slice(1);const [h0,arg]=hh.split("/");let h=h0||"";
   if(document.body.classList.contains("auth")) return;
   if(!S.role){S.route=h||"painel";render(true);return}
-  const novaArea=h.startsWith("m-")?"man":ROTAS_LOG.includes(h)?"log":null;
+  let novaArea=h.startsWith("m-")?"man":ROTAS_LOG.includes(h)?"log":null;
+  let bloq=false;if(areaFixa()&&novaArea&&novaArea!==areaFixa()){novaArea=null;h="";bloq=true}
   if(novaArea&&novaArea!==S.area){S.area=novaArea;try{localStorage.setItem("mc-area",S.area)}catch(e){}buildNav()}
-  if(h==="m-chamado"&&isLog())h="m-nova";
+  if(h==="m-chamado"&&isMan())h="m-nova";
   const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],["m-eq"]);
   S.route=ok.includes(h)?h:c.home; S.routeArg=ok.includes(h)?(arg||null):null;
+  if(bloq){try{history.replaceState(null,"","#"+S.route)}catch(e){}}
   $("#sheetL").innerHTML="";
   markNav();
   render(true); window.scrollTo(0,0);
@@ -316,7 +327,7 @@ function render(force){
 }
 function banner(){
   if(S.demo) return `<div class="banner"><b>Modo demonstração.</b> O arquivo config.js ainda não tem o endereço e a chave do Supabase. Os dados abaixo são exemplos e não são salvos.
-    <span class="demo-roles">Ver como: ${[["log","Facilities"],["sol","Solicitante"],["ver","Leitura"]].map(([k,l])=>`<button type="button" class="btn sm${S.role===k?" pri":""}" data-demorole="${k}">${l}</button>`).join("")}</span></div>`;
+    <span class="demo-roles">Ver como: ${[["log:ambas","Coordenação"],["log:logistica","Equipe logística"],["log:manutencao","Equipe manutenção"],["sol:ambas","Solicitante"],["ver:ambas","Leitura"]].map(([k,l])=>`<button type="button" class="btn sm${S.role+":"+S.areaAcesso===k?" pri":""}" data-demorole="${k}">${l}</button>`).join("")}</span></div>`;
   if(S.role==="ver") return `<div class="banner"><b>Somente leitura.</b> Seu acesso permite consultar as OS e os indicadores. Para fazer pedidos e abrir chamados, peça à coordenação o acesso de Solicitante.</div>`;
   return "";
 }
@@ -1056,7 +1067,7 @@ function stopsHTML(o,canAct){
 }
 
 /* ---------- CAMPO DE LOCAL COM BUSCA E CADASTRO RÁPIDO ---------- */
-const canAddLocal=()=>S.demo||isLog()||(S.role==="sol"&&S.podeLocal===true);
+const canAddLocal=()=>S.demo||isStaff()||(S.role==="sol"&&S.podeLocal===true);
 function subsetoresOpts(localId){return localId?S.setores.filter(x=>x.ativo!==false&&x.localId===localId).sort(sortNome).map(x=>`<option value="${esc(x.nome)}"></option>`).join(""):""}
 function localTxt(l){return [l.tipo,l.endereco].filter(Boolean).join(" · ")}
 function pickerHTML(hid,valueId,label,fora){
@@ -1292,13 +1303,16 @@ const CAD={
     f:[["nome","Modelo / apelido","text"],["placa","Placa","text"],["tipo","Tipo","select",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"]],["capacidade","Capacidade","text"]],m:x=>{const u=ultimoKm(x.id);return [[x.placa,x.tipo].filter(Boolean).join(" · "),u?"Odômetro: "+fKm(u.km)+" · "+fData(u.em):"Odômetro: sem registro"]}}
 };
 function renderCadastros(){
-  const tab=S.cadTab;const tabs=[["locais","Locais"],["setores","Setores"],["solicitantes","Solicitantes"],["equipe","Equipe"],["veiculos","Veículos"],["prestadores","Prestadores"],["rotas","Rotas fixas"],["usuarios","Usuários"],["config","Regras"]];
+  const tabs=[["locais","Locais"],["setores","Setores"],["solicitantes","Solicitantes"],["equipe","Equipe"],["veiculos","Veículos"],["prestadores","Prestadores"],["rotas","Rotas fixas"],["usuarios","Usuários"],["config","Regras"]]
+    .filter(([k])=>!((k==="veiculos"||k==="rotas")&&S.role==="log"&&!isLog())&&!(k==="prestadores"&&S.role==="log"&&!isMan())&&!(k==="usuarios"&&S.role==="log"&&!isAdmin()));
+  if(!tabs.some(t=>t[0]===S.cadTab)) S.cadTab="locais";
+  const tab=S.cadTab;
   let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome.</p></div></div>${banner()}
   <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k==="rotas"?`<span class="c num">${S.recorrencias.filter(x=>x.ativo!==false).length}</span>`:k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
   if(tab==="usuarios"){ app.innerHTML=h+renderUsuarios(); bindCad(); bindUsuarios(); return; }
   if(tab==="rotas"){ app.innerHTML=h+renderRotasFixas(); bindCad(); bindRotasFixas(); return; }
   if(tab==="config"){
-    h+=`<section class="card"><div class="card-h"><h2>Tolerância de atraso</h2></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:62ch">Uma OS conta como atrasada quando é concluída depois da previsão de término somada a esta tolerância. OS abertas viram atrasadas quando o relógio passa desse ponto.</p>
+    h+=(isLog()||!isStaff()?`<section class="card"><div class="card-h"><h2>Tolerância de atraso</h2></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:62ch">Uma OS conta como atrasada quando é concluída depois da previsão de término somada a esta tolerância. OS abertas viram atrasadas quando o relógio passa desse ponto.</p>
       <div class="filters"><div class="field"><label for="tol">Tolerância (minutos)</label><input type="number" id="tol" min="0" step="5" value="${esc(S.config.toleranciaMin)}"${isLog()?"":" disabled"}></div>${isLog()?`<button class="btn pri" id="tolOk" type="button">Salvar</button>`:""}</div></div></section>
       <section class="card" style="margin-top:16px"><div class="card-h"><h2>Checklist do veículo</h2></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:62ch">Itens que a equipe confere antes de iniciar a rota. Um item por linha. Se algum tiver problema, a descrição fica registrada na OS e soma no painel do veículo.</p>
       <div class="field"><label for="ckTxt">Itens</label><textarea id="ckTxt" rows="8"${isLog()?"":" disabled"}>${esc(itensChecklist().join("\n"))}</textarea></div>${isLog()?`<div class="actions" style="margin-top:10px"><button class="btn pri" id="ckOk" type="button">Salvar checklist</button></div>`:""}</div></section>
@@ -1306,9 +1320,9 @@ function renderCadastros(){
         <p style="margin:0 0 12px;color:var(--mute);max-width:66ch">Ligado, o aviso de conclusão sai sozinho pelo número oficial da empresa assim que a OS é encerrada, sem abrir o WhatsApp de quem entregou. Requer a configuração da Meta e da função enviar-whatsapp no Supabase (veja o guia). Desligado, o sistema abre a conversa no WhatsApp de quem está usando.</p>
         ${isLog()?`<div class="filters"><div class="field"><label for="waTest">Enviar teste para</label><input type="tel" id="waTest" inputmode="tel" placeholder="(11) 99999-9999" value="${esc(S.meuTelefone||"")}"></div><button class="btn" id="waTestOk" type="button">Enviar mensagem de teste</button></div>
         <label class="chk" style="margin-top:6px"><input type="checkbox" id="waAuto"${S.config.whatsappAuto?" checked":""}> Enviar o aviso de conclusão automaticamente</label>
-        <p class="err" id="waErr" role="alert" style="margin:8px 0 0"></p>`:""}</div></section>
+        <p class="err" id="waErr" role="alert" style="margin:8px 0 0"></p>`:""}</div></section>`:"")+(isMan()||!isStaff()?`
       <section class="card" style="margin-top:16px"><div class="card-h"><h2>Prazos da manutenção</h2><span class="sub">horas a partir da abertura do chamado</span></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:66ch">Quando a OS não tem um prazo definido na triagem, vale o prazo da prioridade. É a base dos indicadores de atraso e de conclusão no prazo.</p>
-        <div class="filters">${MPRIOS.map(([k,l])=>`<div class="field"><label for="sla-${k}">${l} (h)</label><input type="number" id="sla-${k}" min="1" step="1" value="${esc(slaH(k))}"${isLog()?"":" disabled"}></div>`).join("")}${isLog()?`<button class="btn pri" id="slaOk" type="button">Salvar prazos</button>`:""}</div></div></section>`;
+        <div class="filters">${MPRIOS.map(([k,l])=>`<div class="field"><label for="sla-${k}">${l} (h)</label><input type="number" id="sla-${k}" min="1" step="1" value="${esc(slaH(k))}"${isMan()?"":" disabled"}></div>`).join("")}${isMan()?`<button class="btn pri" id="slaOk" type="button">Salvar prazos</button>`:""}</div></div></section>`:"");
     app.innerHTML=h;bindCad();return;
   }
   const C=CAD[tab];let list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||sortNome(a,b));
@@ -1317,9 +1331,9 @@ function renderCadastros(){
   const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${optsSetores((x||{})[k]||"","Sem setor")}</select>`:t==="local"?`<select id="ce-${k}">${opts(S.locais.filter(l=>l.ativo!==false||l.id===(x||{})[k]).sort(sortNome),(x||{})[k]||"","Sem local")}</select>`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||(Array.isArray(o[0])?o[0][0]:o[0]))}</select>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
     <div class="actions"><button class="btn pri sm" type="submit">Salvar</button><button class="btn sm ghost" type="button" data-cx>Cancelar</button></div></form>`;
   h+=`<section class="card"><div class="card-h"><h2>${C.t}</h2><span class="sub">${esc(C.desc)}</span></div><div class="card-b">
-    ${isLog()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
+    ${isStaff()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
     ${list.length?list.map(x=>ed===x.id?editor(x,x.id):`<div class="cad-row${x.ativo===false?" off":""}"><span class="n">${esc(x.nome)}${x.ativo===false?` <span style="color:var(--faint);font-weight:500">desativado</span>`:""}</span><span class="m">${esc((C.m(x)[0])||"")}</span><span class="m">${esc((C.m(x)[1])||"")}</span>
-      ${isLog()?`<span class="actions"><button class="btn sm ghost" data-ed="${esc(x.id)}" type="button">Editar</button><button class="btn sm ghost" data-tg="${esc(x.id)}" type="button">${x.ativo===false?"Reativar":"Desativar"}</button></span>`:"<span></span>"}</div>`).join(""):`<p style="color:var(--mute)">Nenhum cadastro ainda.</p>`}
+      ${isStaff()?`<span class="actions"><button class="btn sm ghost" data-ed="${esc(x.id)}" type="button">Editar</button><button class="btn sm ghost" data-tg="${esc(x.id)}" type="button">${x.ativo===false?"Reativar":"Desativar"}</button></span>`:"<span></span>"}</div>`).join(""):`<p style="color:var(--mute)">Nenhum cadastro ainda.</p>`}
   </div></section>`;
   app.innerHTML=h;bindCad();
 }
@@ -1541,7 +1555,7 @@ function renderRelatorio(){
   function bindRel(){$("#rmS").onchange=e=>{S.rm=e.target.value;renderRelatorio()};
     const ex=$("#expM");if(ex){ex.onclick=()=>exportCSV(mesStats(S.rm).all,S.rm)}}
 }
-document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-demorole]");if(!b||!S.demo)return;S.role=b.dataset.demorole;buildNav();route();});
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-demorole]");if(!b||!S.demo)return;const [r,ar]=b.dataset.demorole.split(":");S.role=r;S.areaAcesso=ar||"ambas";if(areaFixa()){S.area=areaFixa();const h="#"+navCfg().home;buildNav();if(location.hash===h)route();else location.hash=h;return}buildNav();route();});
 
 /* =====================================================================
    MANUTENÇÃO · Facilities
@@ -1645,7 +1659,7 @@ function renderMOrdens(){
   const segs=[["novos","Chamados novos"],["abertas","Em aberto"],["atrasadas","Atrasadas"],["agendada","Programadas"],["em_execucao","Em execução"],["aguardando","Aguardando"],["concluida","Concluídas"],["cancelada","Canceladas"],["todas","Todas"]];
   const L=S.manutencoes;
   const cnt=k=>k==="todas"?L.length:k==="novos"?L.filter(m=>m.status==="aberto").length:k==="abertas"?L.filter(m=>MABERTOS.includes(m.status)).length:k==="atrasadas"?L.filter(mAtrasada).length:L.filter(m=>m.status===k).length;
-  let h=`<div class="head"><div><h1>Chamados e <em>OS</em></h1><p>Chamados abertos pelos setores e ordens de manutenção corretiva e preventiva, da triagem à conclusão com foto.</p></div>${isLog()?`<div class="act"><a class="btn pri" href="#m-nova">Nova OS de manutenção</a></div>`:""}</div>${banner()}${avisoSQL()}
+  let h=`<div class="head"><div><h1>Chamados e <em>OS</em></h1><p>Chamados abertos pelos setores e ordens de manutenção corretiva e preventiva, da triagem à conclusão com foto.</p></div>${isMan()?`<div class="act"><a class="btn pri" href="#m-nova">Nova OS de manutenção</a></div>`:""}</div>${banner()}${avisoSQL()}
   <div class="seg" role="group" aria-label="Situação">${segs.map(([k,l])=>`<button type="button" data-mseg="${k}" aria-pressed="${f.status===k}">${l}<span class="c num">${cnt(k)}</span></button>`).join("")}</div>
   <div class="filters">
     <div class="field grow"><label for="mq">Buscar</label><input type="search" id="mq" placeholder="Número, problema, local, equipamento, técnico…" value="${esc(f.q)}"></div>
@@ -1658,7 +1672,7 @@ function renderMOrdens(){
   let list=filtraM();
   if(f.status!=="concluida"&&f.status!=="cancelada"&&f.status!=="todas") list.sort((a,b)=>({urgente:0,alta:1,normal:2,baixa:3}[a.prioridade]-{urgente:0,alta:1,normal:2,baixa:3}[b.prioridade])||prazoM(a)-prazoM(b));
   else list.sort((a,b)=>T(b.criadoEm)-T(a.criadoEm));
-  if(!L.length) h+=`<div class="empty"><h3>Nenhuma manutenção registrada ainda</h3><p>Os chamados dos setores aparecem aqui assim que são abertos.${isLog()?' Você também pode <a href="#m-nova">registrar uma OS</a> ou criar um <a href="#m-prev">plano preventivo</a>.':""}</p></div>`;
+  if(!L.length) h+=`<div class="empty"><h3>Nenhuma manutenção registrada ainda</h3><p>Os chamados dos setores aparecem aqui assim que são abertos.${isMan()?' Você também pode <a href="#m-nova">registrar uma OS</a> ou criar um <a href="#m-prev">plano preventivo</a>.':""}</p></div>`;
   else if(!list.length) h+=`<div class="empty"><h3>Nada com esses filtros</h3><p>${f.status==="novos"?"Nenhum chamado esperando triagem.":"Ajuste a situação, o local ou a busca."}</p></div>`;
   else h+=`<div class="list">${list.slice(0,300).map(mRowHTML).join("")}</div>`;
   app.innerHTML=h;bindMOrdens();
@@ -1738,7 +1752,7 @@ function bindMChamado(){
     if(!S.demo){delete d.criadoEm;delete d.atualizadoEm}
     try{const row=await saveM(id,d);
       if(!S.demo&&soDigitos(d.solicitanteTelefone)!==soDigitos(S.meuTelefone)){try{const {error}=await sb.from("perfis").update({telefone:d.solicitanteTelefone}).eq("id",S.uid);if(!error)S.meuTelefone=d.solicitanteTelefone}catch(x){}}else S.meuTelefone=d.solicitanteTelefone;
-      toast(codM(row||d)+" aberto. A equipe de Facilities já foi avisada.");location.hash=isLog()?"#m-ordens":"#m-meus";
+      toast(codM(row||d)+" aberto. A equipe de Facilities já foi avisada.");location.hash=isMan()?"#m-ordens":"#m-meus";
     }catch(x){console.error(x);btn.disabled=false;btn.textContent="Enviar chamado";
       err.textContent=/row-level security/i.test(x.message||"")?"Seu acesso não permite abrir chamados. Peça à coordenação o acesso de Solicitante.":/does not exist|schema cache/i.test(x.message||"")?"A manutenção ainda não foi ativada no Supabase (script 08).":"Não foi possível enviar. Verifique a conexão e tente novamente."}
   };
@@ -1746,7 +1760,7 @@ function bindMChamado(){
 
 /* ---------- NOVA / EDITAR OS DE MANUTENÇÃO (Facilities) ---------- */
 function renderMNova(){
-  if(!isLog()){location.replace("#m-chamado"+(S.routeArg?"/"+S.routeArg:""));return}
+  if(!isMan()){location.replace("#m-chamado"+(S.routeArg?"/"+S.routeArg:""));return}
   const ed=S.mEditId?byId(S.manutencoes,S.mEditId):null;
   const eq=!ed&&S.routeArg?byId(S.equipamentos,S.routeArg):null;
   MF=ed?JSON.parse(JSON.stringify(ed)):{tipo:"corretiva",prioridade:"normal",categoria:eq&&eq.categoria||"",localId:eq?eq.localId||"":"",setorId:eq?eq.setorId||"":"",equipamentoId:eq?eq.id:"",localDetalhe:"",descricao:"",solicitante:"",solicitanteTelefone:"",
@@ -1816,7 +1830,7 @@ async function submitMNova(e){
 function openM(id){S.mOpen=id;S.mAct=null;renderMDrawer()}
 function renderMDrawer(){
   const m=byId(S.manutencoes,S.mOpen);if(!m){if(S.loaded.manutencoes||S.demo)closeOS();return}
-  const prev=$(".dr")?$(".dr").scrollTop:0;const A=S.mAct;const log=isLog();
+  const prev=$(".dr")?$(".dr").scrollTop:0;const A=S.mAct;const log=isMan();
   const late=mAtrasada(m),lateC=mConclAtraso(m);const ct=custoTotal(m);
   const meu=m.solicitanteId&&m.solicitanteId===S.uid;
   let acts="";
@@ -2001,7 +2015,7 @@ function proximaPrev(p){const hoje=new Date();hoje.setHours(0,0,0,0);const r=oco
 const fDia=ds=>{if(!ds)return "—";const [y,m,d]=ds.split("-");return d+"/"+m+"/"+y.slice(2)};
 let gerandoP=false;
 async function gerarPreventivas(){
-  if(!isLog()||gerandoP||faltaMan())return 0;gerandoP=true;let n=0;
+  if(!isMan()||gerandoP||faltaMan())return 0;gerandoP=true;let n=0;
   try{
     const hoje=new Date();hoje.setHours(0,0,0,0);const ate=new Date(hoje.getTime()+14*86400000);
     for(const p of S.planos.filter(x=>x.ativo!==false)){
@@ -2049,7 +2063,7 @@ function renderMPrev(){
   const conc90=prevs.filter(m=>m.status==="concluida"&&T(m.concluidoEm)>Date.now()-90*86400000);
   const emDia=conc90.length?Math.round(conc90.filter(m=>!mConclAtraso(m)).length/conc90.length*100):null;
   const ed=S.planEdit;
-  let h=`<div class="head"><div><h1>Manutenção <em>preventiva</em></h1><p>Planos que se repetem por equipamento ou local. O sistema cria as OS sozinho com 14 dias de antecedência, já com o checklist e a equipe.</p></div>${isLog()&&!ed?`<div class="act"><button class="btn pri" id="plNovo" type="button">Novo plano</button></div>`:""}</div>${banner()}${avisoSQL()}
+  let h=`<div class="head"><div><h1>Manutenção <em>preventiva</em></h1><p>Planos que se repetem por equipamento ou local. O sistema cria as OS sozinho com 14 dias de antecedência, já com o checklist e a equipe.</p></div>${isMan()&&!ed?`<div class="act"><button class="btn pri" id="plNovo" type="button">Novo plano</button></div>`:""}</div>${banner()}${avisoSQL()}
   <div class="kpis">${kpi("Planos ativos",ativosP.length,"",S.planos.length-ativosP.length?(S.planos.length-ativosP.length)+" pausado(s)":"Nenhum pausado")}${kpi("Próximos 30 dias",prox.length,"","Preventivas programadas")}${kpi("Vencidas em aberto",vencidas.length,"","Passaram da data marcada",vencidas.length?"alert":"")}${kpi("Feitas no prazo",emDia==null?"—":emDia,emDia==null?"":"%",conc90.length?conc90.length+" concluídas em 90 dias":"Sem conclusões em 90 dias",emDia!=null&&emDia>=90?"good":emDia!=null&&emDia<75?"alert":"")}</div>`;
   if(ed) h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>${ed==="__new"?"Novo plano preventivo":"Editar plano"}</h2></div><div class="card-b">${planoForm(ed==="__new"?null:byId(S.planos,ed))}</div></section>`;
   h+=`<div class="grid2"><section class="card"><div class="card-h"><h2>Planos</h2><span class="sub">${S.planos.length}</span></div><div class="card-b">
@@ -2057,7 +2071,7 @@ function renderMPrev(){
       return `<div class="pl-row${p.ativo===false?" off":""}"><div><b>${esc(p.nome)}</b>${p.ativo===false?` <span style="color:var(--faint);font-weight:500">pausado</span>`:""}<div class="m">${esc(p.equipamentoId?nomeEquip(p.equipamentoId):nomeLocal(p.localId))}</div></div>
         <span class="m">${esc(freqInfo(p.frequencia)[1])} · ${esc(p.hora||"")}<br>${esc(executorOk(p)?executorTxt(p):"Sem executor definido")}</span>
         <span class="m">Próxima: <b class="num" style="color:var(--ink)">${fDia(nx)}</b><br>Última: <span class="num">${ult?fData(ult.concluidoEm):"—"}</span></span>
-        ${isLog()?(S.planDel===p.id?`<span class="actions"><span class="err">Excluir? As OS já criadas continuam.</span><button class="btn sm danger" data-pldel2="${esc(p.id)}" type="button">Excluir</button><button class="btn sm ghost" data-pldelx type="button">Voltar</button></span>`:`<span class="actions"><button class="btn sm ghost" data-pled="${esc(p.id)}" type="button">Editar</button><button class="btn sm ghost" data-pltg="${esc(p.id)}" type="button">${p.ativo===false?"Reativar":"Pausar"}</button><button class="btn sm ghost danger" data-pldel="${esc(p.id)}" type="button">Excluir</button></span>`):"<span></span>"}</div>`}).join("")
+        ${isMan()?(S.planDel===p.id?`<span class="actions"><span class="err">Excluir? As OS já criadas continuam.</span><button class="btn sm danger" data-pldel2="${esc(p.id)}" type="button">Excluir</button><button class="btn sm ghost" data-pldelx type="button">Voltar</button></span>`:`<span class="actions"><button class="btn sm ghost" data-pled="${esc(p.id)}" type="button">Editar</button><button class="btn sm ghost" data-pltg="${esc(p.id)}" type="button">${p.ativo===false?"Reativar":"Pausar"}</button><button class="btn sm ghost danger" data-pldel="${esc(p.id)}" type="button">Excluir</button></span>`):"<span></span>"}</div>`}).join("")
       :`<p style="color:var(--mute)">Nenhum plano ainda. Exemplos: limpeza de filtros de ar-condicionado (mensal), teste do gerador (quinzenal), recarga de extintores (anual), limpeza da caixa d'água (semestral).</p>`}
   </div></section>
   <section class="card"><div class="card-h"><h2>Próximos 30 dias</h2><span class="sub">${prox.length}</span></div><div class="card-b">
@@ -2124,7 +2138,7 @@ function renderMEquip(){
   const ordem=[...grupos.keys()].sort((a,b)=>{const la=byId(S.locais,a),lb=byId(S.locais,b);const ia=la?ORDEM_SIGLA.indexOf(la.sigla):-1,ib=lb?ORDEM_SIGLA.indexOf(lb.sigla):-1;return (a?0:1)-(b?0:1)||(ia<0?99:ia)-(ib<0?99:ib)||nomeLocal(a).localeCompare(nomeLocal(b),"pt-BR")});
   const ed=S.eqEdit;
   let h=`<div class="head"><div><h1>Equipa<em>mentos</em></h1><p>Cadastro com histórico de cada equipamento. Cole a etiqueta com QR Code: qualquer pessoa aponta a câmera e abre o chamado já com o equipamento certo.</p></div>
-    <div class="act">${lista.length?`<button class="btn" id="eqPrint" type="button">Imprimir etiquetas (${lista.length})</button>`:""}${isLog()&&!ed?`<button class="btn pri" id="eqNovo" type="button">Novo equipamento</button>`:""}</div></div>${banner()}${avisoSQL()}
+    <div class="act">${lista.length?`<button class="btn" id="eqPrint" type="button">Imprimir etiquetas (${lista.length})</button>`:""}${isMan()&&!ed?`<button class="btn pri" id="eqNovo" type="button">Novo equipamento</button>`:""}</div></div>${banner()}${avisoSQL()}
   ${ed==="__new"?`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Novo equipamento</h2></div><div class="card-b">${eqForm(null)}</div></section>`:""}
   <div class="filters"><div class="field grow"><label for="eqQ">Buscar</label><input type="search" id="eqQ" value="${esc(f.q)}" placeholder="Nome, patrimônio, marca, modelo…"></div>
     <div class="field"><label for="eqLF">Local</label><select id="eqLF">${opts(ativos(S.locais).filter(l=>l.tipo!=="Fornecedor"),f.local,"Todos")}</select></div>
@@ -2136,7 +2150,7 @@ function renderMEquip(){
       return ed===e.id?eqForm(e):`<div class="eq-row${e.ativo===false?" off":""}"><span class="n">${esc(e.nome)}<small>${esc([e.codigo,e.categoria].filter(Boolean).join(" · ")||"Sem código")}</small></span>
         <span class="m">${esc([e.marca,e.modelo].filter(Boolean).join(" ")||"—")}${e.setorId?"<br>"+esc(nomeSetor(e.setorId)):""}</span>
         <span class="m">${s.n} chamado${s.n===1?"":"s"}${s.abertas?` · <b style="color:var(--s-new)">${s.abertas} em aberto</b>`:""}${s.custo?` · <span class="money">${fBRL(s.custo)}</span>`:""}<br>Último serviço: ${s.ult?fData(s.ult.concluidoEm):"—"}</span>
-        <span class="actions"><a class="btn sm" href="#m-eq/${esc(e.id)}">Ver</a>${isLog()?`<button class="btn sm ghost" data-eqed="${esc(e.id)}" type="button">Editar</button><button class="btn sm ghost" data-eqtg="${esc(e.id)}" type="button">${e.ativo===false?"Reativar":"Desativar"}</button>`:""}</span></div>`}).join("")}</div>`).join("")}</div></section>`;
+        <span class="actions"><a class="btn sm" href="#m-eq/${esc(e.id)}">Ver</a>${isMan()?`<button class="btn sm ghost" data-eqed="${esc(e.id)}" type="button">Editar</button><button class="btn sm ghost" data-eqtg="${esc(e.id)}" type="button">${e.ativo===false?"Reativar":"Desativar"}</button>`:""}</span></div>`}).join("")}</div>`).join("")}</div></section>`;
   app.innerHTML=h;bindMEquip(lista);
 }
 function bindMEquip(lista){
@@ -2164,7 +2178,7 @@ function renderMEq(){
   if(!e){app.innerHTML=`<div class="head"><div><h1>Equipamento</h1></div></div>${avisoSQL()}<div class="empty"><h3>${S.demo||S.loaded.equipamentos?"Equipamento não encontrado":"Carregando…"}</h3><p><a href="#m-equip">Ver todos os equipamentos</a></p></div>`;return}
   const s=statsEquip(e.id);const hist=S.manutencoes.filter(m=>m.equipamentoId===e.id).sort((a,b)=>T(b.criadoEm)-T(a.criadoEm));
   const pls=S.planos.filter(p=>p.equipamentoId===e.id&&p.ativo!==false);
-  const abrir=isLog()?"#m-nova/"+e.id:"#m-chamado/"+e.id;const pode=isLog()||S.role==="sol";
+  const abrir=isMan()?"#m-nova/"+e.id:"#m-chamado/"+e.id;const pode=isMan()||S.role==="sol";
   const gar=e.garantiaAte?(T(e.garantiaAte+"T23:59")>Date.now()?"Em garantia até "+fDia(e.garantiaAte):"Garantia vencida em "+fDia(e.garantiaAte)):"";
   let h=`<div class="head"><div><h1>${esc(e.nome)}</h1><p>${esc([e.codigo,e.categoria,nomeLocal(e.localId)].filter(x=>x&&x!=="—").join(" · "))}</p></div><div class="act">${pode?`<a class="btn pri" href="${abrir}">Abrir chamado</a>`:""}</div></div>${banner()}
   ${S.editEq===e.id?`<section class="card" style="margin-bottom:16px"><div class="card-b">${eqForm(e)}</div></section>`:""}
@@ -2175,7 +2189,7 @@ function renderMEq(){
       <div><dt>Marca e modelo</dt><dd>${esc([e.marca,e.modelo].filter(Boolean).join(" ")||"—")}</dd></div><div><dt>Nº de série</dt><dd>${esc(e.serie||"—")}</dd></div>
       <div><dt>Instalado em</dt><dd class="num">${fDia(e.instaladoEm)}</dd></div><div><dt>Garantia</dt><dd>${esc(gar||"—")}</dd></div>
       <div><dt>Preventivas</dt><dd>${pls.length?pls.map(p=>esc(p.nome)+" · "+esc(freqInfo(p.frequencia)[1].toLowerCase())+" · próxima "+fDia(proximaPrev(p))).join("<br>"):"Nenhum plano"}</dd></div>
-    </dl>${e.obs?`<p style="margin:12px 0 0;color:var(--mute)">${esc(e.obs)}</p>`:""}${isLog()&&S.editEq!==e.id?`<div class="actions" style="margin-top:12px"><button class="btn sm" id="eqEd" type="button">Editar dados</button></div>`:""}</div></section>
+    </dl>${e.obs?`<p style="margin:12px 0 0;color:var(--mute)">${esc(e.obs)}</p>`:""}${isMan()&&S.editEq!==e.id?`<div class="actions" style="margin-top:12px"><button class="btn sm" id="eqEd" type="button">Editar dados</button></div>`:""}</div></section>
     <section class="card" style="margin-top:16px"><div class="card-h"><h2>Histórico</h2><span class="sub">${hist.length}</span></div><div class="card-b">${hist.length?`<div class="list">${hist.map(mRowHTML).join("")}</div>`:`<p style="color:var(--mute)">Nenhum chamado para este equipamento.</p>`}</div></section>
   </div>
   <section class="card"><div class="card-h"><h2>Etiqueta</h2></div><div class="card-b"><div class="qr" id="eqQR" aria-label="QR Code do equipamento"></div><p class="hint" style="margin:8px 0">Leva para esta página. Quem está logado abre o chamado com um toque.</p><button class="btn sm" id="eqEt" type="button">Imprimir etiqueta</button></div></section></div>`;
