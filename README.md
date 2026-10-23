@@ -250,3 +250,9 @@ Nova tela **Gestão**, para a coordenação (acesso às duas áreas) e para quem
 - Não entram as OS programadas para o futuro.
 
 **Como instalar:** no Supabase, rode `supabase/11_reposicao_pendencias.sql`. No GitHub, envie `app.js`, `styles.css`, `README.md` e o `.sql` dentro da pasta `supabase`. Depois, preencha o valor de um novo e a data de instalação dos equipamentos principais.
+
+## Atualização 14 · Fundo da tela de login
+
+Ilustração no estilo Monte Carlo (marsala e dourado) com a rota entre as unidades, a van da logística, os prédios e as ferramentas da manutenção. É um arquivo vetorial leve (`assets/fundo-login.svg`), nítido em qualquer tela.
+
+**Como instalar:** no GitHub, envie `styles.css` e o `fundo-login.svg` dentro da pasta `assets`. Não há SQL nesta atualização.

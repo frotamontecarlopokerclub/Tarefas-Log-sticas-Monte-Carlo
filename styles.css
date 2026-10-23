@@ -544,3 +544,15 @@ details.fs>summary small{flex-basis:100%;padding-left:18px;margin-top:-6px}
 .fx-c.f2{background:var(--warn-surface);color:var(--s-age);font-weight:700}
 .fx-c.f3{background:var(--danger-surface);color:var(--s-late);font-weight:700}
 .fila-h{font-size:13px;margin:14px 0 6px;color:var(--gold-ink);text-transform:uppercase;letter-spacing:.06em}
+
+/* ---------- Fundo da tela de acesso ---------- */
+html:has(body.auth){background:#0E0605}
+body.auth{min-height:100vh;min-height:100dvh;background:#0E0605 url("assets/fundo-login.svg") center bottom / cover no-repeat fixed}
+body.auth main{background:transparent}
+body.auth .top{background:transparent}
+body.auth .top svg.diag{display:none}
+body.auth .auth-card{border-color:rgba(199,147,45,.35);box-shadow:0 18px 60px rgba(0,0,0,.45);color:#140C0B;
+  --card:#FFFFFF;--ink:#140C0B;--mute:#5A5250;--faint:#8A817E;--line:#E4DED8;--line-strong:#CFC6BE;--hover:#F8F5F1;--accent:#420804;--on-accent:#FFFFFF;color-scheme:light}
+body.auth .auth-card input{background:#fff;color:#140C0B}
+body.auth .auth-card{background:#FFFFFF}
+@media (max-width:760px){body.auth{background-position:62% bottom;background-attachment:scroll}}
