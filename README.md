@@ -1,6 +1,6 @@
-# Logística MC · Ordens de Serviço
+# Facilities MC · Ordens de Serviço
 
-Sistema de ordens de serviço (OS) da logística interna do Grupo Monte Carlo: pedidos dos setores, OS com equipe e veículo, saída, entrega com foto e assinatura, agenda, painel de indicadores e relatório mensal.
+Sistema de ordens de serviço (OS) de Facilities do Grupo Monte Carlo, com duas áreas. **Logística:** pedidos dos setores, OS com equipe e veículo, entrega com foto e assinatura, agenda, painel e relatório mensal. **Manutenção:** chamados dos setores, triagem, execução com fotos de antes e depois, custos, preventivas e equipamentos com QR Code.
 
 **Como funciona por dentro**
 - **Supabase** guarda os dados (banco PostgreSQL), as fotos e cuida do login.
@@ -25,6 +25,8 @@ Não há instalação nem programação. São três contas gratuitas e cerca de 
 | `supabase/05_solicitantes_whatsapp_auto.sql` | Cadastro de solicitantes e envio automático do aviso |
 | `supabase/06_locais_permissoes.sql` | Cadastro de local direto na OS e permissão por usuário para cadastrar fornecedor |
 | `supabase/07_setores_por_local.sql` | Os 72 setores de cada unidade (M.C., M.G., Doryo, Prédio Cardoso e CD 1) |
+| `supabase/08_manutencao.sql` | Manutenção: chamados, OS, equipamentos, prestadores, preventivas e custos |
+| `assets/qrcode.js` | Gerador das etiquetas com QR Code dos equipamentos |
 | `supabase/functions/enviar-whatsapp/index.ts` | Função do servidor que envia o WhatsApp automático |
 | `WHATSAPP-AUTOMATICO.md` | Passo a passo da Meta e do Supabase para o envio automático (opcional) |
 
@@ -48,7 +50,7 @@ Entrar no Supabase e na Vercel com o GitHub deixa tudo ligado com um único logi
 3. No menu da esquerda, abra **SQL Editor** e clique em **New query**.
 4. Abra o arquivo `supabase/01_estrutura.sql` no Bloco de Notas, copie tudo, cole no editor e clique em **Run**. Deve aparecer *Success. No rows returned*.
 5. Abra outra *New query*, faça o mesmo com `supabase/02_cadastros.sql` e clique em **Run**.
-6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql` e por fim `supabase/07_setores_por_local.sql`.
+6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql` e por fim `supabase/08_manutencao.sql`.
 7. Confira em **Table Editor**: devem aparecer as tabelas `os`, `pedidos`, `locais` e as outras, com os seus locais e setores já preenchidos.
 
 ## Etapa 3 · Ajustar o login no Supabase
@@ -171,3 +173,24 @@ Qualquer arquivo alterado e enviado de novo ao GitHub (**Add file → Upload fil
   - **Entrega:** foto do material entregue, assinatura e nome de quem recebeu.
 - **Ordem garantida:** a OS só é concluída depois que todas as retiradas foram registradas com foto. Vale para qualquer OS, com 2 ou mais paradas.
 - **OS antigas** que já saíram com foto na saída continuam valendo: aquela foto conta como a primeira retirada.
+
+## Funções da atualização 10 · Manutenção
+
+O sistema passa a se chamar **Facilities MC**. No topo, o seletor **Logística | Manutenção** troca de área. Cadastros, usuários e locais são os mesmos para as duas.
+
+**Como instalar esta atualização**
+1. No Supabase, abra **SQL Editor → New query**, cole o conteúdo de `supabase/08_manutencao.sql` e clique em **Run**.
+2. No GitHub, envie os arquivos `app.js`, `styles.css`, `index.html`, `manifest.webmanifest`, `README.md`, a pasta `supabase` (com o `08_manutencao.sql`) e o arquivo `assets/qrcode.js` (dentro da pasta `assets`).
+3. Em **Cadastros → Equipe**, marque a área de cada pessoa: técnicos em *Manutenção*; quem faz as duas coisas em *Logística e manutenção*.
+4. Em **Cadastros → Prestadores**, cadastre as empresas terceirizadas.
+
+**Fluxo da manutenção**
+- **Chamado:** o solicitante toca em *Abrir chamado*, descreve o problema, escolhe o local, a urgência e manda foto. Acompanha tudo em *Meus chamados* e pode cancelar enquanto ninguém atendeu.
+- **Triagem:** em *Chamados e OS → Chamados novos*, Facilities define categoria, prioridade, técnico ou prestador, data e prazo.
+- **Execução:** *Iniciar serviço* (foto do antes e diagnóstico, opcionais) → se faltar algo, *Aguardando peça ou orçamento* (com valor do orçamento) → *Retomar* → *Concluir serviço*, com o que foi feito, foto do serviço pronto (obrigatória), custos, nome e assinatura de quem recebeu. Se houver WhatsApp de quem pediu, o aviso de conclusão fica pronto para enviar.
+- **Prazos:** sem prazo definido na triagem, vale o prazo da prioridade (urgente 4 h, alta 24 h, normal 72 h, baixa 7 dias). Ajuste em **Cadastros → Regras**.
+- **Preventivas:** em *Preventivas → Novo plano*, escolha o equipamento ou o local, a frequência (semanal a anual), a primeira data, o executor e o checklist. As OS são criadas sozinhas 14 dias antes, e o checklist precisa ser respondido para concluir.
+- **Equipamentos e QR Code:** em *Equipamentos*, cadastre com patrimônio, local, setor, marca e garantia. *Imprimir etiquetas* gera uma folha A4 com QR Codes para colar nos equipamentos. Quem aponta a câmera para o QR abre a página do equipamento (histórico, custo acumulado) e o chamado já preenchido.
+- **Painel da manutenção:** chamados por dia, aguardando triagem, atrasadas, % no prazo, tempo até o atendimento, tempo de solução, custo, categorias, locais, equipamentos com mais chamados, prestadores e equipe. *Exportar CSV* gera a planilha. A visão `manutencoes_custos` do Supabase traz o custo de cada OS para o Power BI.
+
+**Logística mais rápida:** a Nova OS mostra só o essencial: de onde e para onde, o que vai, quem pediu, quando, equipe e veículo. Tipo, prioridade, canal, previsão, observações e rota fixa ficam em *Mais detalhes*. Se o tipo não for escolhido, o sistema define pelo trajeto (fornecedor → *Coleta em fornecedor*; CD → unidade → *Abastecimento de estoque*; para residência → *Entrega*).

@@ -1,7 +1,7 @@
 {
-  "name": "Logística MC · Ordens de Serviço",
-  "short_name": "Logística MC",
-  "description": "Ordens de serviço da logística interna do Grupo Monte Carlo.",
+  "name": "Facilities MC · Ordens de Serviço",
+  "short_name": "Facilities MC",
+  "description": "Ordens de serviço de logística e manutenção do Grupo Monte Carlo.",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",
