@@ -419,6 +419,7 @@ function renderPainel(){
     <section class="card"><div class="card-h"><h2>Tipos de serviço</h2><span class="sub">OS · tempo médio de execução</span></div><div class="card-b">${hbars(porTipo.map(([k,l])=>({n:k,v:l.length,x:fDur(avg(l.filter(o=>o.status==="concluida").map(tExec)))})))}</div></section>
   </div>`;
 
+  h+=pendenciasHTML(["log"],"Fila de pendências da logística");
   const rotas=groupCount(val,o=>o.origemId+"|"+o.destinoId).slice(0,8);
   h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Rotas mais frequentes</h2><span class="sub">origem → destino</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Rota</th><th class="r">OS</th><th class="r">Concluídas</th><th class="r">No prazo</th><th class="r">Execução média</th></tr></thead><tbody>
   ${rotas.map(([k,l])=>{const [o,d]=k.split("|");const c=l.filter(x=>x.status==="concluida");const cp=c.filter(x=>isFinite(prazo(x)));const np=cp.filter(x=>!concluidaComAtraso(x)).length;
@@ -443,7 +444,7 @@ function renderPainel(){
   const porDest=groupCount(val,o=>[...new Set(paradasDe(o).map(p=>p.localId).filter(Boolean))]);
   h+=`<section class="card"><div class="card-h"><h2>Unidades mais atendidas</h2><span class="sub">OS com a unidade como origem ou destino</span></div><div class="card-b">${hbars(porDest.slice(0,12).map(([k,l])=>({n:nomeLocal(k),v:l.length,x:""})))}</div></section>`;
 
-  app.innerHTML=h; bindPainel(); drawBars($("#chDia"),series);
+  app.innerHTML=h; bindPainel(); bindOpen(); drawBars($("#chDia"),series);
 }
 function durNum(ms){if(!isFinite(ms))return"—";const m=Math.round(ms/60000);if(m<60)return m;if(m<1440)return (m/60).toFixed(1).replace(".",",");return (m/1440).toFixed(1).replace(".",",")}
 function durUnit(ms){if(!isFinite(ms))return"";const m=ms/60000;return m<60?"min":m<1440?"h":"dias"}
@@ -2151,12 +2152,14 @@ function eqForm(x){x=x||{};
     <div class="field"><label for="eqSe">Nº de série</label><input type="text" id="eqSe" value="${esc(x.serie||"")}"></div>
     <div class="field"><label for="eqIn">Instalado em</label><input type="date" id="eqIn" value="${esc(x.instaladoEm||"")}"></div>
     <div class="field"><label for="eqGa">Garantia até</label><input type="date" id="eqGa" value="${esc(x.garantiaAte||"")}"></div>
+    <div class="field"><label for="eqVr">Valor de um novo (R$)</label><input type="text" inputmode="decimal" id="eqVr" value="${esc(nOuNull(x.valorReposicao)!=null?String(x.valorReposicao).replace(".",","):"")}" placeholder="Ex.: 3.800,00"><span class="hint">Base do alerta de consertar ou trocar</span></div>
+    <div class="field"><label for="eqVu">Vida útil (anos)</label><input type="number" id="eqVu" min="1" max="60" step="1" value="${esc(x.vidaUtilAnos||"")}" placeholder="${esc(VIDA_PADRAO[x.categoria]?"Típica: "+VIDA_PADRAO[x.categoria]:"Ex.: 10")}"></div>
     <div class="field full"><label for="eqO">Observações</label><textarea id="eqO" placeholder="Capacidade, voltagem, fornecedor da instalação…">${esc(x.obs||"")}</textarea></div>
     <div class="full"><span class="err" id="eqErr" role="alert"></span><div class="actions"><button class="btn pri" type="submit">Salvar equipamento</button><button class="btn ghost" type="button" id="eqX">Cancelar</button></div></div></form>`;
 }
 function renderMEquip(){
   const f=S.ef;const q=normNome(f.q);
-  const lista=S.equipamentos.filter(e=>(f.inativos||e.ativo!==false)&&(!f.local||e.localId===f.local)&&(!f.cat||e.categoria===f.cat)&&(!q||normNome([e.nome,e.codigo,e.marca,e.modelo,e.serie,nomeLocal(e.localId)].join(" ")).includes(q)));
+  const lista=S.equipamentos.filter(e=>(f.inativos||e.ativo!==false)&&(!f.troca||avalEquip(e).n>=2)&&(!f.local||e.localId===f.local)&&(!f.cat||e.categoria===f.cat)&&(!q||normNome([e.nome,e.codigo,e.marca,e.modelo,e.serie,nomeLocal(e.localId)].join(" ")).includes(q)));
   const grupos=new Map();lista.forEach(e=>{const k=e.localId||"";if(!grupos.has(k))grupos.set(k,[]);grupos.get(k).push(e)});
   const ordem=[...grupos.keys()].sort((a,b)=>{const la=byId(S.locais,a),lb=byId(S.locais,b);const ia=la?ORDEM_SIGLA.indexOf(la.sigla):-1,ib=lb?ORDEM_SIGLA.indexOf(lb.sigla):-1;return (a?0:1)-(b?0:1)||(ia<0?99:ia)-(ib<0?99:ib)||nomeLocal(a).localeCompare(nomeLocal(b),"pt-BR")});
   const ed=S.eqEdit;
@@ -2166,11 +2169,12 @@ function renderMEquip(){
   <div class="filters"><div class="field grow"><label for="eqQ">Buscar</label><input type="search" id="eqQ" value="${esc(f.q)}" placeholder="Nome, patrimônio, marca, modelo…"></div>
     <div class="field"><label for="eqLF">Local</label><select id="eqLF">${opts(ativos(S.locais).filter(l=>l.tipo!=="Fornecedor"),f.local,"Todos")}</select></div>
     <div class="field"><label for="eqCF">Categoria</label><select id="eqCF"><option value="">Todas</option>${optsS(MCATS,f.cat)}</select></div>
+    <label class="chk sm" style="align-self:end;margin-bottom:10px"><input type="checkbox" id="eqTF"${f.troca?" checked":""}> Só com alerta de troca (${alertasTroca().length})</label>
     <label class="chk sm" style="align-self:end;margin-bottom:10px"><input type="checkbox" id="eqIF"${f.inativos?" checked":""}> Mostrar desativados</label></div>`;
   if(!S.equipamentos.length) h+=`<div class="empty"><h3>Nenhum equipamento cadastrado</h3><p>Comece pelos que mais dão chamado: ar-condicionado, geladeiras e freezers, máquinas da cozinha, bombas, gerador.</p></div>`;
   else if(!lista.length) h+=`<div class="empty"><h3>Nada com esses filtros</h3></div>`;
   else h+=`<section class="card"><div class="card-b">${ordem.map(k=>`<div class="eq-g"><h3>${esc(k?nomeLocal(k):"Sem local")}</h3>${grupos.get(k).sort(sortNome).map(e=>{const s=statsEquip(e.id);
-      return ed===e.id?eqForm(e):`<div class="eq-row${e.ativo===false?" off":""}"><span class="n">${esc(e.nome)}<small>${esc([e.codigo,e.categoria].filter(Boolean).join(" · ")||"Sem código")}</small></span>
+      return ed===e.id?eqForm(e):`<div class="eq-row${e.ativo===false?" off":""}"><span class="n">${esc(e.nome)} ${seloTroca(avalEquip(e))}<small>${esc([e.codigo,e.categoria].filter(Boolean).join(" · ")||"Sem código")}</small></span>
         <span class="m">${esc([e.marca,e.modelo].filter(Boolean).join(" ")||"—")}${e.setorId?"<br>"+esc(nomeSetor(e.setorId)):""}</span>
         <span class="m">${s.n} chamado${s.n===1?"":"s"}${s.abertas?` · <b style="color:var(--s-new)">${s.abertas} em aberto</b>`:""}${s.custo?` · <span class="money">${fBRL(s.custo)}</span>`:""}<br>Último serviço: ${s.ult?fData(s.ult.concluidoEm):"—"}</span>
         <span class="actions"><a class="btn sm" href="#m-eq/${esc(e.id)}">Ver</a>${isMan()?`<button class="btn sm ghost" data-eqed="${esc(e.id)}" type="button">Editar</button><button class="btn sm ghost" data-eqtg="${esc(e.id)}" type="button">${e.ativo===false?"Reativar":"Desativar"}</button>`:""}</span></div>`}).join("")}</div>`).join("")}</div></section>`;
@@ -2178,7 +2182,7 @@ function renderMEquip(){
 }
 function bindMEquip(lista){
   let tm;$("#eqQ").oninput=e=>{clearTimeout(tm);const v=e.target.value;tm=setTimeout(()=>{S.ef.q=v;renderMEquip()},220)};
-  $("#eqLF").onchange=e=>{S.ef.local=e.target.value;renderMEquip()};$("#eqCF").onchange=e=>{S.ef.cat=e.target.value;renderMEquip()};$("#eqIF").onchange=e=>{S.ef.inativos=e.target.checked;renderMEquip()};
+  $("#eqLF").onchange=e=>{S.ef.local=e.target.value;renderMEquip()};$("#eqCF").onchange=e=>{S.ef.cat=e.target.value;renderMEquip()};$("#eqIF").onchange=e=>{S.ef.inativos=e.target.checked;renderMEquip()};$("#eqTF").onchange=e=>{S.ef.troca=e.target.checked;renderMEquip()};
   const pr=$("#eqPrint");if(pr)pr.onclick=()=>imprimirEtiquetas(lista.filter(e=>e.ativo!==false));
   const nv=$("#eqNovo");if(nv)nv.onclick=()=>{S.eqEdit="__new";renderMEquip();$("#eqN").focus()};
   $$("[data-eqed]").forEach(b=>b.onclick=()=>{S.eqEdit=b.dataset.eqed;renderMEquip()});
@@ -2190,8 +2194,11 @@ function bindEqForm(depois){
   $("#eqX").onclick=()=>{S.eqEdit=null;depois()};
   $("#eqL").onchange=e=>{const st=$("#eqS");if(st.value&&localDoSetor(st.value)!==e.target.value)st.value=""};
   $("#eqS").onchange=e=>{const l=localDoSetor(e.target.value);if(l&&!$("#eqL").value)$("#eqL").value=l};
+  $("#eqC").addEventListener("change",e=>{const v=VIDA_PADRAO[e.target.value];$("#eqVu").placeholder=v?"Típica: "+v:"Ex.: 10"});
   f.onsubmit=async e=>{e.preventDefault();const er=$("#eqErr");
-    const d={nome:$("#eqN").value.trim(),codigo:$("#eqCo").value.trim()||null,categoria:$("#eqC").value||null,localId:$("#eqL").value,setorId:$("#eqS").value,marca:$("#eqMa").value.trim(),modelo:$("#eqMo").value.trim(),serie:$("#eqSe").value.trim(),instaladoEm:$("#eqIn").value||null,garantiaAte:$("#eqGa").value||null,obs:$("#eqO").value.trim()};
+    const d={nome:$("#eqN").value.trim(),codigo:$("#eqCo").value.trim()||null,categoria:$("#eqC").value||null,localId:$("#eqL").value,setorId:$("#eqS").value,marca:$("#eqMa").value.trim(),modelo:$("#eqMo").value.trim(),serie:$("#eqSe").value.trim(),instaladoEm:$("#eqIn").value||null,garantiaAte:$("#eqGa").value||null,obs:$("#eqO").value.trim(),valorReposicao:$("#eqVr").value.trim()===""?null:numBR($("#eqVr").value),vidaUtilAnos:$("#eqVu").value===""?null:Math.round(Number($("#eqVu").value))};
+    if(d.valorReposicao===""||d.valorReposicao<0){er.textContent="Valor de um novo inválido. Use vírgula, por exemplo 3.800,00.";return}
+    if(d.vidaUtilAnos!=null&&!(d.vidaUtilAnos>=1&&d.vidaUtilAnos<=60)){er.textContent="Vida útil entre 1 e 60 anos.";return}
     if(!d.nome){er.textContent="Informe o nome.";return}if(!d.localId){er.textContent="Escolha o local.";return}
     if(d.codigo&&S.equipamentos.some(x=>x.id!==f.dataset.eq&&normNome(x.codigo)===normNome(d.codigo))){er.textContent="Já existe um equipamento com o código "+d.codigo+".";return}
     try{await saveCadM("equipamentos",f.dataset.eq||null,d);toast("Equipamento salvo");depois()}catch(x){console.error(x);er.textContent=/duplicate|unique/i.test(x.message||"")?"Esse código já está em uso.":"Não foi possível salvar."}};
@@ -2210,9 +2217,10 @@ function renderMEq(){
     <section class="card"><div class="card-b" style="padding-top:16px"><dl class="dl">
       <div><dt>Local</dt><dd>${esc(nomeLocal(e.localId))}</dd></div><div><dt>Setor</dt><dd>${esc(nomeSetor(e.setorId))}</dd></div>
       <div><dt>Marca e modelo</dt><dd>${esc([e.marca,e.modelo].filter(Boolean).join(" ")||"—")}</dd></div><div><dt>Nº de série</dt><dd>${esc(e.serie||"—")}</dd></div>
-      <div><dt>Instalado em</dt><dd class="num">${fDia(e.instaladoEm)}</dd></div><div><dt>Garantia</dt><dd>${esc(gar||"—")}</dd></div>
+      <div><dt>Instalado em</dt><dd class="num">${fDia(e.instaladoEm)}</dd></div><div><dt>Valor de um novo</dt><dd class="money">${nOuNull(e.valorReposicao)!=null?fBRL(e.valorReposicao):"—"}</dd></div><div><dt>Garantia</dt><dd>${esc(gar||"—")}</dd></div>
       <div><dt>Preventivas</dt><dd>${pls.length?pls.map(p=>esc(p.nome)+" · "+esc(freqInfo(p.frequencia)[1].toLowerCase())+" · próxima "+fDia(proximaPrev(p))).join("<br>"):"Nenhum plano"}</dd></div>
     </dl>${e.obs?`<p style="margin:12px 0 0;color:var(--mute)">${esc(e.obs)}</p>`:""}${isMan()&&S.editEq!==e.id?`<div class="actions" style="margin-top:12px"><button class="btn sm" id="eqEd" type="button">Editar dados</button></div>`:""}</div></section>
+    ${trocaCardHTML(e)}
     <section class="card" style="margin-top:16px"><div class="card-h"><h2>Histórico</h2><span class="sub">${hist.length}</span></div><div class="card-b">${hist.length?`<div class="list">${hist.map(mRowHTML).join("")}</div>`:`<p style="color:var(--mute)">Nenhum chamado para este equipamento.</p>`}</div></section>
   </div>
   <section class="card"><div class="card-h"><h2>Etiqueta</h2></div><div class="card-b"><div class="qr" id="eqQR" aria-label="QR Code do equipamento"></div><p class="hint" style="margin:8px 0">Leva para esta página. Quem está logado abre o chamado com um toque.</p><button class="btn sm" id="eqEt" type="button">Imprimir etiqueta</button></div></section></div>`;
@@ -2246,7 +2254,7 @@ function renderMPainel(){
     ${kpi("Tempo de solução",durNum(ts),durUnit(ts),"Da abertura à conclusão")}
     ${kpi("Custo no período",fBRL(custo),"",conc.length?"Média "+fBRL(custo/Math.max(val.filter(m=>custoTotal(m)>0).length,1))+" por OS com custo":"Peças e serviços","money-k")}
   </div>`;
-  if(!val.length){h+=`<div class="empty"><h3>Nenhum chamado neste período</h3><p>Os indicadores aparecem conforme os chamados forem abertos e concluídos.</p></div>`;app.innerHTML=h;bindMPainel();return}
+  if(!val.length){h+=`<div class="empty"><h3>Nenhum chamado neste período</h3><p>Os indicadores aparecem conforme os chamados forem abertos e concluídos.</p></div>`+pendenciasHTML(["man"],"Fila de pendências da manutenção");app.innerHTML=h;bindMPainel();bindMOpen();return}
   const [a,b]=periodRange(S.mf.periodo);const endT=Math.min(b.getTime(),Date.now()+86400000);const startT=Math.max(a.getTime(),endT-120*86400000);const nd=Math.max(Math.round((endT-startT)/86400000),1);
   const cnt={};val.forEach(m=>{const k=dayKey(m.criadoEm);cnt[k]=(cnt[k]||0)+1});const series=[];for(let i=0;i<nd;i++){const k=dayKey(new Date(startT+i*86400000+3600000));series.push({k,v:cnt[k]||0})}
   const sc={};list.forEach(m=>sc[m.status]=(sc[m.status]||0)+1);const tot=list.length||1;
@@ -2257,6 +2265,7 @@ function renderMPainel(){
   const porCat=groupCount(val,m=>m.categoria||"Sem categoria"),porLoc=groupCount(val,m=>m.localId||"");
   h+=`<div class="grid2"><section class="card"><div class="card-h"><h2>Categorias</h2><span class="sub">chamados · tempo médio de solução</span></div><div class="card-b">${hbars(porCat.slice(0,10).map(([k,l])=>({n:k,v:l.length,x:fDur(avg(l.filter(m=>m.status==="concluida").map(tSolucao)))})))}</div></section>
     <section class="card"><div class="card-h"><h2>Locais</h2><span class="sub">chamados · custo</span></div><div class="card-b">${hbars(porLoc.slice(0,10).map(([k,l])=>({n:k?nomeLocal(k):"Sem local",v:l.length,x:fBRL(l.reduce((s,m)=>s+custoTotal(m),0))})))}</div></section></div>`;
+  h+=pendenciasHTML(["man"],"Fila de pendências da manutenção")+trocaListaHTML(10);
   const porEq=groupCount(val.filter(m=>m.equipamentoId),m=>m.equipamentoId).slice(0,10);
   h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Equipamentos com mais chamados</h2><span class="sub">candidatos a troca ou a preventiva</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Equipamento</th><th class="r">Chamados</th><th class="r">Corretivas</th><th class="r">Custo</th><th class="r">Solução média</th></tr></thead><tbody>
     ${porEq.length?porEq.map(([k,l])=>`<tr><td><a class="lnk" href="#m-eq/${esc(k)}"><b>${esc(nomeEquip(k))}</b></a> <span style="color:var(--faint)">${esc(nomeLocal((byId(S.equipamentos,k)||{}).localId))}</span></td><td class="r num">${l.length}</td><td class="r num">${l.filter(m=>m.tipo==="corretiva").length}</td><td class="r money">${fBRL(l.reduce((s,m)=>s+custoTotal(m),0))}</td><td class="r num">${fDur(avg(l.filter(m=>m.status==="concluida").map(tSolucao)))}</td></tr>`).join(""):`<tr><td colspan="5">Nenhum chamado ligado a equipamento no período.</td></tr>`}</tbody></table></div></section>`;
@@ -2265,7 +2274,7 @@ function renderMPainel(){
       ${porPr.length?porPr.map(([k,l])=>`<tr><td><b>${esc(k?nomePrest(k):"A definir")}</b></td><td class="r num">${l.length}</td><td class="r num">${l.filter(m=>m.status==="concluida").length}</td><td class="r money">${fBRL(l.reduce((s,m)=>s+custoTotal(m),0))}</td></tr>`).join(""):`<tr><td colspan="4">Nenhuma OS com terceiros.</td></tr>`}</tbody></table></div></section>
     <section class="card"><div class="card-h"><h2>Equipe interna</h2><span class="sub">participação</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Técnico</th><th class="r">OS</th><th class="r">Concluídas</th><th class="r">No prazo</th></tr></thead><tbody>
       ${porTec.length?porTec.map(([k,l])=>{const c=l.filter(m=>m.status==="concluida");const cp2=c.filter(m=>isFinite(prazoM(m)));const p=byId(S.equipe,k);return `<tr><td><b>${esc(p?p.nome:"—")}</b>${p&&p.funcao?` <span style="color:var(--faint)">${esc(p.funcao)}</span>`:""}</td><td class="r num">${l.length}</td><td class="r num">${c.length}</td><td class="r num">${cp2.length?Math.round(cp2.filter(m=>!mConclAtraso(m)).length/cp2.length*100)+"%":"—"}</td></tr>`}).join(""):`<tr><td colspan="4">Nenhuma OS com equipe interna.</td></tr>`}</tbody></table></div></section></div>`;
-  app.innerHTML=h;bindMPainel();drawBars($("#chM"),series);
+  app.innerHTML=h;bindMPainel();bindOpen();bindMOpen();drawBars($("#chM"),series);
   const sv=$("#chM svg");if(sv)sv.setAttribute("aria-label","Chamados de manutenção por dia");
 }
 function bindMPainel(){
@@ -2339,6 +2348,10 @@ function pontosAtencao(A,B){
   const top=Object.entries(pe).sort((a,b)=>b[1]-a[1])[0];if(top&&A.cm>0&&top[1]/A.cm>=.3)P.push({n:1,t:`${nomeEquip(top[0])} concentrou ${Math.round(top[1]/A.cm*100)}% do custo da manutenção (${fBRL(top[1])}).`});
   if(atual){const velhos=S.manutencoes.filter(m=>MABERTOS.includes(m.status)&&Date.now()-T(m.criadoEm)>7*86400000).length;if(velhos)P.push({n:2,t:`${velhos} chamado${velhos>1?"s":""} de manutenção aberto${velhos>1?"s":""} há mais de 7 dias.`});
     const vel=S.os.filter(atrasada).length;if(vel)P.push({n:1,t:`${vel} OS de logística atrasada${vel>1?"s":""} agora.`});}
+  const tr=alertasTroca();const trc=tr.filter(x=>x.a.n>=3);
+  trc.slice(0,3).forEach(({e,a})=>P.push({n:2,t:`Trocar ${e.nome}${e.codigo?" ("+e.codigo+")":""}: ${a.motivos[0]}`}));
+  if(tr.length>trc.length)P.push({n:1,t:`${tr.length-trc.length} equipamento${tr.length-trc.length>1?"s":""} para avaliar troca. Veja em Consertar ou trocar.`});
+  if(atual){const v30=pendencias(["log","man"]).filter(x=>x.idade>30*86400000).length;if(v30)P.push({n:3,t:`${v30} pendência${v30>1?"s":""} aberta${v30>1?"s":""} há mais de 30 dias.`});}
   const semKm=[...new Set(A.log.filter(o=>o.veiculoId&&kmRodados(o)&&nOuNull((byId(S.veiculos,o.veiculoId)||{}).custoKm)==null).map(o=>o.veiculoId))];
   const semH=[...new Set(A.log.flatMap(o=>o.equipeIds||[]).concat(A.man.filter(m=>m.executor!=="terceiro").flatMap(m=>m.equipeIds||[])).filter(id=>nOuNull((byId(S.equipe,id)||{}).custoHora)==null))];
   if(semKm.length&&!(Number(S.config.custoKmPadrao)>0))P.push({n:0,t:`${semKm.length} veículo${semKm.length>1?"s":""} sem custo por km: o custo da logística está subestimado. Cadastre em Cadastros → Veículos.`});
@@ -2364,8 +2377,8 @@ function stackedBars(el,meses){
     tip.hidden=false;tip.style.left=((ml+i*bw+bw/2)*(r.width/W))+"px";tip.style.top=(y(m.cl+m.cm)*(r.height/H))+"px"});
   svg.addEventListener("pointerleave",()=>{tip.hidden=true});
 }
-function usoHTML(g,orc){if(!orc)return `<span style="color:var(--faint)">Sem orçamento</span>`;const u=g/orc*100;const cls=u>=100?"over":u>=80?"warn":"ok";
-  return `<span class="uso ${cls}"><span class="uso-t"><i style="width:${Math.min(u,100)}%"></i></span><b class="num">${Math.round(u)}%</b>${u>=100?`<span class="uso-l">Acima</span>`:u>=80?`<span class="uso-l">Atenção</span>`:""}</span>`}
+function usoHTML(g,orc,lim){if(!orc)return `<span style="color:var(--faint)">Sem orçamento</span>`;const u=g/orc*100;const L=lim||[80,100];const cls=u>=L[1]?"over":u>=L[0]?"warn":"ok";
+  return `<span class="uso ${cls}"><span class="uso-t"><i style="width:${Math.min(u,100)}%"></i></span><b class="num">${Math.round(u)}%</b>${u>=L[1]?`<span class="uso-l">${lim?"Alto":"Acima"}</span>`:u>=L[0]?`<span class="uso-l">Atenção</span>`:""}</span>`}
 function resumoGestao(A,B,P){
   const L=[`*Facilities · ${mesNome(A.k)}*`,``,`Custo total: ${fBRL(A.total)} · ${deltaTxt(A.total,B.total,true).toLowerCase()}`,`• Logística: ${fBRL(A.cl)} em ${A.log.length} OS`,`• Manutenção: ${fBRL(A.cm)} em ${A.man.length} OS`,`Concluídas no prazo: ${pctTxt(A.pct)}`,``,`*Por unidade*`];
   unidades().forEach(l=>{const x=A.porU[l.id];const orc=nOuNull(l.orcamentoMensal);if(!x&&!orc)return;const g=x?x.log+x.man:0;L.push(`• ${l.sigla||l.nome}: ${fBRL(g)}${orc?" de "+fBRL(orc)+" ("+Math.round(g/orc*100)+"%)":""}`)});
@@ -2425,6 +2438,8 @@ function renderGestao(){
       return `<tr><td><b>${esc(l.nome)}</b>${l.sigla?` <span style="color:var(--faint)">${esc(l.sigla)}</span>`:""}</td><td class="r money">${fBRL(x.log)}</td><td class="r money">${fBRL(x.man)}</td><td class="r money"><b>${fBRL(g)}</b></td><td class="r num">${v==null?"—":(v>0?"▲ ":"▼ ")+Math.abs(Math.round(v))+"%"}</td><td class="r money">${orc?fBRL(orc):"—"}</td><td>${usoHTML(g,orc)}</td></tr>`}).join("")}
     ${A.porU[""]?`<tr><td><b>Sem unidade</b> <span style="color:var(--faint)">OS sem setor ou local de unidade</span></td><td class="r money">${fBRL(A.porU[""].log)}</td><td class="r money">${fBRL(A.porU[""].man)}</td><td class="r money"><b>${fBRL(A.porU[""].log+A.porU[""].man)}</b></td><td class="r">—</td><td class="r">—</td><td></td></tr>`:""}
     <tr class="tot"><td><b>Total</b></td><td class="r money"><b>${fBRL(A.cl)}</b></td><td class="r money"><b>${fBRL(A.cm)}</b></td><td class="r money"><b>${fBRL(A.total)}</b></td><td class="r num">${(()=>{const v=variacao(A.total,B.total);return v==null?"—":(v>0?"▲ ":"▼ ")+Math.abs(Math.round(v))+"%"})()}</td><td class="r money">${orcTot?fBRL(orcTot):"—"}</td><td>${orcTot?usoHTML(gastoOrc,orcTot):""}</td></tr></tbody></table></div></section>
+  ${pendenciasHTML(["log","man"],"Fila de pendências por idade")}
+  ${trocaListaHTML(10)}
   <div class="grid2">
     <section class="card"><div class="card-h"><h2>Setores com maior custo</h2><span class="sub">logística + manutenção</span></div><div class="card-b">${hbars(Object.entries(A.porS).map(([s,x])=>({s,v:x.log+x.man,x})).filter(r=>r.v>0).sort((a,b)=>b.v-a.v).slice(0,10).map(r=>({n:r.s?nomeSetor(r.s):"Sem setor",v:r.v,x:"",lbl:fBRL(r.v)})))}</div></section>
     <section class="card"><div class="card-h"><h2>Onde está o custo</h2><span class="sub">composição no mês</span></div><div class="card-b tbl-wrap"><table class="t"><tbody>
@@ -2442,12 +2457,92 @@ function renderGestao(){
   app.innerHTML=h;bindGestao(A,B,P);stackedBars($("#chG"),serie);
 }
 function bindGestao(A,B,P){
+  bindOpen();bindMOpen();
   $("#gM").onchange=e=>{S.gm=e.target.value;renderGestao()};
   $("#gCsv").onclick=()=>exportCSVGestao(A);$("#gPrint").onclick=()=>imprimirGestao(A,B,P);
   $("#gRes").onclick=()=>{S.gRes=true;renderGestao();const t=$("#gResT");if(t){t.focus();t.scrollIntoView({block:"nearest"})}};
   const x=$("#gResX");if(x)x.onclick=()=>{S.gRes=false;renderGestao()};
   const t=$("#gResT");if(t)t.oninput=()=>{$("#gWa").href="https://wa.me/?text="+encodeURIComponent(t.value)};
   const c=$("#gCopy");if(c)c.onclick=async()=>{try{await navigator.clipboard.writeText($("#gResT").value);toast("Resumo copiado")}catch(e){$("#gResT").select();toast("Selecione e copie o texto")}};
+}
+
+/* =====================================================================
+   CONSERTAR OU TROCAR · FILA DE PENDÊNCIAS
+   ===================================================================== */
+const VIDA_PADRAO={"Ar-condicionado":10,"Refrigeração":10,"Cozinha industrial":10,"Gerador / energia":20,"Elevador":25,"Hidráulica":10,"Elétrica":15,"Incêndio / segurança":10,"TI / telefonia":5};
+const anosDesde=d=>d?(Date.now()-T(String(d).slice(0,10)+"T12:00"))/(365.25*86400000):null;
+function avalEquip(e){
+  const lim12=Date.now()-365*86400000,lim90=Date.now()-90*86400000;
+  const l=S.manutencoes.filter(m=>m.equipamentoId===e.id&&m.status!=="cancelada");
+  const custo12=l.filter(m=>T(m.concluidoEm||m.criadoEm)>lim12).reduce((s,m)=>s+custoTotal(m),0);
+  const corr90=l.filter(m=>m.tipo==="corretiva"&&T(m.criadoEm)>lim90).length,corr12=l.filter(m=>m.tipo==="corretiva"&&T(m.criadoEm)>lim12).length;
+  const idade=anosDesde(e.instaladoEm);const vidaProp=nOuNull(e.vidaUtilAnos);const vida=vidaProp||VIDA_PADRAO[e.categoria]||null;
+  const valor=nOuNull(e.valorReposicao);const pct=valor?custo12/valor:null;
+  const fimVida=idade!=null&&vida?idade>=vida:false,quaseFim=idade!=null&&vida?idade>=vida*.8:false;
+  const M=[];let n=0;
+  if(pct!=null&&pct>=.7){n=3;M.push(`Os reparos dos últimos 12 meses (${fBRL(custo12)}) já somam ${Math.round(pct*100)}% do valor de um novo (${fBRL(valor)}).`)}
+  else if(pct!=null&&pct>=.4){n=Math.max(n,2);M.push(`Os reparos dos últimos 12 meses (${fBRL(custo12)}) somam ${Math.round(pct*100)}% do valor de um novo (${fBRL(valor)}).`)}
+  if(fimVida){const forte=(pct!=null&&pct>=.3)||corr12>=3;n=Math.max(n,forte?3:2);M.push(`Tem ${idade.toFixed(1).replace(".",",")} anos e passou da vida útil ${vidaProp?"informada":"típica"} (${vida} anos)${forte?", com reparos frequentes ou caros":""}.`)}
+  else if(quaseFim&&corr12>=2){n=Math.max(n,2);M.push(`Está perto do fim da vida útil (${idade.toFixed(1).replace(".",",")} de ${vida} anos) e já teve ${corr12} corretivas no ano.`)}
+  if(corr90>=3){n=Math.max(n,2);M.push(`O problema voltou a acontecer: ${corr90} corretivas nos últimos 90 dias.`)}
+  const falta=[];if(!valor)falta.push("valor de reposição");if(!e.instaladoEm)falta.push("data de instalação");
+  return {n,nivel:n>=3?"trocar":n===2?"avaliar":"ok",label:n>=3?"Trocar":n===2?"Avaliar troca":"Manter",motivos:M,custo12,corr90,corr12,idade,vida,vidaProp:!!vidaProp,valor,pct,falta};
+}
+const alertasTroca=()=>S.equipamentos.filter(e=>e.ativo!==false).map(e=>({e,a:avalEquip(e)})).filter(x=>x.a.n>=2).sort((x,y)=>y.a.n-x.a.n||(y.a.pct||0)-(x.a.pct||0)||y.a.custo12-x.a.custo12);
+const seloTroca=a=>a.n>=2?`<span class="troca ${a.nivel}">${a.label}</span>`:"";
+function trocaCardHTML(e){
+  const a=avalEquip(e);const pct=a.pct!=null?Math.round(a.pct*100):null;
+  const rec=a.n>=3?"Vale planejar a substituição: continuar consertando tende a custar mais do que um equipamento novo."
+    :a.n===2?"Acompanhe de perto. Peça orçamento de um novo e compare antes do próximo reparo grande."
+    :"Consertar ainda compensa.";
+  return `<section class="card" style="margin-top:16px"><div class="card-h"><h2>Consertar ou trocar</h2>${a.n>=2?seloTroca(a):`<span class="troca ok">Manter</span>`}</div><div class="card-b">
+    <p style="margin:0 0 12px"><b>${esc(rec)}</b></p>
+    <dl class="dl">
+      <div><dt>Reparos em 12 meses</dt><dd class="money">${fBRL(a.custo12)}${a.valor?` <span style="color:var(--faint);font-weight:500">de ${fBRL(a.valor)} de um novo</span>`:""}</dd></div>
+      <div><dt>Corretivas</dt><dd class="num">${a.corr90} em 90 dias · ${a.corr12} em 12 meses</dd></div>
+      <div><dt>Idade</dt><dd class="num">${a.idade!=null?a.idade.toFixed(1).replace(".",",")+" anos":"—"}${a.vida?` <span style="color:var(--faint);font-weight:500">vida útil ${a.vidaProp?"":"típica "}${a.vida} anos</span>`:""}</dd></div>
+    </dl>
+    ${pct!=null?`<div style="margin-top:12px;max-width:420px"><span class="lbl" style="display:block;margin-bottom:4px">Reparos em 12 meses ÷ valor de um novo</span>${usoHTML(a.custo12,a.valor,[40,70])}</div>`:""}
+    ${a.motivos.length?`<ul class="pts" style="margin-top:12px">${a.motivos.map(t=>`<li class="pt0"><span class="pt-i">Motivo</span>${esc(t)}</li>`).join("")}</ul>`:""}
+    ${a.falta.length?`<p class="hint" style="margin:10px 0 0">Para uma análise completa, informe ${esc(a.falta.join(" e "))} no cadastro do equipamento.</p>`:""}
+  </div></section>`;
+}
+function trocaListaHTML(lim){
+  const L=alertasTroca();
+  return `<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Consertar ou trocar</h2><span class="sub">${L.length?L.length+" equipamento"+(L.length>1?"s":"")+" com alerta":"nenhum alerta"}</span></div><div class="card-b tbl-wrap">
+    ${L.length?`<table class="t"><thead><tr><th>Equipamento</th><th>Situação</th><th class="r">Reparos 12 meses</th><th class="r">% de um novo</th><th class="r">Corretivas 90 dias</th><th class="r">Idade</th></tr></thead><tbody>
+      ${L.slice(0,lim||20).map(({e,a})=>`<tr><td><a class="lnk" href="#m-eq/${esc(e.id)}"><b>${esc(e.nome)}</b></a> <span style="color:var(--faint)">${esc([e.codigo,nomeLocal(e.localId)].filter(x=>x&&x!=="—").join(" · "))}</span></td><td>${seloTroca(a)}</td><td class="r money">${fBRL(a.custo12)}</td><td class="r num">${a.pct!=null?Math.round(a.pct*100)+"%":"—"}</td><td class="r num">${a.corr90}</td><td class="r num">${a.idade!=null?a.idade.toFixed(1).replace(".",",")+" anos":"—"}</td></tr>`).join("")}</tbody></table>`
+    :`<p style="color:var(--mute);margin:0">Nenhum equipamento com custo de reparo alto, problema recorrente ou fim de vida útil. Cadastre o valor de reposição e a data de instalação para a análise ficar completa.</p>`}
+  </div></section>`;
+}
+
+/* ---------- Fila de pendências por idade ---------- */
+const FAIXAS=[["0 a 2 dias",0,2],["3 a 7 dias",3,7],["8 a 30 dias",8,30],["Mais de 30 dias",31,1e9]];
+function pendencias(areas){
+  const now=Date.now();const out=[];
+  if(areas.includes("log"))S.os.filter(o=>ABERTOS.includes(o.status)&&(!o.agendadoPara||T(o.agendadoPara)<=now)).forEach(o=>{
+    const ids=o.equipeIds||[];out.push({area:"log",id:o.id,cod:codigo(o),txt:rotaTxt(o),st:ST[o.status],stk:o.status,idade:now-T(o.solicitadoEm||o.criadoEm),resp:ids.length?ids.map(i=>(byId(S.equipe,i)||{}).nome||"—"):["Sem equipe"]})});
+  if(areas.includes("man"))S.manutencoes.filter(m=>MABERTOS.includes(m.status)&&!(m.tipo==="preventiva"&&m.agendadoPara&&T(m.agendadoPara)>now)).forEach(m=>{
+    const r=m.status==="aberto"?["Aguardando triagem"]:m.executor==="terceiro"?[m.prestadorId?nomePrest(m.prestadorId):"Prestador a definir"]:((m.equipeIds||[]).length?m.equipeIds.map(i=>(byId(S.equipe,i)||{}).nome||"—"):["Equipe a definir"]);
+    out.push({area:"man",id:m.id,cod:codM(m),txt:tituloM(m),st:MST[m.status],stk:m.status,idade:now-T(m.criadoEm),resp:r})});
+  return out.filter(x=>isFinite(x.idade));
+}
+const faixaDe=ms=>{const d=Math.floor(ms/86400000);return FAIXAS.findIndex(f=>d>=f[1]&&d<=f[2])};
+function pendenciasHTML(areas,titulo){
+  const P=pendencias(areas);const linha=(nome,l,cls)=>{const c=FAIXAS.map((_,i)=>l.filter(x=>faixaDe(x.idade)===i).length);const mx=l.reduce((m,x)=>Math.max(m,x.idade),0);
+    return `<tr class="${cls||""}"><td>${cls==="ar"?`<b>${esc(nome)}</b>`:esc(nome)}</td>${c.map((v,i)=>`<td class="r num"><span class="fx-c${!v?" f0":i>=3?" f3":i===2?" f2":""}">${v||"·"}</span></td>`).join("")}<td class="r num"><b>${l.length}</b></td><td class="r num">${l.length?fDur(mx):"—"}</td></tr>`};
+  let rows="";
+  areas.forEach(ar=>{const l=P.filter(x=>x.area===ar);if(areas.length>1)rows+=linha(ar==="log"?"Logística":"Manutenção",l,"ar");
+    const m=new Map();l.forEach(x=>x.resp.forEach(r=>{if(!m.has(r))m.set(r,[]);m.get(r).push(x)}));
+    [...m.entries()].sort((a,b)=>b[1].reduce((s,x)=>Math.max(s,x.idade),0)-a[1].reduce((s,x)=>Math.max(s,x.idade),0)).forEach(([r,lst])=>rows+=linha(r,lst,areas.length>1?"sub":""))});
+  const velhos=P.slice().sort((a,b)=>b.idade-a.idade).slice(0,8);
+  const v8=P.filter(x=>faixaDe(x.idade)>=2).length;
+  return `<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>${esc(titulo||"Fila de pendências")}</h2><span class="sub">${P.length} em aberto${v8?` · <b class="late">${v8} há mais de 7 dias</b>`:""}</span></div><div class="card-b">
+    ${P.length?`<div class="tbl-wrap"><table class="t fila"><thead><tr><th>${areas.length>1?"Área e responsável":"Responsável"}</th>${FAIXAS.map(f=>`<th class="r">${f[0]}</th>`).join("")}<th class="r">Total</th><th class="r">Mais antiga</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <h3 class="fila-h">Mais antigas</h3><ul class="tl">${velhos.map(x=>`<li><time class="num">${fDur(x.idade)}</time><span><button class="lnk num" type="button" ${x.area==="log"?"data-open":"data-mopen"}="${esc(x.id)}">${esc(x.cod)}</button> · ${esc(x.txt)} · <span class="st ${x.stk}">${esc(x.st)}</span> <span style="color:var(--faint)">· ${esc(x.resp.join(", "))}</span></span></li>`).join("")}</ul>
+      <p class="hint" style="margin:8px 0 0">Idade contada desde o pedido ou a abertura do chamado. Não entram OS programadas para o futuro. Uma OS com duas pessoas aparece na linha de cada uma.</p>`
+    :`<p style="color:var(--mute);margin:0">Nada pendente agora.</p>`}
+  </div></section>`;
 }
 
 /* ---------- Demonstração da manutenção ---------- */
@@ -2458,7 +2553,8 @@ function loadDemoMan(){
   ({mc:22000,mg:14000,dr:6000,cm:5000,cd1:4000})&&S.locais.forEach(l=>{const o={mc:22000,mg:14000,dr:6000,cm:5000,cd1:4000}[l.id];if(o)l.orcamentoMensal=o});
   S.prestadores=[["Frio Total Climatização","Ar-condicionado"],["Hidro Já","Hidráulica"],["Eletro SP","Elétrica"]].map(([n,e],i)=>({id:"pr"+i,nome:n,especialidade:e,telefone:"(11) 3333-000"+i,ativo:true}));
   S.equipamentos=[["Ar split salão 1","AC-001","Ar-condicionado","mc","s0"],["Ar split salão 2","AC-002","Ar-condicionado","mc","s0"],["Câmara fria","RF-001","Refrigeração","mc","s1"],["Forno combinado","CZ-001","Cozinha industrial","mc","s1"],["Gerador 150 kVA","GE-001","Gerador / energia","mc",""],["Ar split VIP","AC-010","Ar-condicionado","mg","s6"],["Freezer bar VIP","RF-010","Refrigeração","mg","s6"],["Bomba de recalque","HD-001","Hidráulica","cm","s10"],["Coifa cozinha","CZ-020","Cozinha industrial","dr",""],["Elevador social","EL-001","Elevador","cm",""]]
-    .map(([n,c,cat,l,s],i)=>({id:"q"+i,nome:n,codigo:c,categoria:cat,localId:l,setorId:s,marca:["LG","Springer","Rational","Cummins","Consul"][i%5],modelo:"",ativo:true,criadoEm:new Date(now-200*86400000).toISOString()}));
+    .map(([n,c,cat,l,s],i)=>({id:"q"+i,nome:n,codigo:c,categoria:cat,localId:l,setorId:s,marca:["LG","Springer","Rational","Cummins","Consul"][i%5],modelo:"",ativo:true,criadoEm:new Date(now-200*86400000).toISOString(),
+      valorReposicao:[2200,3600,28000,42000,95000,4200,3800,6500,9000,180000][i],instaladoEm:dataLocal(new Date(now-[11.5,3,6,4,15,8,9.5,12,5,18][i]*365.25*86400000))}));
   S.planos=[{id:"pl0",nome:"Limpeza de filtros dos splits do salão",equipamentoId:"q0",localId:"mc",categoria:"Ar-condicionado",frequencia:"mensal",inicio:dataLocal(new Date(now-40*86400000)),hora:"09:00",executor:"interno",equipeIds:["t2"],checklist:["Limpar filtros","Verificar dreno","Medir temperatura de saída"],pulos:[],ativo:true,criadoEm:new Date(now-60*86400000).toISOString()},
     {id:"pl1",nome:"Teste do gerador com carga",equipamentoId:"q4",localId:"mc",categoria:"Gerador / energia",frequencia:"quinzenal",inicio:dataLocal(new Date(now-20*86400000)),hora:"07:30",executor:"interno",equipeIds:["t0"],checklist:["Nível de óleo","Nível de diesel","Partida e 15 min com carga","Bateria"],pulos:[],ativo:true,criadoEm:new Date(now-60*86400000).toISOString()},
     {id:"pl2",nome:"Limpeza da caixa d'água",localId:"cm",categoria:"Hidráulica",frequencia:"semestral",inicio:dataLocal(new Date(now+12*86400000)),hora:"08:00",executor:"terceiro",prestadorId:"pr1",equipeIds:[],checklist:["Esvaziar e escovar","Desinfetar","Emitir laudo"],pulos:[],ativo:true,criadoEm:new Date(now-10*86400000).toISOString()}];

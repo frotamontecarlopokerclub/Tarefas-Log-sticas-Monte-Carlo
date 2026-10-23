@@ -28,6 +28,7 @@ Não há instalação nem programação. São três contas gratuitas e cerca de 
 | `supabase/08_manutencao.sql` | Manutenção: chamados, OS, equipamentos, prestadores, preventivas e custos |
 | `supabase/09_acesso_por_area.sql` | Acesso da equipe por área (só logística, só manutenção ou as duas) |
 | `supabase/10_custos_gestao.sql` | Custos (km, hora da equipe, extras), orçamento por unidade e painel de Gestão |
+| `supabase/11_reposicao_pendencias.sql` | Valor de reposição e vida útil dos equipamentos (consertar ou trocar) |
 | `assets/qrcode.js` | Gerador das etiquetas com QR Code dos equipamentos |
 | `supabase/functions/enviar-whatsapp/index.ts` | Função do servidor que envia o WhatsApp automático |
 | `WHATSAPP-AUTOMATICO.md` | Passo a passo da Meta e do Supabase para o envio automático (opcional) |
@@ -52,7 +53,7 @@ Entrar no Supabase e na Vercel com o GitHub deixa tudo ligado com um único logi
 3. No menu da esquerda, abra **SQL Editor** e clique em **New query**.
 4. Abra o arquivo `supabase/01_estrutura.sql` no Bloco de Notas, copie tudo, cole no editor e clique em **Run**. Deve aparecer *Success. No rows returned*.
 5. Abra outra *New query*, faça o mesmo com `supabase/02_cadastros.sql` e clique em **Run**.
-6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql`, `supabase/09_acesso_por_area.sql` e por fim `supabase/10_custos_gestao.sql`.
+6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql`, `supabase/09_acesso_por_area.sql`, `supabase/10_custos_gestao.sql` e por fim `supabase/11_reposicao_pendencias.sql`.
 7. Confira em **Table Editor**: devem aparecer as tabelas `os`, `pedidos`, `locais` e as outras, com os seus locais e setores já preenchidos.
 
 ## Etapa 3 · Ajustar o login no Supabase
@@ -231,3 +232,21 @@ Nova tela **Gestão**, para a coordenação (acesso às duas áreas) e para quem
 3. Em **Cadastros → Regras → Custos padrão**, defina um custo por km e um custo por hora para todos. Depois, se quiser, valores próprios em **Veículos** (custo por km: combustível, manutenção, seguro e depreciação) e em **Equipe** (custo por hora: salário com encargos ÷ horas do mês).
 4. Em **Cadastros → Locais**, preencha o **Orçamento mensal** de cada unidade.
 5. A visão `os_custos` do Supabase traz o custo de cada OS de logística para o Power BI; junto com `manutencoes_custos`, cobre as duas áreas.
+
+## Funções da atualização 13 · Consertar ou trocar e fila de pendências
+
+**Consertar ou trocar**
+- No cadastro de cada equipamento há dois campos novos: **Valor de um novo (R$)** e **Vida útil (anos)**. Se a vida útil ficar em branco, vale a típica da categoria (ar-condicionado e refrigeração 10 anos, gerador 20, elevador 25…).
+- O sistema avalia cada equipamento:
+  - **Trocar:** reparos dos últimos 12 meses ≥ 70% do valor de um novo, ou passou da vida útil com reparos frequentes ou caros.
+  - **Avaliar troca:** reparos ≥ 40% do valor de um novo, 3 ou mais corretivas em 90 dias, passou da vida útil, ou está perto do fim dela com 2 ou mais corretivas no ano.
+- O selo aparece na lista de equipamentos (com o filtro *Só com alerta de troca*). A página do equipamento explica os motivos e dá a recomendação. Há também uma lista no Painel da manutenção e na Gestão, e os casos de *Trocar* entram nos Pontos de atenção.
+- A visão `equipamentos_reposicao` do Supabase traz esses números para o Power BI.
+
+**Fila de pendências por idade**
+- Mostra tudo o que está em aberto, separado por idade (0 a 2 dias, 3 a 7, 8 a 30, mais de 30), por área e por responsável (técnico, prestador, equipe da logística ou *Aguardando triagem*), com a mais antiga de cada um.
+- Lista as pendências mais antigas, que abrem com um toque.
+- Aparece no Painel da logística, no Painel da manutenção e, com as duas áreas juntas, na Gestão. Pendências com mais de 30 dias entram nos Pontos de atenção.
+- Não entram as OS programadas para o futuro.
+
+**Como instalar:** no Supabase, rode `supabase/11_reposicao_pendencias.sql`. No GitHub, envie `app.js`, `styles.css`, `README.md` e o `.sql` dentro da pasta `supabase`. Depois, preencha o valor de um novo e a data de instalação dos equipamentos principais.

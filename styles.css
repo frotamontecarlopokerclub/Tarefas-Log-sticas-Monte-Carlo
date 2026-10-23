@@ -529,3 +529,18 @@ details.fs>summary small{flex-basis:100%;padding-left:18px;margin-top:-6px}
 .cu-r.cu-r3{grid-template-columns:minmax(0,2fr) 70px 110px 32px}
 @media (max-width:760px){.cu-r.cu-r3{grid-template-columns:minmax(0,1fr) 64px 96px 32px}}
 .kpi.money-k .v{white-space:nowrap;font-size:clamp(17px,1.55vw,22px);overflow-wrap:normal}
+
+/* ---------- Consertar ou trocar · pendências ---------- */
+.troca{display:inline-block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:999px;vertical-align:1px;white-space:nowrap}
+.troca.trocar{background:var(--danger-surface);color:var(--s-late)}
+.troca.avaliar{background:var(--warn-surface);color:var(--s-age)}
+.troca.ok{background:var(--ok-surface);color:var(--s-ok)}
+.eq-row .n .troca{margin-left:4px}
+.t.fila td,.t.fila th{white-space:nowrap}
+.t.fila tr.ar td{background:var(--hover);border-top:1px solid var(--line-strong)}
+.t.fila tr.sub td:first-child{padding-left:22px}
+.fx-c{display:inline-block;min-width:26px;text-align:center;border-radius:6px;padding:1px 6px;color:var(--faint)}
+.fx-c{color:var(--ink)}.fx-c.f0{color:var(--faint)}
+.fx-c.f2{background:var(--warn-surface);color:var(--s-age);font-weight:700}
+.fx-c.f3{background:var(--danger-surface);color:var(--s-late);font-weight:700}
+.fila-h{font-size:13px;margin:14px 0 6px;color:var(--gold-ink);text-transform:uppercase;letter-spacing:.06em}
