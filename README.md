@@ -27,6 +27,7 @@ Não há instalação nem programação. São três contas gratuitas e cerca de 
 | `supabase/07_setores_por_local.sql` | Os 72 setores de cada unidade (M.C., M.G., Doryo, Prédio Cardoso e CD 1) |
 | `supabase/08_manutencao.sql` | Manutenção: chamados, OS, equipamentos, prestadores, preventivas e custos |
 | `supabase/09_acesso_por_area.sql` | Acesso da equipe por área (só logística, só manutenção ou as duas) |
+| `supabase/10_custos_gestao.sql` | Custos (km, hora da equipe, extras), orçamento por unidade e painel de Gestão |
 | `assets/qrcode.js` | Gerador das etiquetas com QR Code dos equipamentos |
 | `supabase/functions/enviar-whatsapp/index.ts` | Função do servidor que envia o WhatsApp automático |
 | `WHATSAPP-AUTOMATICO.md` | Passo a passo da Meta e do Supabase para o envio automático (opcional) |
@@ -51,7 +52,7 @@ Entrar no Supabase e na Vercel com o GitHub deixa tudo ligado com um único logi
 3. No menu da esquerda, abra **SQL Editor** e clique em **New query**.
 4. Abra o arquivo `supabase/01_estrutura.sql` no Bloco de Notas, copie tudo, cole no editor e clique em **Run**. Deve aparecer *Success. No rows returned*.
 5. Abra outra *New query*, faça o mesmo com `supabase/02_cadastros.sql` e clique em **Run**.
-6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql` e por fim `supabase/09_acesso_por_area.sql`.
+6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql`, `supabase/09_acesso_por_area.sql` e por fim `supabase/10_custos_gestao.sql`.
 7. Confira em **Table Editor**: devem aparecer as tabelas `os`, `pedidos`, `locais` e as outras, com os seus locais e setores já preenchidos.
 
 ## Etapa 3 · Ajustar o login no Supabase
@@ -206,3 +207,27 @@ Em **Cadastros → Usuários**, quem tem acesso *Facilities · equipe* ganhou a 
 Locais, setores, solicitantes e equipe são compartilhados e podem ser editados pelas duas áreas. Cada área vê só as suas regras em *Cadastros → Regras*. A separação vale também no banco de dados: mesmo que alguém tente acessar a outra área por fora do app, o Supabase bloqueia. Solicitantes e somente leitura não mudam.
 
 **Como instalar:** no Supabase, rode `supabase/09_acesso_por_area.sql` no SQL Editor. No GitHub, envie `app.js`, `styles.css`, `README.md` e o `09_acesso_por_area.sql` dentro da pasta `supabase`. Quem já é da equipe continua com as duas áreas até você mudar.
+
+## Funções da atualização 12 · Custos e Gestão
+
+Nova tela **Gestão**, para a coordenação (acesso às duas áreas) e para quem tem *Somente leitura* (diretoria, que já abre nela).
+
+**O que mostra, mês a mês**
+- Custo total de Facilities, logística e manutenção, com a comparação com o mês anterior.
+- Orçamento usado, % concluídas no prazo e custo médio por OS.
+- **Pontos de atenção** automáticos: unidade acima de 80% ou de 100% do orçamento, custo que subiu mais de 20%, queda no prazo, equipamento que concentra o custo, chamados abertos há mais de 7 dias e cadastros incompletos que deixam o custo subestimado.
+- Gráfico dos últimos 12 meses (logística e manutenção), também em tabela.
+- Custo por unidade, com orçamento e barra de uso; setores com maior custo; composição do custo (veículos, equipe, extras, peças, terceiros, mão de obra).
+- **Resumo para a gerência** pronto para copiar ou enviar no WhatsApp, **Imprimir / PDF** e **Exportar CSV** com o custo de cada OS.
+
+**Como o custo é calculado (OS concluídas no mês)**
+- Logística: km rodado × custo por km do veículo + horas em rota × custo por hora de cada pessoa + custos extras (pedágio, estacionamento…) lançados no botão *Custos extras* da OS.
+- Manutenção: custos lançados (peças, material, terceiros) + horas de trabalho × custo por hora dos técnicos. Ao concluir uma OS interna, informe as *Horas de trabalho*, sem as esperas.
+- Unidade: a do setor que pediu; se não houver, o destino ou a origem (fornecedores não contam como unidade).
+
+**Como instalar e configurar**
+1. No Supabase, rode `supabase/10_custos_gestao.sql` no SQL Editor.
+2. No GitHub, envie `app.js`, `styles.css`, `README.md` e o `10_custos_gestao.sql` dentro da pasta `supabase`.
+3. Em **Cadastros → Regras → Custos padrão**, defina um custo por km e um custo por hora para todos. Depois, se quiser, valores próprios em **Veículos** (custo por km: combustível, manutenção, seguro e depreciação) e em **Equipe** (custo por hora: salário com encargos ÷ horas do mês).
+4. Em **Cadastros → Locais**, preencha o **Orçamento mensal** de cada unidade.
+5. A visão `os_custos` do Supabase traz o custo de cada OS de logística para o Power BI; junto com `manutencoes_custos`, cobre as duas áreas.

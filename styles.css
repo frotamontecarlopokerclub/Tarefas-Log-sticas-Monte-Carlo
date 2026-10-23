@@ -503,3 +503,29 @@ details.fs>summary small{flex-basis:100%;padding-left:18px;margin-top:-6px}
 .usr-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,170px) minmax(0,170px) minmax(0,190px) 150px 76px}
 @media (max-width:1100px){.usr-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)}.usr-row .n,.usr-row .m{grid-column:auto}}
 @media (max-width:760px){.usr-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.usr-row .n,.usr-row .m{grid-column:1 / -1}}
+
+/* ---------- Gestão ---------- */
+:root{--c-log:#2F6DB5;--c-man:#A87420}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--c-log:#5B8FDB;--c-man:#B5832A}}
+:root[data-theme="dark"]{--c-log:#5B8FDB;--c-man:#B5832A}
+.chart .sb-log{fill:var(--c-log)} .chart .sb-man{fill:var(--c-man)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.sw-log{background:var(--c-log)} .sw-man{background:var(--c-man)}
+.lgd{display:flex;gap:16px;font-size:13px;color:var(--mute);margin:-4px 0 8px;font-weight:600}
+.tbl-d{margin-top:10px}.tbl-d>summary{list-style:none;display:inline-flex}.tbl-d>summary::-webkit-details-marker{display:none}.tbl-d[open]>summary{margin-bottom:10px}
+.pts{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pts li{display:flex;gap:10px;align-items:baseline;line-height:1.45}
+.pt-i{flex:none;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:999px;min-width:74px;text-align:center}
+.pt3 .pt-i{background:var(--danger-surface);color:var(--s-late)}
+.pt2 .pt-i{background:var(--warn-surface);color:var(--s-age)}
+.pt1 .pt-i{background:var(--info-surface);color:var(--s-rota)}
+.pt0 .pt-i{background:var(--hover);color:var(--mute)}
+.uso{display:inline-flex;align-items:center;gap:8px;min-width:170px}
+.uso-t{flex:1;height:8px;border-radius:999px;background:var(--hover);overflow:hidden;min-width:70px}
+.uso-t i{display:block;height:100%;border-radius:999px;background:var(--s-ok)}
+.uso.warn .uso-t i{background:var(--s-age)} .uso.over .uso-t i{background:var(--s-late)}
+.uso-l{font-size:11px;font-weight:700;color:var(--s-age)} .uso.over .uso-l{color:var(--s-late)}
+.t.gt tr.tot td{border-top:2px solid var(--line-strong)}
+.cu-r.cu-r3{grid-template-columns:minmax(0,2fr) 70px 110px 32px}
+@media (max-width:760px){.cu-r.cu-r3{grid-template-columns:minmax(0,1fr) 64px 96px 32px}}
+.kpi.money-k .v{white-space:nowrap;font-size:clamp(17px,1.55vw,22px);overflow-wrap:normal}

@@ -23,7 +23,7 @@ const ESPERAS=["Peça ou material","Orçamento","Prestador","Liberação do seto
 const AREAS=[["logistica","Logística"],["manutencao","Manutenção"],["ambas","Logística e manutenção"]];
 
 /* ---------- Estado ---------- */
-const S={areaAcesso:"ambas",os:[],locais:[],setores:[],equipe:[],veiculos:[],config:{toleranciaMin:15},
+const S={areaAcesso:"ambas",gm:null,gRes:false,os:[],locais:[],setores:[],equipe:[],veiculos:[],config:{toleranciaMin:15},
   uid:null,role:null,meName:"",demo:false,loaded:{os:false},names:{},pedidos:[],meus:[],relatorios:[],perfis:[],recovery:false,authMsg:"",meuSetor:null,
   fromPedido:null,recusando:null,pTab:"aguardando",rm:null,copyOpen:false,recorrencias:[],solicitantes:[],meuTelefone:"",dupFrom:null,editRec:null,novaRec:false,recDel:null,
   route:"painel",openId:null,action:null,editId:null,routeArg:null,
@@ -127,7 +127,7 @@ async function carregar(t){
   const {data,error}=await q;
   if(error){ console.warn(t,error); if(error.code==="42P01"||error.code==="PGRST205"||/does not exist|schema cache|Could not find the table/i.test(error.message||"")) S.missing[t]=true; return; }
   S.missing[t]=false;
-  if(t==="config"){ const c=data[0]; if(c) S.config={toleranciaMin:c.tolerancia_min,checklist:Array.isArray(c.checklist)?c.checklist:null,whatsappAuto:c.whatsapp_auto===true,slaMan:c.sla_manutencao&&typeof c.sla_manutencao==="object"?c.sla_manutencao:null}; return; }
+  if(t==="config"){ const c=data[0]; if(c) S.config={toleranciaMin:c.tolerancia_min,checklist:Array.isArray(c.checklist)?c.checklist:null,whatsappAuto:c.whatsapp_auto===true,slaMan:c.sla_manutencao&&typeof c.sla_manutencao==="object"?c.sla_manutencao:null,custoKmPadrao:c.custo_km_padrao!=null?Number(c.custo_km_padrao):0,custoHoraPadrao:c.custo_hora_padrao!=null?Number(c.custo_hora_padrao):0}; return; }
   if(t==="perfis"){ S.perfis=data.map(fromDb); S.perfis.forEach(p=>S.names[p.id]=p.nome||p.email||""); return; }
   if(t==="pedidos"){ const l=data.map(r=>{const p=fromDb(r);p.pid=p.id;p.uid=p.solicitanteId;return p});
     if(isLog()){S.pedidos=l;S.loaded.pedidos=true} else {S.meus=l.filter(p=>p.uid===S.uid);S.loaded.meus=true} return; }
@@ -245,7 +245,7 @@ function isMan(){return S.role==="log"&&S.areaAcesso!=="logistica"}
 function isAdmin(){return S.role==="log"&&S.areaAcesso==="ambas"}
 function areaFixa(){return S.role!=="log"?null:S.areaAcesso==="logistica"?"log":S.areaAcesso==="manutencao"?"man":null}
 const LABELS={painel:"Painel",ordens:"Ordens",pedidos:"Pedidos",agenda:"Agenda",relatorio:"Relatório",cadastros:"Cadastros",nova:"Nova OS",solicitar:"Novo pedido",meus:"Meus pedidos",
-  "m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento"};
+  gestao:"Gestão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento"};
 const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   agenda:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',pedidos:'<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
   relatorio:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 17v-4M12 17V8M16 17v-6"/>',cadastros:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
@@ -253,17 +253,18 @@ const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect 
   wrench:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
   prev:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>',
   equip:'<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M19 9h3M19 15h3M2 9h3M2 15h3"/>'};
+ICO.gestao='<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/><path d="M15 8h4v4"/>';
 Object.assign(ICO,{"m-painel":ICO.painel,"m-ordens":ICO.wrench,"m-prev":ICO.prev,"m-equip":ICO.equip,"m-meus":ICO.meus,"m-eq":ICO.equip});
 const svgI=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[k]}</svg>`;
 function navCfg(){
   if(S.area==="man"){
-    if(S.role==="log")return {top:["m-painel","m-ordens","m-prev","m-equip","cadastros"],cta:"m-nova",mob:["m-painel","m-ordens","m-nova","m-prev"],more:["m-equip","cadastros"],home:"m-ordens"};
+    if(S.role==="log")return {top:["m-painel","m-ordens","m-prev","m-equip"].concat(isAdmin()?["gestao"]:[],["cadastros"]),cta:"m-nova",mob:["m-painel","m-ordens","m-nova","m-prev"],more:["m-equip"].concat(isAdmin()?["gestao"]:[],["cadastros"]),home:"m-ordens"};
     if(S.role==="sol")return {top:["m-meus","m-equip"],cta:"m-chamado",mob:["m-meus","m-chamado","m-equip"],more:[],home:"m-meus"};
-    return {top:["m-painel","m-ordens","m-prev","m-equip"],cta:null,mob:["m-painel","m-ordens","m-prev","m-equip"],more:[],home:"m-painel"};
+    return {top:["gestao","m-painel","m-ordens","m-prev","m-equip"],cta:null,mob:["gestao","m-painel","m-ordens","m-equip"],more:["m-prev"],home:"gestao"};
   }
-  if(S.role==="log")return {top:["painel","ordens","pedidos","agenda","relatorio","cadastros"],cta:"nova",mob:["painel","ordens","nova","agenda"],more:["pedidos","relatorio","cadastros"],home:"painel"};
+  if(S.role==="log")return {top:["painel","ordens","pedidos","agenda","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),cta:"nova",mob:["painel","ordens","nova","agenda"],more:["pedidos","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),home:"painel"};
   if(S.role==="sol")return {top:["meus","ordens","agenda","painel","relatorio"],cta:"solicitar",mob:["meus","ordens","solicitar","painel"],more:["agenda","relatorio"],home:"meus"};
-  return {top:["painel","ordens","agenda","relatorio"],cta:null,mob:["painel","ordens","agenda","relatorio"],more:[],home:"painel"};
+  return {top:["gestao","painel","ordens","agenda","relatorio"],cta:null,mob:["gestao","painel","ordens","agenda"],more:["relatorio"],home:"gestao"};
 }
 const pendentes=()=>S.pedidos.filter(x=>x.status==="aguardando").length;
 const chamadosNovos=()=>isMan()?S.manutencoes.filter(m=>m.status==="aberto").length:0;
@@ -315,7 +316,7 @@ function render(force){
   else if(S.route==="m-nova"||S.route==="m-chamado"){ if(force||!formMounted){ S.route==="m-nova"?renderMNova():renderMChamado(); formMounted=true; } else refreshPickers(); }
   else { formMounted=false;
     const fn={painel:renderPainel,ordens:renderOrdens,agenda:renderAgenda,cadastros:renderCadastros,pedidos:renderPedidos,meus:renderMeus,relatorio:renderRelatorio,
-      "m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus}[S.route]||renderPainel;
+      gestao:renderGestao,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus}[S.route]||renderPainel;
     // preserva foco em campos de busca
     const ae=document.activeElement, aid=ae&&ae.id, pos=ae&&ae.selectionStart;
     if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq))) { /* não redesenha durante edição */ }
@@ -458,7 +459,7 @@ function statusSplit(list){
 function hbars(rows){
   if(!rows.length)return `<p style="color:var(--mute)">Sem dados no período.</p>`;
   const mx=Math.max(...rows.map(r=>r.v),1);
-  return `<div class="hb">${rows.map(r=>`<div class="hb-r"><span class="n">${esc(r.n)}</span><span class="v num">${r.v}${r.x&&r.x!=="—"?`<small>${esc(r.x)}</small>`:""}</span><div class="track"><div class="fill" style="width:${r.v/mx*100}%"></div></div></div>`).join("")}</div>`;
+  return `<div class="hb">${rows.map(r=>`<div class="hb-r"><span class="n">${esc(r.n)}</span><span class="v num">${r.lbl!=null?esc(r.lbl):r.v}${r.x&&r.x!=="—"?`<small>${esc(r.x)}</small>`:""}</span><div class="track"><div class="fill" style="width:${r.v/mx*100}%"></div></div></div>`).join("")}</div>`;
 }
 function drawBars(el,series){
   if(!el)return; const W=Math.max(el.clientWidth,300),H=220,ml=30,mr=6,mt=10,mb=26;
@@ -492,11 +493,11 @@ function bindPainel(){
 }
 async function exportCSV(listArg,suf){
   const list=Array.isArray(listArg)?listArg:S.os.filter(inPainel);
-  const cols=["OS","Situação","Atraso","Tipo","Prioridade","Setor","Solicitante","Canal","Pedido em","Origem","Detalhe origem","Destino","Detalhe destino","Itens","Início agendado","Previsão de término","Equipe","Veículo","Agendada em","Saída em","Concluída em","Resposta (min)","Execução (min)","Km inicial","Km final","Km rodados","WhatsApp de quem pediu","Avisado em","Recebido por","Assinatura","Fotos","Observações"];
+  const cols=["OS","Situação","Atraso","Tipo","Prioridade","Setor","Solicitante","Canal","Pedido em","Origem","Detalhe origem","Destino","Detalhe destino","Itens","Início agendado","Previsão de término","Equipe","Veículo","Agendada em","Saída em","Concluída em","Resposta (min)","Execução (min)","Km inicial","Km final","Km rodados","WhatsApp de quem pediu","Avisado em","Recebido por","Assinatura","Fotos","Observações","Unidade atendida","Custo veículo (R$)","Custo equipe (R$)","Custos extras (R$)","Custo total (R$)"];
   const q=v=>{v=v==null?"":String(v);return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const m=ms=>isFinite(ms)&&ms>=0?Math.round(ms/60000):"";
   const rows=list.map(o=>[codigo(o),ST[o.status],atrasada(o)||concluidaComAtraso(o)?"Sim":"Não",o.tipo,o.prioridade,nomeSetor(o.setorId),o.solicitante,o.canal,fDH(o.solicitadoEm),nomeLocal(o.origemId),o.origemDetalhe,nomeLocal(o.destinoId),o.destinoDetalhe,
-    (o.itens||[]).map(i=>`${i.qtd||""} ${i.un||""} ${i.desc||""}`.trim()).join(" | "),fDH(o.agendadoPara),fDH(o.previstoAte),nomeEquipe(o.equipeIds),nomeVeic(o.veiculoId),fDH(o.agendadaEm),fDH(o.iniciadoEm),fDH(o.concluidoEm),m(tResposta(o)),m(tExec(o)),o.kmInicial??"",o.kmFinal??"",kmRodados(o)??"",o.solicitanteTelefone||"",fDH(o.avisadoEm).replace("—",""),(o.conclusao||{}).recebidoPor||"",(o.conclusao||{}).assinatura?"Sim":"Não",((o.conclusao||{}).fotos||[]).length,o.observacoes||""].map(q).join(";"));
+    (o.itens||[]).map(i=>`${i.qtd||""} ${i.un||""} ${i.desc||""}`.trim()).join(" | "),fDH(o.agendadoPara),fDH(o.previstoAte),nomeEquipe(o.equipeIds),nomeVeic(o.veiculoId),fDH(o.agendadaEm),fDH(o.iniciadoEm),fDH(o.concluidoEm),m(tResposta(o)),m(tExec(o)),o.kmInicial??"",o.kmFinal??"",kmRodados(o)??"",o.solicitanteTelefone||"",fDH(o.avisadoEm).replace("—",""),(o.conclusao||{}).recebidoPor||"",(o.conclusao||{}).assinatura?"Sim":"Não",((o.conclusao||{}).fotos||[]).length,o.observacoes||"",...(()=>{const d=custoLogDet(o);const f=v=>(Math.round(v*100)/100).toFixed(2).replace(".",",");return [nomeLocal(unidadeOS(o)),f(d.veic),f(d.eq),f(d.ex),o.status==="concluida"?f(d.total):""]})()].map(q).join(";"));
   const csv="﻿"+cols.join(";")+"\n"+rows.join("\n");
   const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");
   a.href=url;a.download="logistica-os-"+(suf||dayKey(new Date()))+".csv";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
@@ -767,7 +768,7 @@ function renderDrawer(){
   let acts="";
   const copyBtn=`<button class="btn" data-act="copiar">Copiar resumo</button>`;
   const avisarBtn=isLog()&&o.status==="concluida"?`<button class="btn ${o.avisadoEm?"":"wa"}" data-act="avisar">${o.avisadoEm||o.avisoStatus==="enviado"?"Avisar de novo no WhatsApp":"Avisar no WhatsApp"}</button>`:"";
-  const extraActs=isLog()?avisarBtn+`<button class="btn" data-act="duplicar">Duplicar</button><button class="btn ghost danger" data-act="excluir">Excluir</button>`:"";
+  const extraActs=isLog()?(o.status!=="cancelada"?`<button class="btn" data-act="extras">Custos extras${(o.custosExtra||[]).length?" ("+fBRL(somaExtras(o.custosExtra))+")":""}</button>`:"")+avisarBtn+`<button class="btn" data-act="duplicar">Duplicar</button><button class="btn ghost danger" data-act="excluir">Excluir</button>`:"";
   if(isLog()){
     if(o.status==="registrada") acts=`<button class="btn pri" data-act="editar">Agendar equipe e veículo</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
     if(o.status==="agendada") acts=`<button class="btn pri" data-act="iniciar">Iniciar rota</button><button class="btn" data-act="editar">Editar</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
@@ -807,6 +808,10 @@ function renderDrawer(){
       <span class="err" id="pErr" role="alert"></span><div class="actions">${S.config.whatsappAuto?`<button class="btn wa" id="pAuto" type="button">Enviar automaticamente</button><button class="btn" id="pOk" type="button">Abrir no meu WhatsApp</button>`:`<button class="btn wa" id="pOk" type="button">Abrir conversa no WhatsApp</button>`}<button class="btn ghost" id="pNo" type="button">Agora não</button></div></div>`;
   if(A&&A.t==="excluir") panel=`<div class="panel" id="pan"><h3>Excluir ${codigo(o)}?</h3><p style="margin:0;color:var(--mute)">A OS some do sistema, com histórico e indicadores. Para manter o registro, prefira Cancelar.${o.pedidoId?" O pedido do setor volta para Aguardando.":""}${o.recorrenciaId?" A rota fixa não vai recriar esta OS.":""}</p>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn danger" id="pOk">Excluir definitivamente</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
+  if(A&&A.t==="extras") panel=`<div class="panel" id="pan"><h3>Custos extras de ${codigo(o)}</h3><p class="hint" style="margin:0">Pedágio, estacionamento, combustível avulso, frete, ajudante extra. O custo do veículo (km) e da equipe (horas) já é calculado sozinho.</p>
+      <div class="cu" id="exL">${A.custos.map((c,i)=>`<div class="cu-r cu-r3"><input type="text" id="ex-d-${i}" aria-label="Descrição" placeholder="Ex.: pedágio Anchieta" value="${esc(c.desc||"")}"><input type="number" id="ex-q-${i}" min="0" step="any" aria-label="Quantidade" placeholder="Qtd" value="${esc(c.qtd==null?"":c.qtd)}"><input type="text" id="ex-v-${i}" inputmode="decimal" aria-label="Valor unitário" placeholder="R$ unit." value="${esc(c.valor===""||c.valor==null?"":String(c.valor).replace(".",","))}"><button type="button" class="x" data-exrm="${i}" aria-label="Remover">×</button></div>`).join("")}</div>
+      <div class="actions"><button type="button" class="btn sm" id="exAdd">Adicionar custo</button><span class="cu-tot">Total: <span class="money">${fBRL(A.custos.reduce((s2,c)=>s2+custoLinha(c),0))}</span></span></div>
+      <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk">Salvar custos</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
   if(A&&A.t==="cancelar") panel=`<div class="panel" id="pan"><h3>Cancelar ${codigo(o)}</h3><div class="field"><label class="req" for="mot">Motivo do cancelamento</label><textarea id="mot" placeholder="Ex.: setor desistiu, item já entregue por outro meio…">${esc(A.mot||"")}</textarea></div>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn danger" id="pOk">Confirmar cancelamento</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
 
@@ -826,6 +831,7 @@ function renderDrawer(){
         <div><dt>Tempo de resposta</dt><dd class="num">${o.agendadaEm?fDur(tResposta(o)):"Aguardando agendamento"}</dd></div>
         <div><dt>Tempo de execução</dt><dd class="num">${o.concluidoEm?fDur(tExec(o)):o.iniciadoEm?"Em rota desde "+fHora(o.iniciadoEm):"—"}</dd></div>
         ${o.kmInicial!=null||o.kmFinal!=null?`<div><dt>Quilometragem</dt><dd class="num">${o.kmInicial!=null?Number(o.kmInicial).toLocaleString("pt-BR"):"—"} → ${o.kmFinal!=null?Number(o.kmFinal).toLocaleString("pt-BR"):"—"}${kmRodados(o)!=null?` · <b>rodou ${fKm(kmRodados(o))}</b>`:""}</dd></div>`:""}
+        ${o.status!=="cancelada"&&(o.status==="concluida"||(o.custosExtra||[]).length)?(()=>{const d=custoLogDet(o);return `<div><dt>${o.status==="concluida"?"Custo da OS":"Custos extras até agora"}</dt><dd class="money">${fBRL(o.status==="concluida"?d.total:d.ex)}${o.status==="concluida"?` <span style="color:var(--faint);font-weight:500">veículo ${fBRL(d.veic)} · equipe ${fBRL(d.eq)}${d.ex?" · extras "+fBRL(d.ex):""}</span>`:""}</dd></div>`})():""}
         ${o.solicitanteTelefone?`<div><dt>WhatsApp de quem pediu</dt><dd class="num">${esc(fFone(o.solicitanteTelefone))}${o.avisoStatus==="enviado"?` <span style="color:var(--s-ok);font-weight:600">· aviso enviado automaticamente ${fDH(o.avisoAutoEm)}</span>`:o.avisadoEm?` <span style="color:var(--s-ok);font-weight:600">· avisado ${fDH(o.avisadoEm)}</span>`:o.avisoStatus==="erro"?` <span class="late">· falha no envio automático</span>`:""}</dd></div>`:""}
       </dl>${o.observacoes?`<p style="margin:14px 0 0;color:var(--mute)"><b style="color:var(--ink)">Observações:</b> ${esc(o.observacoes)}</p>`:""}</section>
       <section class="card"><div class="card-h"><h2>Itens</h2><span class="sub">${(o.itens||[]).length} ${(o.itens||[]).length===1?"item":"itens"}</span></div><div class="card-b tbl-wrap">
@@ -850,7 +856,7 @@ function renderDrawer(){
   if(A) bindPanel(o);
 }
 function syncPanelFields(){const A=S.action;if(!A)return;const g=id=>{const e=$("#"+id);return e?e.value:undefined};
-  if(g("kmI")!==undefined)A.kmI=g("kmI");if(g("kmF")!==undefined)A.kmF=g("kmF");if(g("rec")!==undefined)A.rec=g("rec");if(g("cObs")!==undefined)A.obs=g("cObs");if(g("mot")!==undefined)A.mot=g("mot");if(g("waTel")!==undefined)A.fone=g("waTel");if(g("waMsg")!==undefined)A.msg=g("waMsg");syncChecklist();}
+  if(A.t==="extras"&&$("#exL"))A.custos=A.custos.map((_,i)=>({desc:g("ex-d-"+i)||"",qtd:g("ex-q-"+i)===""?"":Number(g("ex-q-"+i)),valor:numBR(g("ex-v-"+i))}));if(g("kmI")!==undefined)A.kmI=g("kmI");if(g("kmF")!==undefined)A.kmF=g("kmF");if(g("rec")!==undefined)A.rec=g("rec");if(g("cObs")!==undefined)A.obs=g("cObs");if(g("mot")!==undefined)A.mot=g("mot");if(g("waTel")!==undefined)A.fone=g("waTel");if(g("waMsg")!==undefined)A.msg=g("waMsg");syncChecklist();}
 function rerenderPanel(){syncPanelFields();renderDrawer()}
 function resumo(o){
   const it=(o.itens||[]).map(i=>"• "+[i.qtd===""||i.qtd==null?"":String(i.qtd).replace(".",","),i.un||"",i.desc].filter(Boolean).join(" ")).join("\n");
@@ -879,6 +885,7 @@ async function doAct(o,a){
   if(a==="reabrir"){const st=(o.agendadoPara&&(o.equipeIds||[]).length&&o.veiculoId)?"agendada":"registrada";
     try{await saveOS(o.id,{status:st,canceladoEm:null,atualizadoEm:nowISO(),historico:hist(o,st,"OS reaberta")});toast(codigo(o)+" reaberta")}catch(e){toast("Não foi possível reabrir.")}return}
   S.copyOpen=false;S.action={t:a,fotos:[],sig:[]};
+  if(a==="extras"){S.action.custos=JSON.parse(JSON.stringify(o.custosExtra||[]));if(!S.action.custos.length)S.action.custos.push({desc:"",qtd:1,valor:""})}
   if(a==="iniciar"){ S.action.ck=itensChecklist().map(nome=>({nome,ok:null,obs:""})); const u=o.veiculoId?ultimoKm(o.veiculoId,o.id):null; if(u) S.action.kmI=u.km; }
   renderDrawer();const p=$("#pan");if(p)p.scrollIntoView({block:"nearest"});
 }
@@ -935,6 +942,8 @@ function bindPanel(o){
   const kf=$("#kmF");if(kf)kf.oninput=()=>{const h=$("#kmHint");if(!h||o.kmInicial==null)return;const v=Number(kf.value);h.textContent="Saída: "+fKm(o.kmInicial)+(kf.value!==""&&v>=o.kmInicial?" · rodou "+fKm(v-o.kmInicial):kf.value!==""?" · valor menor que a saída":"")};
   $$("[data-ck]",layer).forEach(b=>b.onclick=()=>{syncPanelFields();const c=A.ck[+b.dataset.ck];c.ok=b.dataset.v==="1";if(c.ok)c.obs="";renderDrawer();const f=$("#ck-o-"+b.dataset.ck);if(f)f.focus()});
   $("#pNo").onclick=()=>{S.action=null;renderDrawer()};
+  const exA=$("#exAdd");if(exA)exA.onclick=()=>{syncPanelFields();A.custos.push({desc:"",qtd:1,valor:""});renderDrawer();const ins=$$("#exL input[type=text]");if(ins.length)ins[ins.length-2].focus()};
+  $$("[data-exrm]",layer).forEach(b=>b.onclick=()=>{syncPanelFields();A.custos.splice(+b.dataset.exrm,1);renderDrawer()});
   $$("[data-rmf]",layer).forEach(b=>b.onclick=()=>{A.fotos.splice(+b.dataset.rmf,1);rerenderPanel()});
   $$("[data-up]",layer).forEach(up=>up.onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;syncPanelFields();
     const lbl=up.parentElement;(lbl.querySelector("span").textContent="Enviando "+fs.length+" foto"+(fs.length>1?"s":"")+"…");$$("[data-up]",layer).forEach(x=>x.disabled=true);
@@ -1002,6 +1011,9 @@ function bindPanel(o){
         try{ await saveOS(o.id,{solicitanteTelefone:tel,avisadoEm:nowISO(),atualizadoEm:nowISO(),historico:hist(o,o.status,"Aviso de conclusão aberto no WhatsApp para "+fFone(tel))}); }catch(e){console.warn(e)}
         S.action=null; renderDrawer(); return; }
       if(A.t==="excluir"){btn.disabled=true;await excluirOS(o);toast(codigo(o)+" excluída");closeOS();render();return;}
+      if(A.t==="extras"){const cs=A.custos.filter(c=>(c.desc||"").trim()||c.valor!=="").map(c=>({desc:(c.desc||"").trim(),qtd:c.qtd===""?1:c.qtd,valor:c.valor===""?0:c.valor}));
+        if(cs.some(c=>!c.desc)){err.textContent="Descreva cada custo.";return}
+        btn.disabled=true;await saveOS(o.id,{custosExtra:cs,atualizadoEm:nowISO(),historico:hist(o,o.status,"Custos extras: "+fBRL(somaExtras(cs)))});S.action=null;toast("Custos salvos");}
       if(A.t==="cancelar"){
         if(!(A.mot||"").trim()){err.textContent="Informe o motivo.";return}
         btn.disabled=true;
@@ -1289,18 +1301,18 @@ function bindRotasFixas(){
 /* ---------- CADASTROS ---------- */
 const CAD={
   locais:{t:"Locais",col:"locais",desc:"Clubes, restaurante, centros de distribuição, escritórios, prédio e residências atendidas.",
-    f:[["nome","Nome","text"],["sigla","Sigla","text"],["tipo","Tipo","select",LOCAL_TIPOS],["endereco","Endereço","text"],["contato","Contato no local","text"]],
-    m:x=>[[x.sigla,x.tipo].filter(Boolean).join(" · "),x.endereco||x.contato]},
+    f:[["nome","Nome","text"],["sigla","Sigla","text"],["tipo","Tipo","select",LOCAL_TIPOS],["endereco","Endereço","text"],["contato","Contato no local","text"],["orcamentoMensal","Orçamento mensal (R$)","money"]],
+    m:x=>[[x.sigla,x.tipo,nOuNull(x.orcamentoMensal)!=null?"Orçamento "+fBRL(x.orcamentoMensal)+"/mês":""].filter(Boolean).join(" · "),x.endereco||x.contato]},
   setores:{t:"Setores",col:"setores",desc:"Setores que pedem serviços à logística. Base do indicador de demanda por setor.",
     f:[["nome","Nome","text"],["localId","Local","local"]],m:x=>{const l=byId(S.locais,x.localId);return [l?l.nome:(x.unidade||"Sem local"),""]}},
   solicitantes:{t:"Solicitantes",col:"solicitantes",desc:"Quem pede serviços à logística. O WhatsApp cadastrado recebe o aviso de conclusão.",
     f:[["nome","Nome","text"],["telefone","WhatsApp","tel"],["setorId","Setor","setor"]],m:x=>[fFone(x.telefone),x.setorId?nomeSetor(x.setorId):""]},
   equipe:{t:"Equipe",col:"equipe",desc:"Motoristas, ajudantes, técnicos e coordenação que executam as OS. A área define em qual lista a pessoa aparece.",
-    f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["area","Área","select",AREAS],["telefone","Telefone","tel"]],m:x=>[[x.funcao,(AREAS.find(a=>a[0]===(x.area||"logistica"))||[,""])[1]].filter(Boolean).join(" · "),x.telefone]},
+    f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["area","Área","select",AREAS],["telefone","Telefone","tel"],["custoHora","Custo por hora (R$)","money"]],m:x=>[[x.funcao,(AREAS.find(a=>a[0]===(x.area||"logistica"))||[,""])[1]].filter(Boolean).join(" · "),[x.telefone,nOuNull(x.custoHora)!=null?fBRL(x.custoHora)+"/h":"Custo/h: padrão"].filter(Boolean).join(" · ")]},
   prestadores:{t:"Prestadores",col:"prestadores",desc:"Empresas e profissionais terceirizados da manutenção. O painel soma OS e custos por prestador.",
     f:[["nome","Nome","text"],["especialidade","Especialidade","select",MCATS],["telefone","Telefone","tel"],["contato","Contato","text"],["documento","CNPJ / CPF","text"]],m:x=>[[x.especialidade,x.telefone].filter(Boolean).join(" · "),x.contato||x.documento]},
   veiculos:{t:"Veículos",col:"veiculos",desc:"Frota usada nas movimentações. O painel soma horas em rota e km rodados.",
-    f:[["nome","Modelo / apelido","text"],["placa","Placa","text"],["tipo","Tipo","select",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"]],["capacidade","Capacidade","text"]],m:x=>{const u=ultimoKm(x.id);return [[x.placa,x.tipo].filter(Boolean).join(" · "),u?"Odômetro: "+fKm(u.km)+" · "+fData(u.em):"Odômetro: sem registro"]}}
+    f:[["nome","Modelo / apelido","text"],["placa","Placa","text"],["tipo","Tipo","select",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"]],["capacidade","Capacidade","text"],["custoKm","Custo por km (R$)","money"]],m:x=>{const u=ultimoKm(x.id);return [[x.placa,x.tipo,nOuNull(x.custoKm)!=null?fBRL(x.custoKm)+"/km":"Custo/km: padrão"].filter(Boolean).join(" · "),u?"Odômetro: "+fKm(u.km)+" · "+fData(u.em):"Odômetro: sem registro"]}}
 };
 function renderCadastros(){
   const tabs=[["locais","Locais"],["setores","Setores"],["solicitantes","Solicitantes"],["equipe","Equipe"],["veiculos","Veículos"],["prestadores","Prestadores"],["rotas","Rotas fixas"],["usuarios","Usuários"],["config","Regras"]]
@@ -1312,6 +1324,8 @@ function renderCadastros(){
   if(tab==="usuarios"){ app.innerHTML=h+renderUsuarios(); bindCad(); bindUsuarios(); return; }
   if(tab==="rotas"){ app.innerHTML=h+renderRotasFixas(); bindCad(); bindRotasFixas(); return; }
   if(tab==="config"){
+    h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Custos padrão</h2><span class="sub">usados quando o veículo ou a pessoa não têm valor próprio</span></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:66ch">Base do painel de Gestão. Inclua combustível, manutenção, seguro e depreciação no custo por km, e salário com encargos no custo por hora. Valores próprios ficam em Cadastros → Veículos e Equipe.</p>
+      <div class="filters"><div class="field"><label for="ckmP">Custo por km (R$)</label><input type="text" inputmode="decimal" id="ckmP" value="${esc(String(S.config.custoKmPadrao||0).replace(".",","))}"${isStaff()?"":" disabled"}></div><div class="field"><label for="chP">Custo por hora da equipe (R$)</label><input type="text" inputmode="decimal" id="chP" value="${esc(String(S.config.custoHoraPadrao||0).replace(".",","))}"${isStaff()?"":" disabled"}></div>${isStaff()?`<button class="btn pri" id="cpOk" type="button">Salvar custos</button>`:""}</div></div></section>`;
     h+=(isLog()||!isStaff()?`<section class="card"><div class="card-h"><h2>Tolerância de atraso</h2></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:62ch">Uma OS conta como atrasada quando é concluída depois da previsão de término somada a esta tolerância. OS abertas viram atrasadas quando o relógio passa desse ponto.</p>
       <div class="filters"><div class="field"><label for="tol">Tolerância (minutos)</label><input type="number" id="tol" min="0" step="5" value="${esc(S.config.toleranciaMin)}"${isLog()?"":" disabled"}></div>${isLog()?`<button class="btn pri" id="tolOk" type="button">Salvar</button>`:""}</div></div></section>
       <section class="card" style="margin-top:16px"><div class="card-h"><h2>Checklist do veículo</h2></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:62ch">Itens que a equipe confere antes de iniciar a rota. Um item por linha. Se algum tiver problema, a descrição fica registrada na OS e soma no painel do veículo.</p>
@@ -1328,7 +1342,7 @@ function renderCadastros(){
   const C=CAD[tab];let list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||sortNome(a,b));
   if(tab==="setores"){const at=gruposSetores(list.filter(x=>x.ativo!==false)).flatMap(g=>g.itens);list=at.concat(list.filter(x=>x.ativo===false))}
   const ed=S.cadEdit;
-  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${optsSetores((x||{})[k]||"","Sem setor")}</select>`:t==="local"?`<select id="ce-${k}">${opts(S.locais.filter(l=>l.ativo!==false||l.id===(x||{})[k]).sort(sortNome),(x||{})[k]||"","Sem local")}</select>`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||(Array.isArray(o[0])?o[0][0]:o[0]))}</select>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
+  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${optsSetores((x||{})[k]||"","Sem setor")}</select>`:t==="local"?`<select id="ce-${k}">${opts(S.locais.filter(l=>l.ativo!==false||l.id===(x||{})[k]).sort(sortNome),(x||{})[k]||"","Sem local")}</select>`:t==="money"?`<input type="text" inputmode="decimal" id="ce-${k}" placeholder="Ex.: 1,80" value="${esc(nOuNull((x||{})[k])!=null?String((x||{})[k]).replace(".",","):"")}">`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||(Array.isArray(o[0])?o[0][0]:o[0]))}</select>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
     <div class="actions"><button class="btn pri sm" type="submit">Salvar</button><button class="btn sm ghost" type="button" data-cx>Cancelar</button></div></form>`;
   h+=`<section class="card"><div class="card-h"><h2>${C.t}</h2><span class="sub">${esc(C.desc)}</span></div><div class="card-b">
     ${isStaff()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
@@ -1356,6 +1370,8 @@ function bindCad(){
   const wa=$("#waAuto");if(wa)wa.onchange=async()=>{const v=wa.checked;
     try{ if(!S.demo){const {error}=await sb.from("config").update({whatsapp_auto:v}).eq("id",1);if(error)throw error;} S.config.whatsappAuto=v; toast(v?"Envio automático ligado":"Envio automático desligado"); renderCadastros(); }
     catch(e){wa.checked=!v;toast("Não foi possível salvar. Rode o script 05 no Supabase.")}};
+  const cpo=$("#cpOk");if(cpo)cpo.onclick=async()=>{const km=numBR($("#ckmP").value),hr=numBR($("#chP").value);if(km===""||hr===""||km<0||hr<0){toast("Valores inválidos. Use vírgula, por exemplo 1,80.");return}
+    try{ if(!S.demo){const {error}=await sb.from("config").update({custo_km_padrao:km,custo_hora_padrao:hr}).eq("id",1);if(error)throw error;} S.config.custoKmPadrao=km;S.config.custoHoraPadrao=hr;toast("Custos padrão salvos"); }catch(e){toast("Não foi possível salvar. Rode o script 10 no Supabase.")}};
   const so=$("#slaOk");if(so)so.onclick=async()=>{const v={};MPRIOS.forEach(([k])=>v[k]=Math.max(1,Math.round(Number($("#sla-"+k).value)||SLA_PADRAO[k])));
     try{ if(!S.demo){const {error}=await sb.from("config").update({sla_manutencao:v}).eq("id",1);if(error)throw error;} S.config.slaMan=v; toast("Prazos salvos"); }catch(e){toast("Não foi possível salvar. Rode o script 08 no Supabase.")}};
   const nb=$("[data-new]");if(nb)nb.onclick=()=>{S.cadEdit="__new";renderCadastros();const f=$("#ce-nome");if(f)f.focus()};
@@ -1366,6 +1382,7 @@ function bindCad(){
   $$("[data-form]").forEach(f=>f.onsubmit=async e=>{e.preventDefault();const C=CAD[S.cadTab];const d={};C.f.forEach(([k])=>d[k]=$("#ce-"+k).value.trim());
     if(!d.nome){toast("Informe o nome.");return}
     if(S.cadTab==="setores"&&!d.localId) d.localId=null;
+    for(const [k,,t] of C.f){ if(t!=="money")continue; if(d[k]===""){d[k]=null;continue} const n=numBR(d[k]); if(n===""||n<0){toast("Valor inválido em "+C.f.find(f=>f[0]===k)[1]+". Use vírgula, por exemplo 1,80.");return} d[k]=n; }
     if(S.cadTab==="equipe"&&S.missing.manutencoes) delete d.area;
     if(S.cadTab==="solicitantes"){ if(!foneValido(d.telefone)){toast("Informe o WhatsApp com DDD.");return} if(!d.setorId) d.setorId=null; }
     const id=f.dataset.form||novoId();
@@ -1562,9 +1579,10 @@ document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest
    ===================================================================== */
 const codM=m=>"MAN-"+String(m.numero||0).padStart(4,"0");
 const fBRL=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-const numBR=v=>{if(v==null||v==="")return "";const n=Number(String(v).replace(/\./g,"").replace(",","."));return isFinite(n)?n:""};
+const numBR=v=>{if(v==null||v==="")return "";let t=String(v).trim().replace(/^R\$\s*/,"");if(t.includes(","))t=t.replace(/\./g,"").replace(",",".");const n=Number(t);return t!==""&&isFinite(n)?n:""};
 const custoLinha=c=>(Number(c.valor)||0)*(c.qtd===""||c.qtd==null?1:(Number(c.qtd)||0));
-const custoTotal=m=>(m.custos||[]).reduce((s,c)=>s+custoLinha(c),0);
+const custoLancado=m=>(m.custos||[]).reduce((s,c)=>s+custoLinha(c),0);
+const custoTotal=m=>custoLancado(m)+maoObraM(m);
 const slaH=p=>Number(((S.config.slaMan)||SLA_PADRAO)[p]||SLA_PADRAO[p]||72);
 function prazoM(m){return T(m.prazo)||(T(m.criadoEm)+slaH(m.prioridade||"normal")*3600000)}
 function mAtrasada(m){return MABERTOS.includes(m.status)&&isFinite(prazoM(m))&&Date.now()>prazoM(m)}
@@ -1863,13 +1881,14 @@ function renderMDrawer(){
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk">Marcar como aguardando</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
   const custosHTML=()=>`<div class="field"><span class="lbl">Custos</span><div class="cu" id="cuL">${A.custos.map((c,i)=>`<div class="cu-r"><input type="text" id="cu-d-${i}" aria-label="Descrição do custo ${i+1}" placeholder="Descrição (ex.: compressor)" value="${esc(c.desc||"")}"><select id="cu-t-${i}" aria-label="Tipo">${optsS(CUSTO_TIPOS,c.tipo||CUSTO_TIPOS[0])}</select><input type="number" id="cu-q-${i}" aria-label="Quantidade" min="0" step="any" placeholder="Qtd" value="${esc(c.qtd==null?"":c.qtd)}"><input type="text" id="cu-v-${i}" inputmode="decimal" aria-label="Valor unitário" placeholder="R$ unit." value="${esc(c.valor==null||c.valor===""?"":String(c.valor).replace(".",","))}"><button type="button" class="x" data-curm="${i}" aria-label="Remover custo">×</button></div>`).join("")}</div>
       <div class="actions" style="margin-top:6px"><button type="button" class="btn sm" id="cuAdd">Adicionar custo</button><span class="cu-tot" id="cuTot">Total: <span class="money">${fBRL(A.custos.reduce((s,c)=>s+custoLinha(c),0))}</span></span></div></div>`;
-  if(A&&A.t==="custos") panel=`<div class="panel" id="pan"><h3>Custos de ${codM(m)}</h3>${custosHTML()}
+  if(A&&A.t==="custos") panel=`<div class="panel" id="pan"><h3>Custos de ${codM(m)}</h3>${m.executor!=="terceiro"?`<div class="fg"><div class="field"><label for="cHrs">Horas de trabalho da equipe interna</label><input type="text" inputmode="decimal" id="cHrs" data-a="hrs" value="${esc(A.hrs||"")}" placeholder="Ex.: 1,5"></div></div>`:""}${custosHTML()}
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk">Salvar custos</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
   if(A&&A.t==="concluir") panel=`<div class="panel" id="pan"><h3>Concluir serviço</h3>
       ${(A.ck||[]).length?`<div class="field"><span class="lbl req">Checklist da preventiva</span><div class="ck">${A.ck.map((c,i)=>`<div class="ck-r"><span class="ck-n">${esc(c.nome)}</span><span class="ck-b ck3"><button type="button" class="chip" data-mck="${i}" data-v="ok" aria-pressed="${c.r==="ok"}">Feito</button><button type="button" class="chip" data-mck="${i}" data-v="na" aria-pressed="${c.r==="na"}">Não se aplica</button><button type="button" class="chip warn" data-mck="${i}" data-v="pb" aria-pressed="${c.r==="pb"}">Problema</button></span>${c.r==="pb"?`<input type="text" id="mck-o-${i}" class="ck-o" placeholder="Descreva o problema" value="${esc(c.obs||"")}">`:""}</div>`).join("")}</div></div>`:""}
       <div class="fg"><div class="field full"><label for="cDiag">Diagnóstico</label><textarea id="cDiag" data-a="diag" placeholder="Causa do problema">${esc(A.diag||"")}</textarea></div>
       <div class="field full"><label class="req" for="cSol">O que foi feito</label><textarea id="cSol" data-a="sol" placeholder="Ex.: trocado o capacitor e limpos os filtros; testado por 20 minutos">${esc(A.sol||"")}</textarea></div></div>
       <div class="field"><span class="lbl req">Fotos do serviço pronto</span>${fotosM(A.fotos,true)}${uplHTML("upD","upDg")}</div>
+      ${m.executor!=="terceiro"?`<div class="fg"><div class="field"><label for="cHrs">Horas de trabalho da equipe interna</label><input type="text" inputmode="decimal" id="cHrs" data-a="hrs" value="${esc(A.hrs||"")}" placeholder="Ex.: 1,5"><span class="hint">Tempo de mão de obra, sem as esperas. Entra no custo: ${fBRL((m.equipeIds||[]).reduce((s2,id)=>s2+custoHoraPessoa(id),0))}/h para ${esc(nomeEquipe(m.equipeIds))}.</span></div></div>`:""}
       ${custosHTML()}
       ${sigHTML(A,"Assinatura de quem recebeu o serviço")}
       <div class="fg"><div class="field"><label for="cRec">Recebido por</label><input type="text" id="cRec" data-a="rec" value="${esc(A.rec||"")}" placeholder="Nome de quem conferiu no setor"></div></div>
@@ -1912,7 +1931,7 @@ function renderMDrawer(){
         ${m.recebidoPor?`<dl class="dl" style="margin-top:12px"><div><dt>Recebido por</dt><dd>${esc(m.recebidoPor)}</dd></div></dl>`:""}
         ${m.assinatura?`<div style="margin-top:12px"><span class="lbl">Assinatura</span><div class="sig-view" style="margin-top:4px"><img src="${esc(m.assinatura.url)}" alt="Assinatura"></div></div>`:""}</div></section>`:""}
       ${ck?`<section class="card"><div class="card-h"><h2>Checklist</h2><span class="sub">${ck.problemas?`<span class="late">${ck.problemas} problema${ck.problemas>1?"s":""}</span>`:"Sem problemas"}</span></div><div class="card-b"><ul class="ckv">${ck.itens.map(c=>`<li><span class="${c.r==="pb"?"late":"ok"}">${c.r==="ok"?"Feito":c.r==="na"?"N/A":c.r==="pb"?"Problema":"—"}</span> ${esc(c.nome)}${c.obs?` <span class="rdet">· ${esc(c.obs)}</span>`:""}</li>`).join("")}</ul></div></section>`:""}
-      ${(m.custos||[]).length||m.orcamento?`<section class="card"><div class="card-h"><h2>Custos</h2><span class="sub money">${fBRL(ct)}</span></div><div class="card-b tbl-wrap">${(m.custos||[]).length?`<table class="t"><thead><tr><th>Descrição</th><th>Tipo</th><th class="r">Qtd</th><th class="r">Valor</th></tr></thead><tbody>${m.custos.map(c=>`<tr><td>${esc(c.desc||"")}</td><td>${esc(c.tipo||"")}</td><td class="r num">${esc(c.qtd===""||c.qtd==null?"1":String(c.qtd).replace(".",","))}</td><td class="r money">${fBRL(custoLinha(c))}</td></tr>`).join("")}</tbody></table>`:""}${m.orcamento?`<p style="margin:8px 0 0;color:var(--mute)">Orçamento informado: ${fBRL(m.orcamento)}</p>`:""}</div></section>`:""}
+      ${(m.custos||[]).length||m.orcamento||maoObraM(m)>0?`<section class="card"><div class="card-h"><h2>Custos</h2><span class="sub money">${fBRL(ct)}</span></div><div class="card-b tbl-wrap">${(m.custos||[]).length||maoObraM(m)>0?`<table class="t"><thead><tr><th>Descrição</th><th>Tipo</th><th class="r">Qtd</th><th class="r">Valor</th></tr></thead><tbody>${(m.custos||[]).map(c=>`<tr><td>${esc(c.desc||"")}</td><td>${esc(c.tipo||"")}</td><td class="r num">${esc(c.qtd===""||c.qtd==null?"1":String(c.qtd).replace(".",","))}</td><td class="r money">${fBRL(custoLinha(c))}</td></tr>`).join("")}${maoObraM(m)>0?`<tr><td>Equipe interna · ${esc(nomeEquipe(m.equipeIds))}</td><td>Mão de obra</td><td class="r num">${esc(String(m.horasTrabalho).replace(".",","))} h</td><td class="r money">${fBRL(maoObraM(m))}</td></tr>`:""}</tbody></table>`:""}${m.orcamento?`<p style="margin:8px 0 0;color:var(--mute)">Orçamento informado: ${fBRL(m.orcamento)}</p>`:""}</div></section>`:""}
       ${m.status==="cancelada"?`<section class="card card-b" style="padding-top:16px"><b>Motivo do cancelamento:</b> ${esc(m.motivoCancelamento||"—")}</section>`:""}
       <section class="card"><div class="card-h"><h2>Histórico</h2></div><div class="card-b"><ul class="tl">${tl}</ul></div></section>
     </div></aside></div>`;
@@ -1936,6 +1955,7 @@ async function mAct(m,a){
   if(a==="triagem") Object.assign(A,{categoria:m.categoria||"",prioridade:m.prioridade||"normal",executor:m.executor||"interno",equipeIds:(m.equipeIds||[]).slice(),prestadorId:m.prestadorId||"",ag:toInput(m.agendadoPara),pz:toInput(m.prazo),obs:m.observacoes||""});
   if(a==="iniciar") A.diag=m.diagnostico||"";
   if(a==="custos") A.custos=JSON.parse(JSON.stringify(m.custos||[]));
+  if(a==="concluir"||a==="custos"){const h0=m.horasTrabalho!=null?Number(m.horasTrabalho):(m.iniciadoEm&&Date.now()-T(m.iniciadoEm)<12*3600000?Math.max(.5,Math.round((Date.now()-T(m.iniciadoEm))/1800000)/2):null);A.hrs=h0!=null?String(h0).replace(".",","):""}
   if(a==="concluir"){A.custos=JSON.parse(JSON.stringify(m.custos||[]));A.diag=m.diagnostico||"";
     const pl=m.planoId?byId(S.planos,m.planoId):null;const itens=(m.checklist&&m.checklist.itens)||((pl&&pl.checklist)||[]).map(n=>({nome:n}));A.ck=itens.map(c=>({nome:c.nome,r:c.r||null,obs:c.obs||""}));}
   if(a==="pausar"){A.esp=null;A.orc=m.orcamento?String(m.orcamento).replace(".",","):""}
@@ -1975,19 +1995,22 @@ function bindMPanel(m){
         btn.disabled=true;const motivo=A.esp+((A.det||"").trim()?": "+A.det.trim():"");
         await saveM(m.id,{status:"aguardando",aguardandoMotivo:motivo,orcamento:orc===""?m.orcamento||null:orc,atualizadoEm:now,historico:mhist(m,"aguardando",motivo)});
         S.mAct=null;toast(codM(m)+" aguardando");}
+      const hrsV=()=>{const t=String(A.hrs||"").trim();if(!t)return null;const n=numBR(t);return n===""||n<0||n>500?NaN:n};
       if(A.t==="custos"){const cs=limpos();if(cs.some(c=>!c.desc)){err.textContent="Descreva cada custo.";return}
-        btn.disabled=true;await saveM(m.id,{custos:cs,atualizadoEm:now,historico:mhist(m,m.status,"Custos: "+fBRL(cs.reduce((s,c)=>s+custoLinha(c),0)))});S.mAct=null;toast("Custos salvos");}
+        const hv=hrsV();if(Number.isNaN(hv)){err.textContent="Horas de trabalho inválidas.";return}
+        btn.disabled=true;await saveM(m.id,{custos:cs,horasTrabalho:m.executor!=="terceiro"?hv:null,atualizadoEm:now,historico:mhist(m,m.status,"Custos: "+fBRL(cs.reduce((s,c)=>s+custoLinha(c),0)))});S.mAct=null;toast("Custos salvos");}
       if(A.t==="concluir"){
         const semR=(A.ck||[]).findIndex(c=>!c.r);if(semR>=0){err.textContent="Responda o checklist: "+A.ck[semR].nome+".";return}
         const semO=(A.ck||[]).findIndex(c=>c.r==="pb"&&!(c.obs||"").trim());if(semO>=0){err.textContent="Descreva o problema em: "+A.ck[semO].nome+".";return}
         if(!(A.sol||"").trim()){err.textContent="Conte o que foi feito.";return}
         if(!A.fotos.length){err.textContent="Anexe ao menos uma foto do serviço pronto.";return}
         const cs=limpos();if(cs.some(c=>!c.desc)){err.textContent="Descreva cada custo.";return}
+        const hv=hrsV();if(Number.isNaN(hv)){err.textContent="Horas de trabalho inválidas. Use vírgula, por exemplo 1,5.";return}
         const temSig=(A.sig||[]).some(st=>st.length>1);if(temSig&&!(A.rec||"").trim()){err.textContent="Informe o nome de quem assinou.";return}
         btn.disabled=true;btn.textContent="Salvando…";let assinatura=null;
         if(temSig){const b=await sigBlob(A);if(S.demo)assinatura={id:"local",url:URL.createObjectURL(b)};else{try{assinatura=await enviarArquivo(b,"png","image/png")}catch(e){btn.disabled=false;btn.textContent="Encerrar "+codM(m);err.textContent="Falha ao enviar a assinatura.";return}}}
         const probs=(A.ck||[]).filter(c=>c.r==="pb").length;
-        await saveM(m.id,{status:"concluida",concluidoEm:now,iniciadoEm:m.iniciadoEm||now,diagnostico:(A.diag||"").trim()||null,solucao:A.sol.trim(),fotosDepois:A.fotos,custos:cs,assinatura,recebidoPor:(A.rec||"").trim()||null,aguardandoMotivo:null,
+        await saveM(m.id,{status:"concluida",concluidoEm:now,iniciadoEm:m.iniciadoEm||now,diagnostico:(A.diag||"").trim()||null,solucao:A.sol.trim(),fotosDepois:A.fotos,custos:cs,horasTrabalho:m.executor!=="terceiro"?hv:null,assinatura,recebidoPor:(A.rec||"").trim()||null,aguardandoMotivo:null,
           checklist:(A.ck||[]).length?{itens:A.ck.map(c=>({nome:c.nome,r:c.r,obs:(c.obs||"").trim()})),problemas:probs,em:now}:m.checklist||null,
           atualizadoEm:now,historico:mhist(m,"concluida","Serviço concluído com foto"+(cs.length?" · custo "+fBRL(cs.reduce((s,c)=>s+custoLinha(c),0)):"")+(probs?" · "+probs+" problema"+(probs>1?"s":"")+" no checklist":""))});
         toast(codM(m)+" concluída");const m2=byId(S.manutencoes,m.id)||m;
@@ -2257,10 +2280,182 @@ function exportCSVM(list){
   const csv="﻿"+cols.join(";")+"\n"+rows.join("\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="manutencao-"+dayKey(new Date())+".csv";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 
+/* =====================================================================
+   CUSTOS E GESTÃO · Facilities
+   ===================================================================== */
+const nOuNull=v=>v===""||v==null||!isFinite(Number(v))?null:Number(v);
+const custoKmVeic=id=>{const v=byId(S.veiculos,id);const x=v?nOuNull(v.custoKm):null;return x!=null?x:(Number(S.config.custoKmPadrao)||0)};
+const custoHoraPessoa=id=>{const p=byId(S.equipe,id);const x=p?nOuNull(p.custoHora):null;return x!=null?x:(Number(S.config.custoHoraPadrao)||0)};
+const somaExtras=arr=>(arr||[]).reduce((s,c)=>s+custoLinha(c),0);
+function custoLogDet(o){
+  const km=kmRodados(o)||0;const h=o.concluidoEm&&o.iniciadoEm?Math.max(0,tExec(o))/3600000:0;
+  const veic=o.veiculoId?km*custoKmVeic(o.veiculoId):0;
+  const eq=h*(o.equipeIds||[]).reduce((s,id)=>s+custoHoraPessoa(id),0);
+  const ex=somaExtras(o.custosExtra);
+  return {km,h,veic,eq,ex,total:veic+eq+ex};
+}
+const custoLog=o=>o.status==="cancelada"?0:custoLogDet(o).total;
+function maoObraM(m){if(m.executor==="terceiro")return 0;const h=Number(m.horasTrabalho)||0;return h*(m.equipeIds||[]).reduce((s,id)=>s+custoHoraPessoa(id),0)}
+function custoManDet(m){const c=m.custos||[];const por=t=>c.filter(x=>t.includes(x.tipo)).reduce((s,x)=>s+custoLinha(x),0);
+  const pecas=por(["Peça","Material"]),terc=por(["Serviço de terceiro"]),mo=por(["Mão de obra"])+maoObraM(m),outros=por(["Outro",undefined,""])+c.filter(x=>!CUSTO_TIPOS.includes(x.tipo)&&x.tipo).reduce((s,x)=>s+custoLinha(x),0);
+  return {pecas,terc,mo,outros,interna:maoObraM(m),total:pecas+terc+mo+outros}}
+// unidade que recebeu o serviço
+const ehUnidade=l=>l&&l.tipo!=="Fornecedor";
+function unidadeOS(o){const st=byId(S.setores,o.setorId);if(st&&st.localId)return st.localId;
+  for(const id of [o.destinoId,o.origemId]){const l=byId(S.locais,id);if(ehUnidade(l))return l.id}return ""}
+const unidadeM=m=>m.localId||(byId(S.setores,m.setorId)||{}).localId||"";
+const mesDe=iso=>iso?mesKey(iso):"";
+function dadosMes(k){
+  const log=S.os.filter(o=>o.status==="concluida"&&mesDe(o.concluidoEm)===k);
+  const man=S.manutencoes.filter(m=>m.status==="concluida"&&mesDe(m.concluidoEm)===k);
+  const cl=log.reduce((s,o)=>s+custoLog(o),0),cm=man.reduce((s,m)=>s+custoTotal(m),0);
+  const pzL=log.filter(o=>isFinite(prazo(o))),npL=pzL.filter(o=>!concluidaComAtraso(o)).length;
+  const pzM=man.filter(m=>isFinite(prazoM(m))),npM=pzM.filter(m=>!mConclAtraso(m)).length;
+  const porU={};const add=(u,kind,v)=>{const x=porU[u]=porU[u]||{log:0,man:0,nLog:0,nMan:0};x[kind]+=v;x[kind==="log"?"nLog":"nMan"]++};
+  log.forEach(o=>add(unidadeOS(o),"log",custoLog(o)));man.forEach(m=>add(unidadeM(m),"man",custoTotal(m)));
+  const porS={};const addS=(s,kind,v)=>{const x=porS[s]=porS[s]||{log:0,man:0};x[kind]+=v};
+  log.forEach(o=>addS(o.setorId||"","log",custoLog(o)));man.forEach(m=>addS(m.setorId||"","man",custoTotal(m)));
+  const dl=log.map(custoLogDet),dm=man.map(custoManDet);const sum=(a,f)=>a.reduce((s,x)=>s+x[f],0);
+  return {k,log,man,cl,cm,total:cl+cm,n:log.length+man.length,
+    pct:(pzL.length+pzM.length)?Math.round((npL+npM)/(pzL.length+pzM.length)*100):null,pctL:pzL.length?Math.round(npL/pzL.length*100):null,pctM:pzM.length?Math.round(npM/pzM.length*100):null,
+    porU,porS,comp:{veic:sum(dl,"veic"),eq:sum(dl,"eq"),ex:sum(dl,"ex"),km:sum(dl,"km"),h:sum(dl,"h"),pecas:sum(dm,"pecas"),terc:sum(dm,"terc"),mo:sum(dm,"mo"),outros:sum(dm,"outros")},
+    tsM:avg(man.map(tSolucao)),teL:avg(log.map(tExec))};
+}
+const unidades=()=>S.locais.filter(l=>ehUnidade(l)&&(l.ativo!==false||nOuNull(l.orcamentoMensal)!=null)).sort((a,b)=>{const ia=ORDEM_SIGLA.indexOf(a.sigla),ib=ORDEM_SIGLA.indexOf(b.sigla);return (ia<0?99:ia)-(ib<0?99:ib)||sortNome(a,b)});
+const pctTxt=v=>v==null?"—":v+"%";
+function variacao(a,b){if(!isFinite(a)||!isFinite(b)||b<=0)return null;return (a-b)/b*100}
+function deltaTxt(a,b,lowerBetter){const v=variacao(a,b);if(v==null)return "Sem base no mês anterior";if(Math.abs(v)<0.5)return "Igual ao mês anterior";
+  return (v>0?"▲ ":"▼ ")+Math.abs(Math.round(v))+"% vs mês anterior"}
+function pontosAtencao(A,B){
+  const P=[];const atual=A.k===mesKey(new Date());
+  unidades().forEach(l=>{const orc=nOuNull(l.orcamentoMensal);if(!orc)return;const g=((A.porU[l.id]||{}).log||0)+((A.porU[l.id]||{}).man||0);const u=g/orc*100;
+    if(u>=100)P.push({n:3,t:`${l.nome} passou do orçamento: ${fBRL(g)} de ${fBRL(orc)} (${Math.round(u)}%).`});
+    else if(u>=80)P.push({n:2,t:`${l.nome} já usou ${Math.round(u)}% do orçamento${atual?" do mês":""} (${fBRL(g)} de ${fBRL(orc)}).`});});
+  const v=variacao(A.total,B.total);if(v!=null&&v>=20)P.push({n:2,t:`O custo total subiu ${Math.round(v)}% em relação a ${mesNome(B.k).toLowerCase()} (${fBRL(B.total)} → ${fBRL(A.total)}).`});
+  let maior=null;Object.keys(A.porU).forEach(u=>{const a=(A.porU[u].log+A.porU[u].man),b=B.porU[u]?(B.porU[u].log+B.porU[u].man):0;const d=a-b;if(d>500&&(b===0||d/b>.3)&&(!maior||d>maior.d))maior={u,d,a,b}});
+  if(maior)P.push({n:1,t:`Maior aumento: ${maior.u?nomeLocal(maior.u):"OS sem unidade"}, +${fBRL(maior.d)} (${fBRL(maior.b)} → ${fBRL(maior.a)}).`});
+  [["pctL","Logística"],["pctM","Manutenção"]].forEach(([f,n])=>{if(A[f]!=null&&B[f]!=null&&B[f]-A[f]>=10)P.push({n:2,t:`${n}: conclusões no prazo caíram de ${B[f]}% para ${A[f]}%.`})});
+  const pe={};A.man.forEach(m=>{if(m.equipamentoId)pe[m.equipamentoId]=(pe[m.equipamentoId]||0)+custoTotal(m)});
+  const top=Object.entries(pe).sort((a,b)=>b[1]-a[1])[0];if(top&&A.cm>0&&top[1]/A.cm>=.3)P.push({n:1,t:`${nomeEquip(top[0])} concentrou ${Math.round(top[1]/A.cm*100)}% do custo da manutenção (${fBRL(top[1])}).`});
+  if(atual){const velhos=S.manutencoes.filter(m=>MABERTOS.includes(m.status)&&Date.now()-T(m.criadoEm)>7*86400000).length;if(velhos)P.push({n:2,t:`${velhos} chamado${velhos>1?"s":""} de manutenção aberto${velhos>1?"s":""} há mais de 7 dias.`});
+    const vel=S.os.filter(atrasada).length;if(vel)P.push({n:1,t:`${vel} OS de logística atrasada${vel>1?"s":""} agora.`});}
+  const semKm=[...new Set(A.log.filter(o=>o.veiculoId&&kmRodados(o)&&nOuNull((byId(S.veiculos,o.veiculoId)||{}).custoKm)==null).map(o=>o.veiculoId))];
+  const semH=[...new Set(A.log.flatMap(o=>o.equipeIds||[]).concat(A.man.filter(m=>m.executor!=="terceiro").flatMap(m=>m.equipeIds||[])).filter(id=>nOuNull((byId(S.equipe,id)||{}).custoHora)==null))];
+  if(semKm.length&&!(Number(S.config.custoKmPadrao)>0))P.push({n:0,t:`${semKm.length} veículo${semKm.length>1?"s":""} sem custo por km: o custo da logística está subestimado. Cadastre em Cadastros → Veículos.`});
+  if(semH.length&&!(Number(S.config.custoHoraPadrao)>0))P.push({n:0,t:`${semH.length} pessoa${semH.length>1?"s":""} da equipe sem custo por hora. Cadastre em Cadastros → Equipe ou defina o padrão em Regras.`});
+  const semHoras=A.man.filter(m=>m.executor!=="terceiro"&&!(Number(m.horasTrabalho)>0)).length;if(semHoras)P.push({n:0,t:`${semHoras} OS de manutenção interna sem horas de trabalho: a mão de obra interna não entrou no custo.`});
+  return P.sort((a,b)=>b.n-a.n);
+}
+function stackedBars(el,meses){
+  if(!el)return;const W=Math.max(el.clientWidth,300),H=240,ml=58,mr=8,mt=12,mb=28;
+  const tot=meses.map(m=>m.cl+m.cm);const mx=Math.max(1,...tot);
+  const mag=Math.pow(10,Math.floor(Math.log10(mx)));const stp=[1,2,2.5,5,10].map(x=>x*mag).find(s=>mx/s<=5)||mag*10;const top=Math.ceil(mx/stp)*stp;
+  const iw=W-ml-mr,ih=H-mt-mb,n=meses.length,bw=iw/n,w=Math.min(Math.max(bw*.62,6),44);
+  const y=v=>mt+ih-(v/top)*ih;const fK=v=>v>=1000?(v/1000).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mil":Math.round(v).toLocaleString("pt-BR");
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Custo mensal de Facilities, logística e manutenção, últimos ${n} meses">`;
+  for(let v=0;v<=top+1e-9;v+=stp)s+=`<line class="gl" x1="${ml}" x2="${W-mr}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${ml-6}" y="${y(v)+4}" text-anchor="end">R$ ${fK(v)}</text>`;
+  const seg=(x,y0,y1,cls,round)=>{const h=y0-y1;if(h<=0.5)return "";const r=round?Math.min(4,w/2,h):0;return `<path class="${cls}" d="M${x},${y0} V${y1+r} ${r?`Q${x},${y1} ${x+r},${y1} H${x+w-r} Q${x+w},${y1} ${x+w},${y1+r}`:`H${x+w}`} V${y0} Z"/>`};
+  meses.forEach((m,i)=>{const x=ml+i*bw+(bw-w)/2;const y0=mt+ih,yl=y(m.cl),yt=y(m.cl+m.cm);
+    const topMan=m.cm>0;s+=seg(x,y0,yl,"sb-log",!topMan);if(topMan)s+=seg(x,yl-(m.cl>0?2:0),yt,"sb-man",true);
+    const [Y,M]=m.k.split("-");const cada=Math.ceil(n/(iw/44));if(i%cada!==(n-1)%cada)return;s+=`<text class="ax" x="${x+w/2}" y="${H-9}" text-anchor="middle">${new Date(+Y,+M-1,1).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}${M==="01"||i===0?"/"+Y.slice(2):""}</text>`});
+  s+=`</svg>`;el.innerHTML=s;const tip=document.createElement("div");tip.className="tip";tip.hidden=true;el.appendChild(tip);const svg=el.querySelector("svg");
+  svg.addEventListener("pointermove",e=>{const r=svg.getBoundingClientRect();const px=(e.clientX-r.left)*(W/r.width);const i=Math.floor((px-ml)/bw);if(i<0||i>=n){tip.hidden=true;return}
+    const m=meses[i];tip.innerHTML=`<b>${esc(mesNome(m.k))}</b><br><span class="sw sw-log"></span>Logística ${fBRL(m.cl)}<br><span class="sw sw-man"></span>Manutenção ${fBRL(m.cm)}<br><b>Total ${fBRL(m.cl+m.cm)}</b>`;
+    tip.hidden=false;tip.style.left=((ml+i*bw+bw/2)*(r.width/W))+"px";tip.style.top=(y(m.cl+m.cm)*(r.height/H))+"px"});
+  svg.addEventListener("pointerleave",()=>{tip.hidden=true});
+}
+function usoHTML(g,orc){if(!orc)return `<span style="color:var(--faint)">Sem orçamento</span>`;const u=g/orc*100;const cls=u>=100?"over":u>=80?"warn":"ok";
+  return `<span class="uso ${cls}"><span class="uso-t"><i style="width:${Math.min(u,100)}%"></i></span><b class="num">${Math.round(u)}%</b>${u>=100?`<span class="uso-l">Acima</span>`:u>=80?`<span class="uso-l">Atenção</span>`:""}</span>`}
+function resumoGestao(A,B,P){
+  const L=[`*Facilities · ${mesNome(A.k)}*`,``,`Custo total: ${fBRL(A.total)} · ${deltaTxt(A.total,B.total,true).toLowerCase()}`,`• Logística: ${fBRL(A.cl)} em ${A.log.length} OS`,`• Manutenção: ${fBRL(A.cm)} em ${A.man.length} OS`,`Concluídas no prazo: ${pctTxt(A.pct)}`,``,`*Por unidade*`];
+  unidades().forEach(l=>{const x=A.porU[l.id];const orc=nOuNull(l.orcamentoMensal);if(!x&&!orc)return;const g=x?x.log+x.man:0;L.push(`• ${l.sigla||l.nome}: ${fBRL(g)}${orc?" de "+fBRL(orc)+" ("+Math.round(g/orc*100)+"%)":""}`)});
+  if(A.porU[""])L.push(`• Sem unidade: ${fBRL(A.porU[""].log+A.porU[""].man)}`);
+  const pp=P.filter(p=>p.n>0).slice(0,3);if(pp.length){L.push(``,`*Pontos de atenção*`);pp.forEach(p=>L.push("• "+p.t))}
+  return L.join("\n");
+}
+function imprimirGestao(A,B,P){
+  const linhas=unidades().map(l=>{const x=A.porU[l.id]||{log:0,man:0};const orc=nOuNull(l.orcamentoMensal);const g=x.log+x.man;if(!g&&!orc)return "";
+    return `<tr><td>${esc(l.nome)}</td><td class="r">${fBRL(x.log)}</td><td class="r">${fBRL(x.man)}</td><td class="r"><b>${fBRL(g)}</b></td><td class="r">${orc?fBRL(orc):"—"}</td><td class="r">${orc?Math.round(g/orc*100)+"%":"—"}</td></tr>`}).join("");
+  const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Facilities · ${esc(mesNome(A.k))}</title><style>@page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#140C0B;font-size:10.5pt}h1{font-size:18pt;margin:0;color:#420804}h2{font-size:11.5pt;margin:18px 0 6px;color:#83582B;text-transform:uppercase;letter-spacing:.05em}.k{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.k div{border:1px solid #E4DED8;border-radius:6px;padding:8px}.k small{color:#5A5250;display:block}.k b{font-size:14pt}table{width:100%;border-collapse:collapse}td,th{padding:5px 6px;border-bottom:1px solid #E4DED8;text-align:left}th{font-size:9pt;color:#5A5250}.r{text-align:right}li{margin-bottom:4px}.s{color:#5A5250;margin:2px 0 0}</style></head><body>
+    <h1>Facilities · ${esc(mesNome(A.k))}</h1><p class="s">Grupo Monte Carlo · gerado em ${fDH(nowISO())}</p>
+    <div class="k"><div><small>Custo total</small><b>${fBRL(A.total)}</b><small>${esc(deltaTxt(A.total,B.total,true))}</small></div><div><small>Logística</small><b>${fBRL(A.cl)}</b><small>${A.log.length} OS concluídas</small></div><div><small>Manutenção</small><b>${fBRL(A.cm)}</b><small>${A.man.length} OS concluídas</small></div><div><small>No prazo</small><b>${pctTxt(A.pct)}</b><small>Logística ${pctTxt(A.pctL)} · Manutenção ${pctTxt(A.pctM)}</small></div></div>
+    <h2>Pontos de atenção</h2>${P.length?`<ul>${P.slice(0,8).map(p=>`<li>${esc(p.t)}</li>`).join("")}</ul>`:"<p>Nenhum ponto de atenção.</p>"}
+    <h2>Custo por unidade</h2><table><thead><tr><th>Unidade</th><th class="r">Logística</th><th class="r">Manutenção</th><th class="r">Total</th><th class="r">Orçamento</th><th class="r">Uso</th></tr></thead><tbody>${linhas}${A.porU[""]?`<tr><td>Sem unidade</td><td class="r">${fBRL(A.porU[""].log)}</td><td class="r">${fBRL(A.porU[""].man)}</td><td class="r"><b>${fBRL(A.porU[""].log+A.porU[""].man)}</b></td><td class="r">—</td><td class="r">—</td></tr>`:""}</tbody></table>
+    <h2>Composição</h2><table><tbody><tr><td>Logística · veículos (${Math.round(A.comp.km).toLocaleString("pt-BR")} km)</td><td class="r">${fBRL(A.comp.veic)}</td></tr><tr><td>Logística · equipe (${A.comp.h.toFixed(1).replace(".",",")} h em rota)</td><td class="r">${fBRL(A.comp.eq)}</td></tr><tr><td>Logística · extras (pedágio, estacionamento…)</td><td class="r">${fBRL(A.comp.ex)}</td></tr><tr><td>Manutenção · peças e material</td><td class="r">${fBRL(A.comp.pecas)}</td></tr><tr><td>Manutenção · terceiros</td><td class="r">${fBRL(A.comp.terc)}</td></tr><tr><td>Manutenção · mão de obra</td><td class="r">${fBRL(A.comp.mo)}</td></tr>${A.comp.outros?`<tr><td>Manutenção · outros</td><td class="r">${fBRL(A.comp.outros)}</td></tr>`:""}</tbody></table>
+    <p class="s" style="margin-top:14px">Custos das OS concluídas no mês. Logística: km × custo por km do veículo + horas em rota × custo por hora da equipe + extras. Manutenção: custos lançados + horas de trabalho × custo por hora dos técnicos.</p></body></html>`;
+  const fr=document.createElement("iframe");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0";document.body.appendChild(fr);
+  fr.contentDocument.open();fr.contentDocument.write(html);fr.contentDocument.close();setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print()}catch(e){}setTimeout(()=>fr.remove(),60000)},300);
+}
+function exportCSVGestao(A){
+  const q=v=>{v=v==null?"":String(v);return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};const n2=v=>(Math.round(v*100)/100).toFixed(2).replace(".",",");
+  const rows=[["Área","OS","Concluída em","Unidade","Setor","Descrição","Km","Horas","Custo veículo","Custo equipe / mão de obra","Peças e material","Terceiros","Extras / outros","Custo total (R$)"]];
+  A.log.forEach(o=>{const d=custoLogDet(o);rows.push(["Logística",codigo(o),fDH(o.concluidoEm),nomeLocal(unidadeOS(o)),nomeSetor(o.setorId),rotaTxt(o),d.km,n2(d.h),n2(d.veic),n2(d.eq),"","",n2(d.ex),n2(d.total)])});
+  A.man.forEach(m=>{const d=custoManDet(m);rows.push(["Manutenção",codM(m),fDH(m.concluidoEm),nomeLocal(unidadeM(m)),nomeSetor(m.setorId),tituloM(m),"",m.horasTrabalho||"","",n2(d.mo),n2(d.pecas),n2(d.terc),n2(d.outros),n2(d.total)])});
+  const csv="﻿"+rows.map(r=>r.map(q).join(";")).join("\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="facilities-custos-"+A.k+".csv";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function renderGestao(){
+  const now=new Date();const meses=[];for(let i=11;i>=0;i--)meses.push(mesKey(new Date(now.getFullYear(),now.getMonth()-i,1)));
+  if(!S.gm||!meses.includes(S.gm))S.gm=meses[11];
+  const k=S.gm;const [y,mo]=k.split("-");const A=dadosMes(k),B=dadosMes(mesKey(new Date(+y,+mo-2,1)));
+  const serie=meses.map(dadosMes);const P=pontosAtencao(A,B);
+  const us=unidades();const orcTot=us.reduce((s,l)=>s+(nOuNull(l.orcamentoMensal)||0),0);const gastoOrc=us.filter(l=>nOuNull(l.orcamentoMensal)).reduce((s,l)=>s+((A.porU[l.id]||{}).log||0)+((A.porU[l.id]||{}).man||0),0);
+  const usoT=orcTot?Math.round(gastoOrc/orcTot*100):null;
+  const carregando=!S.demo&&(!S.loaded.os||(!S.loaded.manutencoes&&!S.missing.manutencoes));
+  let h=`<div class="head"><div><h1>Gestão de <em>Facilities</em></h1><p>Custo da logística e da manutenção por unidade e por setor, orçamento e tendência dos últimos 12 meses.</p></div>
+    <div class="act"><button class="btn" id="gCsv" type="button">Exportar CSV</button><button class="btn" id="gPrint" type="button">Imprimir / PDF</button><button class="btn pri" id="gRes" type="button">Resumo para a gerência</button></div></div>${banner()}
+  <div class="filters"><div class="field"><label for="gM">Mês</label><select id="gM">${meses.slice().reverse().map(x=>`<option value="${x}"${x===k?" selected":""}>${esc(mesNome(x))}</option>`).join("")}</select></div></div>`;
+  if(carregando){app.innerHTML=h+`<div class="empty"><h3>Carregando…</h3></div>`;bindGestao(A,B,P);return}
+  if(S.gRes) h+=`<div class="panel copybox" style="margin-bottom:16px"><h3>Resumo de ${esc(mesNome(k))}</h3><label class="lbl" for="gResT">Revise e envie para a gerência.</label><textarea id="gResT" rows="12">${esc(resumoGestao(A,B,P))}</textarea>
+    <div class="actions"><button class="btn" id="gCopy" type="button">Copiar</button><a class="btn wa" id="gWa" href="https://wa.me/?text=${encodeURIComponent(resumoGestao(A,B,P))}" target="_blank" rel="noopener">Abrir no WhatsApp</a><button class="btn ghost" id="gResX" type="button">Fechar</button></div></div>`;
+  h+=`<div class="kpis">
+    ${kpi("Custo total no mês",fBRL(A.total),"",deltaTxt(A.total,B.total,true),"money-k")}
+    ${kpi("Logística",fBRL(A.cl),"",A.log.length+" OS concluídas · "+deltaTxt(A.cl,B.cl,true).toLowerCase(),"money-k")}
+    ${kpi("Manutenção",fBRL(A.cm),"",A.man.length+" OS concluídas · "+deltaTxt(A.cm,B.cm,true).toLowerCase(),"money-k")}
+    ${kpi("Orçamento usado",usoT==null?"—":usoT,usoT==null?"":"%",orcTot?fBRL(gastoOrc)+" de "+fBRL(orcTot):"Defina o orçamento em Cadastros → Locais",usoT!=null&&usoT>=100?"alert":usoT!=null&&usoT<80?"good":"")}
+    ${kpi("Concluídas no prazo",A.pct==null?"—":A.pct,A.pct==null?"":"%","Logística "+pctTxt(A.pctL)+" · Manutenção "+pctTxt(A.pctM),A.pct!=null&&A.pct>=90?"good":A.pct!=null&&A.pct<75?"alert":"")}
+    ${kpi("Custo médio por OS",A.n?fBRL(A.total/A.n):"—","",A.log.length&&A.comp.km?"Logística "+fBRL(A.comp.veic/A.comp.km)+"/km":"Logística e manutenção","money-k")}
+  </div>
+  <section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Pontos de atenção</h2><span class="sub">${esc(mesNome(k))}</span></div><div class="card-b">${P.length?`<ul class="pts">${P.slice(0,8).map(p=>`<li class="pt${p.n}"><span class="pt-i">${p.n>=3?"Crítico":p.n===2?"Atenção":p.n===1?"Observar":"Dados"}</span>${esc(p.t)}</li>`).join("")}</ul>`:`<p style="color:var(--mute);margin:0">Nenhum ponto de atenção neste mês.</p>`}</div></section>
+  <section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Custo mensal</h2><span class="sub">últimos 12 meses · OS concluídas</span></div><div class="card-b">
+    <div class="lgd"><span><i class="sw sw-log"></i>Logística</span><span><i class="sw sw-man"></i>Manutenção</span></div><div class="chart" id="chG"></div>
+    <details class="tbl-d"><summary class="btn sm">Ver em tabela</summary><div class="tbl-wrap"><table class="t"><thead><tr><th>Mês</th><th class="r">Logística</th><th class="r">Manutenção</th><th class="r">Total</th><th class="r">OS</th><th class="r">No prazo</th></tr></thead><tbody>
+      ${serie.slice().reverse().map(m=>`<tr><td>${esc(mesNome(m.k))}</td><td class="r money">${fBRL(m.cl)}</td><td class="r money">${fBRL(m.cm)}</td><td class="r money"><b>${fBRL(m.total)}</b></td><td class="r num">${m.n}</td><td class="r num">${pctTxt(m.pct)}</td></tr>`).join("")}</tbody></table></div></details></div></section>
+  <section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Custo por unidade</h2><span class="sub">pela unidade do setor que pediu ou onde foi o serviço</span></div><div class="card-b tbl-wrap"><table class="t gt"><thead><tr><th>Unidade</th><th class="r">Logística</th><th class="r">Manutenção</th><th class="r">Total</th><th class="r">vs mês anterior</th><th class="r">Orçamento</th><th>Uso do orçamento</th></tr></thead><tbody>
+    ${us.map(l=>{const x=A.porU[l.id]||{log:0,man:0,nLog:0,nMan:0};const b=B.porU[l.id]||{log:0,man:0};const g=x.log+x.man,gb=b.log+b.man;const orc=nOuNull(l.orcamentoMensal);if(!g&&!orc&&!gb)return "";const v=variacao(g,gb);
+      return `<tr><td><b>${esc(l.nome)}</b>${l.sigla?` <span style="color:var(--faint)">${esc(l.sigla)}</span>`:""}</td><td class="r money">${fBRL(x.log)}</td><td class="r money">${fBRL(x.man)}</td><td class="r money"><b>${fBRL(g)}</b></td><td class="r num">${v==null?"—":(v>0?"▲ ":"▼ ")+Math.abs(Math.round(v))+"%"}</td><td class="r money">${orc?fBRL(orc):"—"}</td><td>${usoHTML(g,orc)}</td></tr>`}).join("")}
+    ${A.porU[""]?`<tr><td><b>Sem unidade</b> <span style="color:var(--faint)">OS sem setor ou local de unidade</span></td><td class="r money">${fBRL(A.porU[""].log)}</td><td class="r money">${fBRL(A.porU[""].man)}</td><td class="r money"><b>${fBRL(A.porU[""].log+A.porU[""].man)}</b></td><td class="r">—</td><td class="r">—</td><td></td></tr>`:""}
+    <tr class="tot"><td><b>Total</b></td><td class="r money"><b>${fBRL(A.cl)}</b></td><td class="r money"><b>${fBRL(A.cm)}</b></td><td class="r money"><b>${fBRL(A.total)}</b></td><td class="r num">${(()=>{const v=variacao(A.total,B.total);return v==null?"—":(v>0?"▲ ":"▼ ")+Math.abs(Math.round(v))+"%"})()}</td><td class="r money">${orcTot?fBRL(orcTot):"—"}</td><td>${orcTot?usoHTML(gastoOrc,orcTot):""}</td></tr></tbody></table></div></section>
+  <div class="grid2">
+    <section class="card"><div class="card-h"><h2>Setores com maior custo</h2><span class="sub">logística + manutenção</span></div><div class="card-b">${hbars(Object.entries(A.porS).map(([s,x])=>({s,v:x.log+x.man,x})).filter(r=>r.v>0).sort((a,b)=>b.v-a.v).slice(0,10).map(r=>({n:r.s?nomeSetor(r.s):"Sem setor",v:r.v,x:"",lbl:fBRL(r.v)})))}</div></section>
+    <section class="card"><div class="card-h"><h2>Onde está o custo</h2><span class="sub">composição no mês</span></div><div class="card-b tbl-wrap"><table class="t"><tbody>
+      <tr><th colspan="2" style="color:var(--gold-ink)"><i class="sw sw-log"></i> Logística</th></tr>
+      <tr><td>Veículos <span style="color:var(--faint)">${Math.round(A.comp.km).toLocaleString("pt-BR")} km</span></td><td class="r money">${fBRL(A.comp.veic)}</td></tr>
+      <tr><td>Equipe <span style="color:var(--faint)">${A.comp.h.toFixed(1).replace(".",",")} h em rota</span></td><td class="r money">${fBRL(A.comp.eq)}</td></tr>
+      <tr><td>Extras <span style="color:var(--faint)">pedágio, estacionamento…</span></td><td class="r money">${fBRL(A.comp.ex)}</td></tr>
+      <tr><th colspan="2" style="color:var(--gold-ink)"><i class="sw sw-man"></i> Manutenção</th></tr>
+      <tr><td>Peças e material</td><td class="r money">${fBRL(A.comp.pecas)}</td></tr>
+      <tr><td>Terceiros</td><td class="r money">${fBRL(A.comp.terc)}</td></tr>
+      <tr><td>Mão de obra</td><td class="r money">${fBRL(A.comp.mo)}</td></tr>
+      ${A.comp.outros?`<tr><td>Outros</td><td class="r money">${fBRL(A.comp.outros)}</td></tr>`:""}
+    </tbody></table></div></section></div>
+  <p class="hint" style="margin-top:12px">Entram as OS concluídas no mês. Logística: km × custo por km do veículo + horas em rota × custo por hora da equipe + extras lançados na OS. Manutenção: custos lançados + horas de trabalho × custo por hora dos técnicos. Ajuste os valores em Cadastros (Veículos, Equipe, Locais e Regras).</p>`;
+  app.innerHTML=h;bindGestao(A,B,P);stackedBars($("#chG"),serie);
+}
+function bindGestao(A,B,P){
+  $("#gM").onchange=e=>{S.gm=e.target.value;renderGestao()};
+  $("#gCsv").onclick=()=>exportCSVGestao(A);$("#gPrint").onclick=()=>imprimirGestao(A,B,P);
+  $("#gRes").onclick=()=>{S.gRes=true;renderGestao();const t=$("#gResT");if(t){t.focus();t.scrollIntoView({block:"nearest"})}};
+  const x=$("#gResX");if(x)x.onclick=()=>{S.gRes=false;renderGestao()};
+  const t=$("#gResT");if(t)t.oninput=()=>{$("#gWa").href="https://wa.me/?text="+encodeURIComponent(t.value)};
+  const c=$("#gCopy");if(c)c.onclick=async()=>{try{await navigator.clipboard.writeText($("#gResT").value);toast("Resumo copiado")}catch(e){$("#gResT").select();toast("Selecione e copie o texto")}};
+}
+
 /* ---------- Demonstração da manutenção ---------- */
 function loadDemoMan(){
   const now=Date.now();let seed=11;const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};const pick=a=>a[Math.floor(rnd()*a.length)];
-  S.equipe.push(...[["Técnico Elétrica","Eletricista"],["Técnico Hidráulica","Encanador"],["Técnico Refrigeração","Técnico de refrigeração"],["Manutenção geral","Manutenção geral"]].map(([n,f],i)=>({id:"t"+i,nome:n,funcao:f,area:"manutencao",ativo:true})));
+  S.equipe.forEach(p=>{p.custoHora=p.funcao==="Motorista"?32:p.funcao==="Coordenador"?55:24});
+  S.equipe.push(...[["Técnico Elétrica","Eletricista",38],["Técnico Hidráulica","Encanador",36],["Técnico Refrigeração","Técnico de refrigeração",42],["Manutenção geral","Manutenção geral",30]].map(([n,f,c],i)=>({id:"t"+i,nome:n,funcao:f,area:"manutencao",custoHora:c,ativo:true})));
+  ({mc:22000,mg:14000,dr:6000,cm:5000,cd1:4000})&&S.locais.forEach(l=>{const o={mc:22000,mg:14000,dr:6000,cm:5000,cd1:4000}[l.id];if(o)l.orcamentoMensal=o});
   S.prestadores=[["Frio Total Climatização","Ar-condicionado"],["Hidro Já","Hidráulica"],["Eletro SP","Elétrica"]].map(([n,e],i)=>({id:"pr"+i,nome:n,especialidade:e,telefone:"(11) 3333-000"+i,ativo:true}));
   S.equipamentos=[["Ar split salão 1","AC-001","Ar-condicionado","mc","s0"],["Ar split salão 2","AC-002","Ar-condicionado","mc","s0"],["Câmara fria","RF-001","Refrigeração","mc","s1"],["Forno combinado","CZ-001","Cozinha industrial","mc","s1"],["Gerador 150 kVA","GE-001","Gerador / energia","mc",""],["Ar split VIP","AC-010","Ar-condicionado","mg","s6"],["Freezer bar VIP","RF-010","Refrigeração","mg","s6"],["Bomba de recalque","HD-001","Hidráulica","cm","s10"],["Coifa cozinha","CZ-020","Cozinha industrial","dr",""],["Elevador social","EL-001","Elevador","cm",""]]
     .map(([n,c,cat,l,s],i)=>({id:"q"+i,nome:n,codigo:c,categoria:cat,localId:l,setorId:s,marca:["LG","Springer","Rational","Cummins","Consul"][i%5],modelo:"",ativo:true,criadoEm:new Date(now-200*86400000).toISOString()}));
@@ -2276,7 +2471,7 @@ function loadDemoMan(){
     out.push({id:"m"+i,numero:i+1,status:st,tipo:"corretiva",categoria:cat,prioridade:pr,descricao:t,localId:e?e.localId:pick(locs),setorId:e?e.setorId:"",equipamentoId:eq,solicitante:pick(["Laura Souza","Marcos Lima","Chef Doryo","Gerência VIP"]),solicitanteId:i%7===0?"demo":"x",solicitanteTelefone:"(11) 99999-8888",
       executor:terc?"terceiro":"interno",equipeIds:st==="aberto"||terc?[]:[pick(["t0","t1","t2","t3"])],prestadorId:terc&&st!=="aberto"?pick(["pr0","pr1","pr2"]):"",criadoEm:new Date(ab).toISOString(),triadoEm:st==="aberto"?null:new Date(ab+3600000).toISOString(),
       agendadoPara:st==="aberto"?null:new Date(ab+(2+rnd()*20)*3600000).toISOString(),iniciadoEm:["em_execucao","aguardando","concluida"].includes(st)?new Date(ini).toISOString():null,concluidoEm:st==="concluida"?new Date(fim).toISOString():null,
-      solucao:st==="concluida"?"Serviço realizado e testado.":null,aguardandoMotivo:st==="aguardando"?"Peça ou material: aguardando entrega do fornecedor":null,custos,fotosAbertura:[],fotosAntes:[],fotosDepois:[],motivoCancelamento:st==="cancelada"?"Resolvido pelo próprio setor":"",
+      solucao:st==="concluida"?"Serviço realizado e testado.":null,horasTrabalho:st==="concluida"&&!terc?Math.round((1+rnd()*5)*2)/2:null,aguardandoMotivo:st==="aguardando"?"Peça ou material: aguardando entrega do fornecedor":null,custos,fotosAbertura:[],fotosAntes:[],fotosDepois:[],motivoCancelamento:st==="cancelada"?"Resolvido pelo próprio setor":"",
       historico:[{s:"aberto",em:new Date(ab).toISOString(),nota:"Chamado aberto"}]});}
   S.manutencoes=out.sort((a,b)=>T(b.criadoEm)-T(a.criadoEm));
   S.loaded.manutencoes=S.loaded.equipamentos=true;
@@ -2288,7 +2483,8 @@ function loadDemo(){
   S.locais=L.map(([id,nome,tipo])=>({id,nome,tipo,ativo:true}));
   S.setores=["Bar","Cozinha","Eventos","Manutenção","Compras","Diretoria","Salão de jogos","Administrativo","Doryo"].map((n,i)=>({id:"s"+i,nome:n,ativo:true}));
   S.equipe=[["Motorista A","Motorista"],["Motorista B","Motorista"],["Ajudante A","Ajudante"],["Ajudante B","Ajudante"],["Coordenação","Coordenador"]].map(([n,f],i)=>({id:"e"+i,nome:n,funcao:f,ativo:true}));
-  S.veiculos=[["Van de carga","ABC1D23","Van"],["Utilitário","EFG4H56","Utilitário"],["Caminhão 3/4","IJK7L89","Caminhão 3/4"]].map(([n,p,t],i)=>({id:"v"+i,nome:n,placa:p,tipo:t,ativo:true}));
+  S.veiculos=[["Van de carga","ABC1D23","Van",1.65],["Utilitário","EFG4H56","Utilitário",1.2],["Caminhão 3/4","IJK7L89","Caminhão 3/4",2.4]].map(([n,p,t,c],i)=>({id:"v"+i,nome:n,placa:p,tipo:t,custoKm:c,ativo:true}));
+  S.config.custoKmPadrao=1.5;S.config.custoHoraPadrao=28;
   let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};const pick=a=>a[Math.floor(rnd()*a.length)];
   const itens=[["Fardos de água 500 ml","fardo"],["Engradados de cerveja","engradado"],["Cadeiras dobráveis","un"],["Mesas de poker","un"],["Caixas de fichas","cx"],["Peixe fresco","kg"],["Arroz japonês","kg"],["Material de limpeza","cx"],["Toalhas de mesa","pct"],["Barris de chope","barril"],["Equipamento de som","un"],["Documentos","pct"]];
   const now=Date.now();const out=[];
@@ -2329,6 +2525,6 @@ function loadDemo(){
 }
 
 /* ---------- Início ---------- */
-let rz;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(S.route==="painel")renderPainel()},200)});
+let rz;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(S.route==="painel")renderPainel();if(S.route==="m-painel")renderMPainel();if(S.route==="gestao")renderGestao()},200)});
 boot();
 })();
