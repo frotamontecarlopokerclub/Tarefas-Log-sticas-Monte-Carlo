@@ -228,25 +228,38 @@ function renderAuth(mode){
 }
 
 /* ---------- Usuários (cadastro de acessos) ---------- */
-const PAPEIS=[["pendente","Aguardando liberação"],["campo","Equipe de campo · só executa"],["logistica","Gestão · cria e distribui OS"],["setor","Solicitante (pedidos e chamados)"],["leitura","Somente leitura"],["bloqueado","Bloqueado"]];
+const PAPEIS=[["pendente","Aguardando liberação"],["campo","Equipe de campo · só executa"],["logistica","Gestão · cria e distribui OS"],["setor","Solicitante · faz pedidos"],["leitura","Somente leitura"],["bloqueado","Bloqueado"]];
+const GRUPOS_USR=[["pendente","Aguardando liberação","Quem se cadastrou e espera você definir o acesso."],["campo","Equipe de campo","Veem no celular só as missões em que foram escalados."],["logistica","Gestão","Criam as OS e escalam equipe, veículo e horário."],["setor","Solicitantes","Fazem pedidos e abrem chamados."],["leitura","Somente leitura","Acompanham painéis e OS, sem alterar."],["bloqueado","Bloqueados","Sem acesso ao sistema."]];
+const iniciais=n=>String(n||"?").trim().split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase()||"?";
+function usrCard(p){
+  const eu=p.id===S.uid;const eqp=S.equipe.find(x=>x.perfilId===p.id);const login=usuarioDe(p.email)?"Usuário <b>"+esc(usuarioDe(p.email))+"</b>":esc(p.email||"");
+  const vis=(...ks)=>ks.includes(p.papel)?"":" hidden";
+  return `<article class="uc${p.papel==="pendente"?" novo":""}${p.papel==="bloqueado"?" off":""}" data-uc="${esc(p.id)}" data-busca="${esc(normNome((p.nome||"")+" "+(p.email||"")+" "+(eqp?eqp.nome:"")))}">
+    <div class="uc-h"><span class="uc-av">${esc(iniciais(p.nome))}</span><div class="uc-n"><b>${esc(p.nome||"Sem nome")}${eu?' <small>você</small>':""}</b><span>${login}${p.papel==="campo"?(eqp?` · <b>${esc(eqp.nome)}</b>${eqp.funcao?" · "+esc(eqp.funcao):""}`:` · <span class="late">falta escolher a pessoa da equipe</span>`):""}</span></div></div>
+    <div class="uc-f">
+      <div class="uc-x" data-show="*"><label for="pp-${esc(p.id)}">Acesso</label><select id="pp-${esc(p.id)}"${eu?" disabled":""}>${optsS(PAPEIS,p.papel)}</select></div>
+      <div class="uc-x" data-show="campo"${vis("campo")}><label for="pe-${esc(p.id)}">Quem é na equipe</label><select id="pe-${esc(p.id)}"><option value="">Escolha a pessoa…</option>${S.equipe.filter(e=>e.ativo!==false||e.perfilId===p.id).sort(sortNome).map(e=>`<option value="${esc(e.id)}"${e.perfilId===p.id?" selected":""}${e.perfilId&&e.perfilId!==p.id?" disabled":""}>${esc(e.nome)}${e.funcao?" · "+esc(e.funcao):""}${e.perfilId&&e.perfilId!==p.id?" (já tem login)":""}</option>`).join("")}</select></div>
+      <div class="uc-x" data-show="logistica"${vis("logistica")}><label for="pa-${esc(p.id)}">Área</label><select id="pa-${esc(p.id)}"${eu?" disabled":""}>${optsS(AREAS_ACESSO,p.papel==="logistica"?(p.areaAcesso||"ambas"):"ambas")}</select></div>
+      <div class="uc-x" data-show="setor"${vis("setor")}><label for="ps-${esc(p.id)}">Setor</label><select id="ps-${esc(p.id)}"${eu?" disabled":""}>${optsSetores(p.setorId||"","Sem setor")}</select></div>
+      <div class="uc-x uc-chk" data-show="setor"${vis("setor")}><label class="chk sm"><input type="checkbox" id="pl-${esc(p.id)}"${p.podeCadastrarLocal?" checked":""}> Pode cadastrar fornecedor</label></div>
+      ${eu?`<p class="uc-eu">Você não pode alterar o próprio acesso.</p>`:`<div class="uc-a"><button class="btn pri" data-pp="${esc(p.id)}" type="button">Salvar</button><button class="btn ghost" data-pw="${esc(p.id)}" type="button" title="Gerar uma senha provisória">Nova senha</button></div>`}
+    </div>
+    <p class="usr-msg" id="pm-${esc(p.id)}" role="status"></p></article>`;
+}
 function renderUsuarios(){
-  const ps=(S.perfis||[]).slice().sort((a,b)=>((a.papel!=="pendente")-(b.papel!=="pendente"))||(a.nome||"").localeCompare(b.nome||"","pt-BR"));
-  return `<section class="card"><div class="card-h"><h2>Usuários</h2><span class="sub">Quem se cadastra fica aguardando até a coordenação liberar</span></div><div class="card-b">
-    <div class="usr-help"><div><b>Equipe de campo · só executa</b><span>Motoristas, ajudantes e técnicos. Escolha a pessoa do cadastro da equipe. No celular, ela vê só as missões em que foi escalada e não cria nem altera OS.</span></div>
-      <div><b>Gestão · cria e distribui OS</b><span>Quem recebe os pedidos, cria as OS e escala equipe, veículo e horário. A área limita a Logística, a Manutenção ou as duas; só quem tem as duas libera usuários.</span></div>
-      <div><b>Solicitante</b><span>Faz pedidos à logística e abre chamados de manutenção. Marque “Cadastra fornecedor” para que ele possa incluir um fornecedor novo no pedido.</span></div>
+  const ps=(S.perfis||[]).slice().sort((a,b)=>(a.nome||"").localeCompare(b.nome||"","pt-BR"));
+  const pend=ps.filter(p=>p.papel==="pendente").length;
+  return `<section class="card usr"><div class="card-h"><h2>Usuários</h2><span class="sub">${ps.length} conta${ps.length===1?"":"s"}${pend?` · <b class="late">${pend} aguardando liberação</b>`:""}</span></div><div class="card-b">
+    <details class="usr-leg"${ps.some(p=>p.papel==="campo")?"":" open"}><summary>Entenda os tipos de acesso</summary><div class="usr-help">
+      <div><b>Equipe de campo</b><span>Motoristas, ajudantes e técnicos. Escolha quem é a pessoa no cadastro da equipe. No celular, ela vê só as missões em que foi escalada e não cria nem altera OS.</span></div>
+      <div><b>Gestão</b><span>Recebe os pedidos, cria as OS e escala equipe, veículo e horário. A área limita a Logística, a Manutenção ou as duas. Só quem tem as duas libera usuários.</span></div>
+      <div><b>Solicitante</b><span>Faz pedidos à logística e abre chamados de manutenção. Pode ter permissão para cadastrar fornecedor novo.</span></div>
       <div><b>Somente leitura</b><span>Diretoria: vê painéis, OS e a Gestão, sem alterar nada.</span></div></div>
-    <p style="margin:0 0 10px;color:var(--mute);font-size:13px">Esqueceram a senha? Use <b>Nova senha</b> para gerar uma senha provisória.</p>
+      <p class="hint" style="margin:10px 0 0">Esqueceram a senha? Toque em <b>Nova senha</b> no cartão da pessoa: o sistema mostra uma senha provisória e, no próximo acesso, ela cria a dela.</p></details>
     ${S.demo?`<p style="color:var(--mute)">No modo demonstração não há usuários.</p>`:""}
-    ${ps.map(p=>`<div class="usr-row${p.papel==="bloqueado"?" off":""}"><span class="n">${esc(p.nome||"Sem nome")}${p.id===S.uid?' <span style="color:var(--faint);font-weight:500">você</span>':""}</span>
-      <span class="m">${usuarioDe(p.email)?"Usuário: <b>"+esc(usuarioDe(p.email))+"</b>":esc(p.email||"")}${p.papel==="campo"?(()=>{const e=S.equipe.find(x=>x.perfilId===p.id);return e?"<br>"+esc(e.nome)+(e.funcao?" · "+esc(e.funcao):""):"<br><span class='late'>Sem pessoa da equipe</span>"})():""}</span>
-      <select id="pp-${esc(p.id)}" aria-label="Acesso de ${esc(p.nome||"")}"${p.id===S.uid?" disabled":""}>${optsS(PAPEIS,p.papel)}</select>
-      <select id="pa-${esc(p.id)}" aria-label="Área de ${esc(p.nome||"")}" title="Área de atuação na gestão"${p.id===S.uid||p.papel!=="logistica"?" disabled":""}${p.papel==="campo"?' class="inv"':""}>${optsS(AREAS_ACESSO,p.papel==="logistica"?(p.areaAcesso||"ambas"):"ambas")}</select>
-      <span class="usr-c"><select id="ps-${esc(p.id)}" aria-label="Setor de ${esc(p.nome||"")}"${p.id===S.uid?" disabled":""}${p.papel==="campo"?" hidden":""}>${optsSetores(p.setorId||"","Sem setor")}</select>
-      <select id="pe-${esc(p.id)}" aria-label="Pessoa da equipe de ${esc(p.nome||"")}"${p.papel==="campo"?"":" hidden"}><option value="">Qual pessoa da equipe?</option>${S.equipe.filter(e=>e.ativo!==false||e.perfilId===p.id).sort(sortNome).map(e=>`<option value="${esc(e.id)}"${e.perfilId===p.id?" selected":""}${e.perfilId&&e.perfilId!==p.id?" disabled":""}>${esc(e.nome)}${e.funcao?" · "+esc(e.funcao):""}${e.perfilId&&e.perfilId!==p.id?" (já tem login)":""}</option>`).join("")}</select></span>
-      <label class="chk sm" title="Pode cadastrar fornecedor novo ao fazer pedido"><input type="checkbox" id="pl-${esc(p.id)}"${p.papel==="logistica"||p.podeCadastrarLocal?" checked":""}${p.papel!=="setor"||p.id===S.uid?" disabled":""}> Cadastra fornecedor</label>
-      ${p.id===S.uid?"<span></span>":`<span class="usr-a"><button class="btn sm pri" data-pp="${esc(p.id)}" type="button">Salvar</button><button class="btn sm ghost" data-pw="${esc(p.id)}" type="button" title="Criar uma senha provisória">Nova senha</button></span>`}
-      <p class="usr-msg" id="pm-${esc(p.id)}" role="status"></p></div>`).join("")}
+    ${ps.length>6?`<div class="field" style="margin:4px 0 14px;max-width:360px"><label for="usrQ">Buscar pessoa</label><input type="search" id="usrQ" placeholder="Nome, e-mail ou usuário"></div>`:""}
+    ${GRUPOS_USR.map(([k,t,d])=>{const l=ps.filter(p=>p.papel===k);if(!l.length)return "";
+      return `<div class="usr-g${k==="pendente"?" pend":""}" data-g="${k}"><h3>${esc(t)} <span class="c">${l.length}</span></h3><p>${esc(d)}</p><div class="usr-l">${l.map(usrCard).join("")}</div></div>`}).join("")}
   </div></section>`;
 }
 function bindUsuarios(){
@@ -256,7 +269,8 @@ function bindUsuarios(){
     b.disabled=true;const {error}=await sb.rpc("resetar_senha",{alvo:id,nova});b.disabled=false;
     if(error){msg.textContent=/resetar_senha|schema cache|Could not find/i.test(error.message||"")?"Rode o script 12 no Supabase para redefinir senhas.":"Não foi possível: "+(error.message||"erro");return}
     msg.innerHTML=`Senha provisória de <b>${esc(p.nome||"")}</b>: <b class="num" style="font-size:16px;letter-spacing:.08em">${nova}</b>. Passe para a pessoa${usuarioDe(p.email)?" com o usuário <b>"+esc(usuarioDe(p.email))+"</b>":""}. No próximo acesso ela cria a própria senha.`;});
-  $$("[id^='pp-']").forEach(sel=>sel.addEventListener("change",()=>{const id=sel.id.slice(3);const ps=$("#ps-"+id),pe=$("#pe-"+id);if(ps)ps.hidden=sel.value==="campo";if(pe)pe.hidden=sel.value!=="campo";const ar=$("#pa-"+id);if(ar){ar.classList.toggle("inv",sel.value==="campo");ar.disabled=sel.value!=="logistica";if(sel.value!=="logistica")ar.value="ambas"}const c=$("#pl-"+id);if(!c)return;c.disabled=sel.value!=="setor";if(sel.value==="logistica")c.checked=true;else if(sel.value!=="setor")c.checked=false}));
+  $$("[id^='pp-']").forEach(sel=>sel.addEventListener("change",()=>{const card=sel.closest(".uc");if(!card)return;$$(".uc-x",card).forEach(x=>{const k=x.dataset.show;x.hidden=!(k==="*"||k.split(" ").includes(sel.value))});const id=sel.id.slice(3);const ar=$("#pa-"+id);if(ar&&sel.value!=="logistica")ar.value="ambas";const c=$("#pl-"+id);if(c&&sel.value!=="setor")c.checked=false;card.classList.add("mudou")}));
+  const uq=$("#usrQ");if(uq)uq.oninput=()=>{const t=normNome(uq.value);$$(".uc").forEach(c=>c.hidden=!!t&&!c.dataset.busca.includes(t));$$(".usr-g").forEach(g=>g.hidden=!$$(".uc",g).some(c=>!c.hidden))};
   $$("[data-pp]").forEach(b=>b.onclick=async()=>{const id=b.dataset.pp;b.disabled=true;
     const papel=$("#pp-"+id).value;
     if(papel==="campo"){const pe=$("#pe-"+id).value;if(!pe){b.disabled=false;toast("Escolha qual pessoa da equipe usa este login.");return}

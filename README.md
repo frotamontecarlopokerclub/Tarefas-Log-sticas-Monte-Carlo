@@ -290,3 +290,12 @@ Em **Cadastros → Usuários**, os acessos ficaram com nomes que dizem o que cad
 - **Solicitante**, **Somente leitura** e **Bloqueado** continuam iguais.
 
 Quem já estava como "Facilities · equipe" continua com o mesmo acesso, agora chamado Gestão. Mude para *Equipe de campo* quem deve só executar.
+
+## Atualização 15.2 · Tela de usuários reorganizada
+
+Em **Cadastros → Usuários**, cada pessoa agora tem um cartão, e os cartões ficam agrupados por tipo de acesso: *Aguardando liberação* (em destaque no topo), *Equipe de campo*, *Gestão*, *Solicitantes*, *Somente leitura* e *Bloqueados*. Cada cartão mostra só os campos daquele acesso:
+- **Equipe de campo:** quem é a pessoa no cadastro da equipe.
+- **Gestão:** a área (logística, manutenção ou as duas).
+- **Solicitante:** o setor e a permissão de cadastrar fornecedor.
+
+A explicação dos tipos de acesso fica em *Entenda os tipos de acesso*, e com mais de 6 contas aparece uma busca por nome.
