@@ -29,6 +29,7 @@ Não há instalação nem programação. São três contas gratuitas e cerca de 
 | `supabase/09_acesso_por_area.sql` | Acesso da equipe por área (só logística, só manutenção ou as duas) |
 | `supabase/10_custos_gestao.sql` | Custos (km, hora da equipe, extras), orçamento por unidade e painel de Gestão |
 | `supabase/11_reposicao_pendencias.sql` | Valor de reposição e vida útil dos equipamentos (consertar ou trocar) |
+| `supabase/12_equipe_campo.sql` | Acesso da equipe de campo (usuário e senha, só as próprias missões) |
 | `assets/qrcode.js` | Gerador das etiquetas com QR Code dos equipamentos |
 | `supabase/functions/enviar-whatsapp/index.ts` | Função do servidor que envia o WhatsApp automático |
 | `WHATSAPP-AUTOMATICO.md` | Passo a passo da Meta e do Supabase para o envio automático (opcional) |
@@ -53,7 +54,7 @@ Entrar no Supabase e na Vercel com o GitHub deixa tudo ligado com um único logi
 3. No menu da esquerda, abra **SQL Editor** e clique em **New query**.
 4. Abra o arquivo `supabase/01_estrutura.sql` no Bloco de Notas, copie tudo, cole no editor e clique em **Run**. Deve aparecer *Success. No rows returned*.
 5. Abra outra *New query*, faça o mesmo com `supabase/02_cadastros.sql` e clique em **Run**.
-6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql`, `supabase/09_acesso_por_area.sql`, `supabase/10_custos_gestao.sql` e por fim `supabase/11_reposicao_pendencias.sql`.
+6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql`, `supabase/09_acesso_por_area.sql`, `supabase/10_custos_gestao.sql`, `supabase/11_reposicao_pendencias.sql` e por fim `supabase/12_equipe_campo.sql`.
 7. Confira em **Table Editor**: devem aparecer as tabelas `os`, `pedidos`, `locais` e as outras, com os seus locais e setores já preenchidos.
 
 ## Etapa 3 · Ajustar o login no Supabase
@@ -256,3 +257,36 @@ Nova tela **Gestão**, para a coordenação (acesso às duas áreas) e para quem
 Ilustração no estilo Monte Carlo (marsala e dourado) com a rota entre as unidades, a van da logística, os prédios e as ferramentas da manutenção. É um arquivo vetorial leve (`assets/fundo-login.svg`), nítido em qualquer tela.
 
 **Como instalar:** no GitHub, envie `styles.css` e o `fundo-login.svg` dentro da pasta `assets`. Não há SQL nesta atualização.
+
+## Atualização 15 · Equipe de campo e lançamento passo a passo
+
+**Acesso da equipe de campo (motoristas, ajudantes e técnicos da casa)**
+1. A pessoa abre o site, toca em **Criar conta** e escolhe um **nome de usuário** (ex.: `joao.silva`) e uma senha. Não precisa de e-mail.
+2. Em **Cadastros → Usuários**, escolha **Equipe de campo** e a **pessoa do cadastro da equipe** que usa aquele login. Clique em **Salvar**.
+3. Pronto: no celular, ela entra com usuário e senha e vê **Minhas missões**, só com as OS em que foi escalada. Toque em *Adicionar à tela de início* para ficar como um app.
+4. **Esqueceu a senha?** Em Cadastros → Usuários, clique em **Nova senha**. O sistema mostra uma senha provisória de 6 números para você passar à pessoa. No próximo acesso, ela cria a própria senha.
+
+**O que a equipe vê no celular**
+- **Minhas missões:** em andamento, para hoje e próximos dias, com o horário e o que fazer em cada uma, além das feitas no dia.
+- **Logística:** *Antes de sair* (checklist do veículo e km) → em cada parada, o endereço com botões do Maps e do Waze, o que levar, a foto obrigatória e o nome de quem entregou ou recebeu → na entrega final, foto, nome, assinatura e km de chegada.
+- **Manutenção:** *Começar serviço* (foto do antes, opcional) → **Terminei o serviço** (o que fez, foto do pronto, peças usadas, horas e assinatura) ou **Preciso parar** (falta peça, orçamento, prestador…) → *Retomar* quando puder.
+- No banco de dados, a equipe de campo só vê e altera as próprias missões. Não consegue mudar equipe, horário, prioridade nem cancelar.
+
+**Nova OS passo a passo (coordenação)**
+- *Nova OS*, nas duas áreas, agora faz uma pergunta por tela, com botões grandes e um resumo no fim para conferir.
+  - Logística: o que vai ser feito → de onde sai → para onde vai → o que vai → quem pediu → quando → quem vai.
+  - Manutenção: o que precisa ser feito → tipo → onde → urgência → quem faz → quando.
+- Quem gosta do formulário completo toca em *Prefere o formulário completo?* no fim da tela. Editar, duplicar, criar a partir de pedido e rota fixa continuam no formulário completo.
+
+**Como instalar:** no Supabase, rode `supabase/12_equipe_campo.sql`. No GitHub, envie `app.js`, `styles.css`, `README.md` e o `.sql` dentro da pasta `supabase`. Confira em **Authentication → Sign In / Providers → Email** que *Confirm email* continua desligado (Etapa 3); sem isso, o cadastro por usuário não funciona.
+
+> Os logins por usuário usam internamente o endereço `usuario@campo.facilities-mc.com`, que não recebe e-mail. Para trocar esse final, inclua `dominioUsuarios: "seu.dominio.com"` no `config.js` antes de criar as primeiras contas.
+
+## Atualização 15.1 · Nomes dos acessos
+
+Em **Cadastros → Usuários**, os acessos ficaram com nomes que dizem o que cada um faz, com um quadro explicativo no topo:
+- **Equipe de campo · só executa:** motoristas, ajudantes e técnicos. Veem no celular só as missões em que foram escalados. Não criam nem alteram OS.
+- **Gestão · cria e distribui OS:** o antigo "Facilities · equipe". Recebe os pedidos, cria as OS e escala equipe, veículo e horário.
+- **Solicitante**, **Somente leitura** e **Bloqueado** continuam iguais.
+
+Quem já estava como "Facilities · equipe" continua com o mesmo acesso, agora chamado Gestão. Mude para *Equipe de campo* quem deve só executar.
