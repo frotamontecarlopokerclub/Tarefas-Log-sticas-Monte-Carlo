@@ -89,7 +89,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-console.info("Facilities MC · versão 18");
+console.info("Facilities MC · versão 19");
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1378,7 +1378,7 @@ function renderCadastros(){
     .filter(([k])=>!((k==="veiculos"||k==="rotas")&&S.role==="log"&&!isLog())&&!(k==="prestadores"&&S.role==="log"&&!isMan())&&!(k==="usuarios"&&S.role==="log"&&!isAdmin()));
   if(!tabs.some(t=>t[0]===S.cadTab)) S.cadTab="locais";
   const tab=S.cadTab;
-  let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome. <span class="versao">Versão 18</span></p></div></div>${banner()}
+  let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome. <span class="versao">Versão 19</span></p></div></div>${banner()}
   <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k==="rotas"?`<span class="c num">${S.recorrencias.filter(x=>x.ativo!==false).length}</span>`:k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
   if(tab==="usuarios"){ app.innerHTML=h+renderUsuarios(); bindCad(); bindUsuarios(); return; }
   if(tab==="rotas"){ app.innerHTML=h+renderRotasFixas(); bindCad(); bindRotasFixas(); return; }
@@ -1411,7 +1411,8 @@ function renderCadastros(){
   app.innerHTML=h;bindCad();
 }
 const grupoLocal=l=>l.ativo===false?[9,"Desativados"]:["Clube","Restaurante","Prédio","Escritório"].includes(l.tipo)?[0,"Unidades e escritórios"]:l.tipo==="Centro de distribuição"?[1,"Depósitos"]:/^Residência/.test(l.tipo||"")?[2,"Residências"]:l.tipo==="Fornecedor"?[3,"Fornecedores"]:[4,"Outros"];
-function cabCad(tab,list,ix){if(tab!=="locais")return "";const g=grupoLocal(list[ix]);if(ix>0&&grupoLocal(list[ix-1])[1]===g[1])return "";const n=list.filter(x=>grupoLocal(x)[1]===g[1]).length;return `<h3 class="cad-gh">${esc(g[1])} <span>${n}</span></h3>`}
+const grupoSetor=x=>{if(x.ativo===false)return [9,"Desativados"];const l=x.localId?byId(S.locais,x.localId):null;return [0,l?l.nome:"Sem local"]};
+function cabCad(tab,list,ix){if(tab!=="locais"&&tab!=="setores")return "";const gf=tab==="locais"?grupoLocal:grupoSetor;const g=gf(list[ix]);if(ix>0&&gf(list[ix-1])[1]===g[1])return "";const n=list.filter(x=>gf(x)[1]===g[1]).length;return `<h3 class="cad-gh">${esc(g[1])} <span>${n}</span></h3>`}
 function juntarHTML(tab,x){const outros=S[tab].filter(y=>y.id!==x.id&&y.ativo!==false&&(tab!=="setores"||(y.localId||"")===(x.localId||""))).sort(sortNome);const nome=tab==="locais"?"local":"setor";
   return `<div class="cad-join"><p><b>Juntar “${esc(tab==="setores"?nomeSetor(x.id):x.nome)}” com outro ${nome}${tab==="setores"&&x.localId?" do mesmo local":""}</b><br>Tudo o que está ligado a “${esc(x.nome)}” (OS, pedidos, chamados, equipamentos, usuários e rotas fixas) passa para o ${nome} escolhido. Depois, “${esc(x.nome)}” é apagado. Não dá para desfazer.</p>
     <div class="filters"><div class="field grow"><label for="jn-sel">Fica com</label><select id="jn-sel"><option value="">Escolha o ${nome} certo…</option>${outros.map(y=>`<option value="${esc(y.id)}">${esc(tab==="setores"?nomeSetor(y.id):y.nome)}${tab==="locais"&&y.tipo?" · "+esc(y.tipo):""}</option>`).join("")}</select></div>

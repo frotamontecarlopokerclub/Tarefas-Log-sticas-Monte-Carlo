@@ -367,3 +367,8 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 1. No Supabase, no projeto do Facilities e com o tradutor desligado, rode `supabase/14_locais_setores_oficiais.sql`. Não dá para desfazer a junção dos setores.
 2. No GitHub, envie o pacote completo, **menos o `config.js`**.
 3. Em **Cadastros**, o selo deve mostrar **Versão 18**.
+
+## Atualização 19 · Só os locais oficiais
+- Rode `supabase/15_locais_somente_oficiais.sql` **depois do 14**. Ele junta "Residência 1/2/3… da chefia" em **Casas do Chefe**, as de funcionário em **Casas de Funcionários**, "Estoque Central M.C." no **Monte Carlo** (setor Estoque) e desativa qualquer outro local que não seja oficial nem fornecedor.
+- Os endereços das casas ficam todos juntos no endereço do local.
+- Em Cadastros → Setores, a lista agora vem separada por local.
