@@ -30,7 +30,6 @@ Não há instalação nem programação. São três contas gratuitas e cerca de 
 | `supabase/10_custos_gestao.sql` | Custos (km, hora da equipe, extras), orçamento por unidade e painel de Gestão |
 | `supabase/11_reposicao_pendencias.sql` | Valor de reposição e vida útil dos equipamentos (consertar ou trocar) |
 | `supabase/12_equipe_campo.sql` | Acesso da equipe de campo (usuário e senha, só as próprias missões) |
-| `supabase/13_setores_sem_andar.sql` | Junta os setores que só mudavam de andar (Jogo 2, 3, 4… → Jogo) e cria o "Juntar com…" |
 | `assets/qrcode.js` | Gerador das etiquetas com QR Code dos equipamentos |
 | `supabase/functions/enviar-whatsapp/index.ts` | Função do servidor que envia o WhatsApp automático |
 | `WHATSAPP-AUTOMATICO.md` | Passo a passo da Meta e do Supabase para o envio automático (opcional) |
@@ -55,7 +54,7 @@ Entrar no Supabase e na Vercel com o GitHub deixa tudo ligado com um único logi
 3. No menu da esquerda, abra **SQL Editor** e clique em **New query**.
 4. Abra o arquivo `supabase/01_estrutura.sql` no Bloco de Notas, copie tudo, cole no editor e clique em **Run**. Deve aparecer *Success. No rows returned*.
 5. Abra outra *New query*, faça o mesmo com `supabase/02_cadastros.sql` e clique em **Run**.
-6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql`, `supabase/09_acesso_por_area.sql`, `supabase/10_custos_gestao.sql`, `supabase/11_reposicao_pendencias.sql`, `supabase/12_equipe_campo.sql` e por fim `supabase/13_setores_sem_andar.sql`.
+6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql`, `supabase/09_acesso_por_area.sql`, `supabase/10_custos_gestao.sql`, `supabase/11_reposicao_pendencias.sql` e por fim `supabase/12_equipe_campo.sql`.
 7. Confira em **Table Editor**: devem aparecer as tabelas `os`, `pedidos`, `locais` e as outras, com os seus locais e setores já preenchidos.
 
 ## Etapa 3 · Ajustar o login no Supabase
@@ -314,19 +313,3 @@ Ao criar uma OS, no passo a passo ou no formulário completo, dá para cadastrar
 Se o nome já existir, o sistema usa o cadastro que já existe em vez de duplicar. Os dados completos (custo por hora, custo por km, CNPJ…) continuam em Cadastros.
 
 **Como instalar:** no GitHub, envie `app.js`, `styles.css` e `README.md`. Não há nada para rodar no Supabase.
-
-## Atualização 17 · Setores sem andar
-
-**Um setor por local, sem andar:** *Jogo · M.C.*, *Bar · M.G.*, *Cozinha · M.C.*… O andar, a sala ou a mesa vão no campo **Observação** da OS (por exemplo: "3º andar, mesa de Omaha 5"), que sugere Térreo, 1º a 4º andar, Arena, Área VIP, Doca…
-
-**O script 13 faz a conversão sozinho**, local por local:
-- **M.C.:** Jogo (2, 3, 4 e Arena) → *Jogo*; Bar 2, 3, 4 e Arena → *Bar*; Caixa 2, 3, 4 e Arena → *Caixa*; Cozinha 1º a 4º → *Cozinha*; Decoração e Eventos (todos os andares) → *Decoração e Eventos*; Estacionamento (2) e (3) → *Estacionamento*; Estacionamento (Frota) → *Frota*; Sala de Segurança e Alojamento Segurança → *Segurança*; Estoque Central M.C. → *Estoque*; Recepção Arena → *Recepção*.
-- **M.G.:** Jogo (1 Andar) e (Vip) → *Jogo*; Bar, Caixa e Cozinha (1 Andar e Vip) → *Bar*, *Caixa* e *Cozinha*; Cozinha (Funcionários) e Refeitório (Funcionários) → *Refeitório*.
-- **Prédio Cardoso:** 2 Andar, 3 Andar e Térreo → *Administrativo*; Cozinha (2, 3 e Térreo) → *Cozinha*.
-- Resultado: de 72 para 43 setores. As OS, pedidos, chamados, equipamentos, usuários, solicitantes e rotas fixas antigos passam para o setor novo, sem perder histórico.
-
-**Juntar com…:** em **Cadastros → Setores** e **Cadastros → Locais**, a coordenação pode juntar um cadastro repetido com o certo. Tudo o que estava ligado ao repetido passa para o certo, e o repetido é apagado. Setores só se juntam com setores do mesmo local. A lista de locais aparece separada em Unidades e escritórios, Centros de distribuição, Residências e Fornecedores.
-
-**Cadastro rápido de setor:** recusa nomes com andar ("Jogo 3º andar") e lembra que o andar vai na observação.
-
-**Como instalar:** no Supabase, rode `supabase/13_setores_sem_andar.sql`. No GitHub, envie `app.js`, `styles.css`, `README.md` e o `.sql` dentro da pasta `supabase`.

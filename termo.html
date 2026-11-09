@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Termo de Responsabilidade — Grupo Monte Carlo</title>
+    <link rel="icon" type="image/png" href="favicon-monte-carlo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root{
+            --marsala:#955251; --marsala-dark:#6f3038; --marsala-soft:#f7eeee;
+            --gold:#c49a5a; --ink:#24151a; --muted:#6b6268; --line:#ece4e6;
+            --ok:#127a45; --ok-soft:#ebf8f1; --bad:#b42318; --bad-soft:#fdeeee; --bg:#f6f2f2;
+        }
+        *{ box-sizing:border-box; }
+        body{
+            margin:0; background:var(--bg); color:var(--ink);
+            font-family:Inter,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased;
+        }
+        .topo{
+            background:linear-gradient(135deg,#2a1218,#4a2229); color:#fff; padding:18px 16px;
+        }
+        .topo-conteudo{ max-width:760px; margin:0 auto; display:flex; align-items:center; gap:12px; }
+        .topo img{ width:42px; height:42px; object-fit:contain; border-radius:10px; background:rgba(255,255,255,.08); padding:4px; }
+        .topo small{ display:block; color:var(--gold); font-size:10px; font-weight:800; letter-spacing:1.4px; }
+        .topo strong{ font-size:16px; }
+        main{ max-width:760px; margin:0 auto; padding:18px 16px 60px; }
+        .cartao{
+            background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px;
+            box-shadow:0 6px 24px rgba(36,21,26,.05); margin-bottom:16px;
+        }
+        h1{ font-size:21px; margin:0 0 4px; }
+        h2{ font-size:15px; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+        h2 i{ color:var(--marsala); }
+        .sub{ color:var(--muted); font-size:13px; margin:0; }
+        .texto-termo{
+            white-space:pre-wrap; font-size:14px; line-height:1.65; margin:0;
+            font-family:Georgia,"Times New Roman",serif; color:#2b2125;
+        }
+        .marcador{ background:#fff4d6; border-radius:4px; padding:0 3px; font-family:Inter,sans-serif; font-size:13px; }
+        label{ display:block; font-size:12px; font-weight:700; margin:0 0 6px; color:#3d3035; }
+        .campo{ margin-bottom:14px; }
+        input[type=text]{
+            width:100%; height:50px; padding:0 14px; border:1.5px solid #e3d4d6; border-radius:12px;
+            font-size:16px; color:var(--ink); background:#fff; outline:none;
+        }
+        input[type=text]:focus{ border-color:var(--marsala); box-shadow:0 0 0 4px rgba(149,82,81,.12); }
+        input.invalido{ border-color:var(--bad); }
+        .ajuda{ display:block; margin-top:5px; font-size:11.5px; color:var(--muted); }
+        .ajuda.erro{ color:var(--bad); font-weight:700; }
+        .quadro-assinatura{
+            position:relative; border:1.5px dashed #d8c3c6; border-radius:14px; background:#fffdfd; touch-action:none;
+        }
+        .quadro-assinatura canvas{ display:block; width:100%; height:200px; border-radius:14px; cursor:crosshair; }
+        .quadro-assinatura .linha-base{
+            position:absolute; left:24px; right:24px; bottom:46px; border-bottom:1px solid #e3d4d6; pointer-events:none;
+        }
+        .quadro-assinatura .dica{
+            position:absolute; left:0; right:0; bottom:20px; text-align:center; color:#b9a9ac; font-size:12px; pointer-events:none;
+        }
+        .quadro-assinatura.assinado .dica{ display:none; }
+        .acoes-assinatura{ display:flex; justify-content:flex-end; margin-top:8px; }
+        .concordo{
+            display:flex; gap:10px; align-items:flex-start; padding:14px; border-radius:12px;
+            background:var(--marsala-soft); font-size:13.5px; line-height:1.45; cursor:pointer;
+        }
+        .concordo input{ width:20px; height:20px; margin:1px 0 0; accent-color:var(--marsala); flex:0 0 20px; }
+        button{ font:inherit; cursor:pointer; }
+        .btn{
+            display:inline-flex; align-items:center; justify-content:center; gap:8px;
+            min-height:46px; padding:0 18px; border-radius:12px; font-weight:750; font-size:14px;
+        }
+        .btn-principal{ width:100%; min-height:56px; border:0; background:var(--marsala); color:#fff; font-size:16px; margin-top:16px; }
+        .btn-principal:disabled{ opacity:.6; cursor:not-allowed; }
+        .btn-secundario{ border:1px solid #e3d4d6; background:#fff; color:var(--marsala-dark); min-height:38px; font-size:13px; }
+        .radios{ width:100%; border-collapse:collapse; font-size:13.5px; }
+        .radios th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; padding:8px 6px; border-bottom:1px solid var(--line); }
+        .radios td{ padding:10px 6px; border-bottom:1px solid #f4eeef; }
+        .radios td:first-child{ font-weight:800; font-family:ui-monospace,Menlo,Consolas,monospace; }
+        .aviso{ display:flex; gap:12px; align-items:flex-start; padding:16px; border-radius:14px; font-size:14px; line-height:1.5; }
+        .aviso i{ font-size:20px; margin-top:2px; }
+        .aviso-erro{ background:var(--bad-soft); color:var(--bad); }
+        .aviso-ok{ background:var(--ok-soft); color:var(--ok); }
+        .aviso strong{ display:block; font-size:15px; margin-bottom:2px; }
+        .estado{ text-align:center; padding:50px 20px; }
+        .estado i{ font-size:42px; color:var(--marsala); margin-bottom:14px; }
+        .estado h1{ margin-bottom:8px; }
+        .assinatura-final{ text-align:center; margin-top:22px; }
+        .assinatura-final img{ max-width:320px; width:100%; height:auto; border-bottom:1px solid #2b2125; }
+        .assinatura-final p{ margin:6px 0 0; font-size:13px; }
+        .validacao{ font-size:12px; color:var(--muted); line-height:1.6; word-break:break-all; }
+        .validacao strong{ color:var(--ink); }
+        .rodape{ text-align:center; color:#a59ca0; font-size:11.5px; margin-top:24px; }
+        .carregando{ text-align:center; padding:80px 20px; color:var(--muted); }
+        [hidden]{ display:none !important; }
+        @media print{
+            body{ background:#fff; }
+            .topo{ background:#fff; color:#000; border-bottom:2px solid #000; }
+            .topo small{ color:#000; }
+            .cartao{ box-shadow:none; border:0; padding:0 0 12px; }
+            .nao-imprimir{ display:none !important; }
+            main{ padding:12px 0; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="topo">
+    <div class="topo-conteudo">
+        <img src="logo.png" alt="" onerror="this.style.display='none'">
+        <div>
+            <small>GRUPO MONTE CARLO</small>
+            <strong>Termo de Responsabilidade</strong>
+        </div>
+    </div>
+</header>
+
+<main>
+    <div id="carregando" class="carregando"><i class="fa-solid fa-spinner fa-spin"></i> Carregando termo...</div>
+
+    <!-- Link inválido / cancelado / expirado -->
+    <div id="estadoErro" class="cartao estado" hidden>
+        <i class="fa-solid fa-link-slash"></i>
+        <h1 id="estadoErroTitulo">Link inválido</h1>
+        <p class="sub" id="estadoErroTexto">Confira o link recebido ou peça um novo ao responsável pelo inventário.</p>
+    </div>
+
+    <!-- Termo pendente: leitura e assinatura -->
+    <section id="telaAssinar" hidden>
+        <div class="cartao">
+            <h1>Olá, <span id="nomeSaudacao"></span></h1>
+            <p class="sub">Leia o termo abaixo, preencha seus dados e assine no quadro. Leva menos de um minuto.</p>
+        </div>
+
+        <div class="cartao">
+            <h2><i class="fa-solid fa-walkie-talkie"></i> Equipamento(s) sob sua responsabilidade</h2>
+            <table class="radios">
+                <thead><tr><th>Nº de série</th><th>Descrição</th></tr></thead>
+                <tbody id="listaRadios"></tbody>
+            </table>
+        </div>
+
+        <div class="cartao">
+            <h2><i class="fa-solid fa-file-signature"></i> Termo</h2>
+            <p id="textoTermo" class="texto-termo"></p>
+        </div>
+
+        <form id="formAssinatura" class="cartao" novalidate>
+            <h2><i class="fa-solid fa-pen-nib"></i> Seus dados e assinatura</h2>
+
+            <div class="campo">
+                <label for="nomeCompleto">Nome completo</label>
+                <input type="text" id="nomeCompleto" autocomplete="name" required>
+            </div>
+
+            <div class="campo">
+                <label for="cpf">CPF</label>
+                <input type="text" id="cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" maxlength="14" required>
+                <small id="ajudaCpf" class="ajuda"></small>
+            </div>
+
+            <div class="campo">
+                <label>Assinatura</label>
+                <div id="quadroAssinatura" class="quadro-assinatura">
+                    <canvas id="canvasAssinatura" aria-label="Quadro para assinatura"></canvas>
+                    <div class="linha-base"></div>
+                    <div class="dica">Assine aqui com o dedo ou o mouse</div>
+                </div>
+                <div class="acoes-assinatura">
+                    <button type="button" class="btn btn-secundario" id="btnLimparAssinatura">
+                        <i class="fa-solid fa-eraser"></i> Limpar assinatura
+                    </button>
+                </div>
+            </div>
+
+            <label class="concordo">
+                <input type="checkbox" id="concordo">
+                <span>Li o termo acima, confirmo que recebi o(s) equipamento(s) listado(s) e concordo com as condições.</span>
+            </label>
+
+            <div id="erroAssinatura" class="aviso aviso-erro" style="margin-top:14px" hidden></div>
+
+            <button type="submit" class="btn btn-principal" id="btnAssinar">
+                <i class="fa-solid fa-file-signature"></i> Assinar termo
+            </button>
+        </form>
+    </section>
+
+    <!-- Termo assinado: comprovante -->
+    <section id="telaAssinado" hidden>
+        <div class="cartao nao-imprimir">
+            <div class="aviso aviso-ok">
+                <i class="fa-solid fa-circle-check"></i>
+                <div>
+                    <strong>Termo assinado</strong>
+                    <span id="textoAssinadoEm"></span>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap">
+                <button type="button" class="btn btn-secundario" onclick="window.print()">
+                    <i class="fa-solid fa-print"></i> Imprimir / salvar PDF
+                </button>
+            </div>
+        </div>
+
+        <div class="cartao">
+            <p id="textoTermoFinal" class="texto-termo"></p>
+
+            <div class="assinatura-final">
+                <img id="imgAssinatura" alt="Assinatura">
+                <p><strong id="nomeAssinante"></strong></p>
+                <p class="sub" id="cpfAssinante"></p>
+            </div>
+        </div>
+
+        <div class="cartao validacao">
+            <strong>Registro da assinatura eletrônica</strong><br>
+            Assinado em: <span id="valData"></span><br>
+            Código do termo: <strong id="valCodigo"></strong><br>
+            Hash SHA-256: <span id="valHash"></span>
+        </div>
+    </section>
+
+    <p class="rodape">Inventário Central · Grupo Monte Carlo</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function () {
+    'use strict';
+
+    const SUPABASE_URL = 'https://sxmimxomehdhyifqsgqa.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_NbyYYTsRnSqu_TMpQvzS6A_rJuyzq9_';
+    const cliente = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
+
+    const token = new URLSearchParams(location.search).get('t') || '';
+    const $ = id => document.getElementById(id);
+    let termo = null;
+
+    /* ---------------- utilidades ---------------- */
+
+    function mostrar(id) {
+        ['carregando', 'estadoErro', 'telaAssinar', 'telaAssinado'].forEach(x => { $(x).hidden = x !== id; });
+        window.scrollTo(0, 0);
+    }
+
+    function erroEstado(titulo, texto, icone) {
+        $('estadoErroTitulo').textContent = titulo;
+        $('estadoErroTexto').textContent = texto;
+        $('estadoErro').querySelector('i').className = 'fa-solid ' + (icone || 'fa-link-slash');
+        mostrar('estadoErro');
+    }
+
+    function dataHora(valor) {
+        return new Date(valor).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function soDigitos(v) { return String(v || '').replace(/\D/g, ''); }
+
+    function formatarCpf(v) {
+        const d = soDigitos(v).slice(0, 11);
+        return d.replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1-$2');
+    }
+
+    function cpfValido(v) {
+        const d = soDigitos(v);
+        if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+        const dv = n => {
+            let s = 0;
+            for (let i = 0; i < n; i++) s += Number(d[i]) * (n + 1 - i);
+            const r = (s * 10) % 11;
+            return r === 10 ? 0 : r;
+        };
+        return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
+    }
+
+    function escapar(t) {
+        return String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
+    }
+
+    /* ---------------- texto do termo ---------------- */
+
+    function renderizarTexto() {
+        const cpf = $('cpf').value.trim();
+        const nome = $('nomeCompleto').value.trim();
+        let html = escapar(termo.conteudo);
+        const nomeOriginal = escapar(termo.responsavel_nome);
+        if (nome && nome !== termo.responsavel_nome) html = html.split(nomeOriginal).join(escapar(nome));
+        html = html.replace('{{cpf}}', `<span class="marcador">${cpfValido(cpf) ? escapar(formatarCpf(cpf)) : '___.___.___-__'}</span>`);
+        html = html.replace('{{data}}', '<span class="marcador">(data e hora da assinatura)</span>');
+        $('textoTermo').innerHTML = html;
+    }
+
+    /* ---------------- quadro de assinatura ---------------- */
+
+    const canvas = $('canvasAssinatura');
+    const ctx = canvas.getContext('2d');
+    let desenhando = false, pontos = 0, ultimo = null;
+
+    function prepararCanvas() {
+        const razao = Math.max(window.devicePixelRatio || 1, 1);
+        const largura = canvas.offsetWidth, altura = canvas.offsetHeight;
+        const anterior = pontos ? canvas.toDataURL() : null;
+        canvas.width = largura * razao;
+        canvas.height = altura * razao;
+        ctx.setTransform(razao, 0, 0, razao, 0, 0);
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1b1416'; ctx.lineWidth = 2.4;
+        if (anterior) {
+            const img = new Image();
+            img.onload = () => ctx.drawImage(img, 0, 0, largura, altura);
+            img.src = anterior;
+        }
+    }
+
+    function posicao(e) {
+        const r = canvas.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        canvas.setPointerCapture(e.pointerId);
+        desenhando = true;
+        ultimo = posicao(e);
+        ctx.beginPath(); ctx.arc(ultimo.x, ultimo.y, 1.1, 0, Math.PI * 2); ctx.fillStyle = '#1b1416'; ctx.fill();
+    });
+    canvas.addEventListener('pointermove', e => {
+        if (!desenhando) return;
+        e.preventDefault();
+        const p = posicao(e);
+        ctx.beginPath(); ctx.moveTo(ultimo.x, ultimo.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+        ultimo = p;
+        pontos++;
+        $('quadroAssinatura').classList.add('assinado');
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => canvas.addEventListener(ev, () => { desenhando = false; }));
+
+    $('btnLimparAssinatura').addEventListener('click', () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        pontos = 0;
+        $('quadroAssinatura').classList.remove('assinado');
+    });
+
+    function assinaturaPng() {
+        // Reduz para no máximo 700px de largura (arquivo leve) e fundo transparente.
+        const max = 700;
+        const escala = Math.min(1, max / canvas.width);
+        const c = document.createElement('canvas');
+        c.width = Math.round(canvas.width * escala);
+        c.height = Math.round(canvas.height * escala);
+        c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
+        return c.toDataURL('image/png');
+    }
+
+    /* ---------------- fluxo ---------------- */
+
+    async function carregar() {
+        if (token.length < 40) return erroEstado('Link inválido', 'Confira se o link foi copiado inteiro ou peça um novo ao responsável pelo inventário.');
+
+        const { data, error } = await cliente.rpc('termo_publico', { p_token: token });
+        if (error) {
+            console.error(error);
+            return erroEstado('Não foi possível abrir o termo', 'Verifique sua conexão e tente novamente em instantes.', 'fa-wifi');
+        }
+
+        termo = data;
+
+        if (termo.situacao === 'INVALIDO') return erroEstado('Link inválido', 'Confira se o link foi copiado inteiro ou peça um novo ao responsável pelo inventário.');
+        if (termo.situacao === 'CANCELADO') return erroEstado('Termo cancelado', 'Este link não é mais válido. Peça um novo ao responsável pelo inventário.', 'fa-ban');
+        if (termo.situacao === 'EXPIRADO') return erroEstado('Link expirado', 'O prazo para assinatura terminou. Peça um novo link ao responsável pelo inventário.', 'fa-clock');
+        if (termo.situacao === 'ASSINADO') return mostrarAssinado();
+
+        $('nomeSaudacao').textContent = String(termo.responsavel_nome || '').split(' ')[0];
+        $('nomeCompleto').value = termo.responsavel_nome || '';
+        $('listaRadios').innerHTML = (termo.radios || []).map(r =>
+            `<tr><td>${escapar(r.numero_serie)}</td><td>${escapar(r.descricao || '—')}</td></tr>`).join('');
+        renderizarTexto();
+        mostrar('telaAssinar');
+        prepararCanvas();
+    }
+
+    function mostrarAssinado() {
+        $('textoTermoFinal').textContent = termo.conteudo;
+        $('imgAssinatura').src = termo.assinatura_png || '';
+        $('nomeAssinante').textContent = termo.assinado_nome || '';
+        $('cpfAssinante').textContent = termo.assinado_cpf ? 'CPF ' + termo.assinado_cpf : '';
+        $('textoAssinadoEm').textContent = `por ${termo.assinado_nome} em ${dataHora(termo.assinado_em)}. Guarde este link como comprovante.`;
+        $('valData').textContent = dataHora(termo.assinado_em);
+        $('valCodigo').textContent = termo.codigo || '';
+        $('valHash').textContent = termo.hash_sha256 || '';
+        mostrar('telaAssinado');
+    }
+
+    $('cpf').addEventListener('input', e => {
+        e.target.value = formatarCpf(e.target.value);
+        const completo = soDigitos(e.target.value).length === 11;
+        const ok = cpfValido(e.target.value);
+        e.target.classList.toggle('invalido', completo && !ok);
+        $('ajudaCpf').textContent = completo && !ok ? 'CPF inválido. Confira os números.' : '';
+        $('ajudaCpf').classList.toggle('erro', completo && !ok);
+        renderizarTexto();
+    });
+    $('nomeCompleto').addEventListener('input', renderizarTexto);
+
+    $('formAssinatura').addEventListener('submit', async e => {
+        e.preventDefault();
+        const erro = $('erroAssinatura');
+        const falhar = msg => { erro.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i><div>' + escapar(msg) + '</div>'; erro.hidden = false; };
+        erro.hidden = true;
+
+        const nome = $('nomeCompleto').value.trim().replace(/\s+/g, ' ');
+        if (nome.length < 5 || !nome.includes(' ')) return falhar('Informe seu nome completo.'), $('nomeCompleto').focus();
+        if (!cpfValido($('cpf').value)) return falhar('Informe um CPF válido.'), $('cpf').focus();
+        if (pontos < 8) return falhar('Faça sua assinatura no quadro.');
+        if (!$('concordo').checked) return falhar('Marque a confirmação de que leu e concorda com o termo.');
+
+        const botao = $('btnAssinar');
+        botao.disabled = true;
+        botao.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Registrando assinatura...';
+
+        const { error } = await cliente.rpc('assinar_termo', {
+            p_token: token,
+            p_nome: nome,
+            p_cpf: soDigitos($('cpf').value),
+            p_assinatura: assinaturaPng(),
+            p_navegador: navigator.userAgent
+        });
+
+        if (error) {
+            botao.disabled = false;
+            botao.innerHTML = '<i class="fa-solid fa-file-signature"></i> Assinar termo';
+            return falhar(error.message || 'Não foi possível registrar a assinatura. Tente novamente.');
+        }
+
+        await carregar();
+    });
+
+    let larguraAnterior = 0;
+    window.addEventListener('resize', () => {
+        if (!$('telaAssinar').hidden && canvas.offsetWidth !== larguraAnterior) {
+            larguraAnterior = canvas.offsetWidth;
+            prepararCanvas();
+        }
+    });
+
+    carregar();
+})();
+</script>
+</body>
+</html>
