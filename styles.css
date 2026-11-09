@@ -725,3 +725,7 @@ body.campo .toast{top:calc(70px + env(safe-area-inset-top,0px));bottom:auto}
 .qa-g input,.qa-g select{width:100%;min-height:44px}
 .qa-f .actions{margin-top:10px}
 .lp-ls .lp-add{border-bottom:1px solid var(--line);font-weight:800}
+.cad-gh{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--gold-ink);margin:18px 0 4px;display:flex;gap:6px;align-items:center}
+.cad-gh:first-of-type{margin-top:6px}.cad-gh span{color:var(--faint);font-weight:600}
+.cad-join{background:var(--warn-surface);border-radius:12px;padding:12px 14px;margin:8px 0}
+.cad-join p{margin:0 0 10px;font-size:14px}.cad-join .filters{margin:0;align-items:flex-end}
