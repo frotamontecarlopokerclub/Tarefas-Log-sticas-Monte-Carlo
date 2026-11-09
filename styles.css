@@ -713,3 +713,15 @@ body.campo .toast{top:calc(70px + env(safe-area-inset-top,0px));bottom:auto}
 .uc .usr-msg{grid-column:1/-1;background:var(--ok-surface);border-radius:10px;padding:10px 12px}
 .uc .usr-msg:empty{display:none}
 @media (max-width:900px){.uc{grid-template-columns:minmax(0,1fr)}.uc-x{max-width:none}.uc-a{margin-left:0;width:100%}.uc-a .btn{flex:1;justify-content:center}}
+
+/* ---------- Cadastro rápido dentro da OS ---------- */
+.qa-l{display:inline-flex;align-items:center;gap:4px;margin-top:8px;background:none;border:0;padding:4px 0;font:inherit;font-size:14px;font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .qa-l{color:var(--gold-ink)}}
+:root[data-theme="dark"] .qa-l{color:var(--gold-ink)}
+.qa-box{margin-top:8px}
+.qa-f{background:var(--hover);border:1px solid var(--line-strong);border-radius:12px;padding:12px 14px}
+.qa-f h4{margin:0 0 10px;font-size:14px;font-weight:800}
+.qa-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.qa-g input,.qa-g select{width:100%;min-height:44px}
+.qa-f .actions{margin-top:10px}
+.lp-ls .lp-add{border-bottom:1px solid var(--line);font-weight:800}

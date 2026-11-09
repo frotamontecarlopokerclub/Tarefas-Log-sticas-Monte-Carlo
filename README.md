@@ -299,3 +299,17 @@ Em **Cadastros → Usuários**, cada pessoa agora tem um cartão, e os cartões 
 - **Solicitante:** o setor e a permissão de cadastrar fornecedor.
 
 A explicação dos tipos de acesso fica em *Entenda os tipos de acesso*, e com mais de 6 contas aparece uma busca por nome.
+
+## Atualização 16 · Cadastrar na hora, dentro da OS
+
+Ao criar uma OS, no passo a passo ou no formulário completo, dá para cadastrar o que faltar sem sair da tela. O item cadastrado já fica escolhido na OS:
+- **Local:** no campo de busca do local, o primeiro botão da lista é *+ Cadastrar novo local* (nome, tipo, endereço e contato).
+- **Setor:** *+ Cadastrar setor*, com o nome e a unidade. Na manutenção, a unidade já vem marcada pelo local escolhido.
+- **Pessoa da equipe** (motorista, ajudante, técnico): *+ Cadastrar pessoa na equipe*, com nome, função e telefone. Aparece no passo *Quem vai?* da logística, em *Quem vai fazer?* da manutenção e na triagem.
+- **Veículo:** *+ Cadastrar veículo*, com nome, placa e tipo.
+- **Prestador terceirizado:** *+ Cadastrar prestador terceirizado*, com empresa, especialidade, telefone e contato.
+- **Solicitante:** basta digitar o nome e o WhatsApp de alguém novo. O sistema avisa *Solicitante novo* e cadastra ao criar a OS. A manutenção ganhou o passo *Quem pediu?* (opcional).
+
+Se o nome já existir, o sistema usa o cadastro que já existe em vez de duplicar. Os dados completos (custo por hora, custo por km, CNPJ…) continuam em Cadastros.
+
+**Como instalar:** no GitHub, envie `app.js`, `styles.css` e `README.md`. Não há nada para rodar no Supabase.

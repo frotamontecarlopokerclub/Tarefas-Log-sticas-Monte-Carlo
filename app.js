@@ -685,10 +685,10 @@ function renderForm(){
         <datalist id="dlSolic">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}">${esc([nomeSetor(c.setorId)!=="—"?nomeSetor(c.setorId):"",fFone(c.telefone)].filter(Boolean).join(" · "))}</option>`).join("")}</datalist>
         <span class="hint" id="solHint">${acharContato(FD.solicitante)?"Contato cadastrado":"Se for alguém novo, o contato é salvo ao registrar"}</span></div>
       <div class="field"><label class="req" for="solTel">WhatsApp de quem pediu</label><input type="tel" id="solTel" inputmode="tel" value="${esc(FD.solicitanteTelefone||"")}" placeholder="(11) 99999-9999"><span class="hint">Recebe o aviso de conclusão</span></div>
-      <div class="field"><label class="req" for="setor">Setor solicitante</label><select id="setor"></select><span class="hint">Preenchido sozinho quando o contato já tem setor</span></div>
+      <div class="field"><label class="req" for="setor">Setor solicitante</label><select id="setor"></select><span class="hint">Preenchido sozinho quando o contato já tem setor</span>${qaHTML("setor","fSetor")}</div>
       <div class="field"><label for="agPara">${FD.rep.on?"Horário de início":"Quando"}</label><input type="datetime-local" id="agPara" value="${toInput(FD.agendadoPara)}"><span class="hint" id="agHint">${FD.rep.on?"Na rota fixa vale o horário; a data é a de cada dia escolhido":""}</span></div>
-      <div class="field full"><span class="lbl">Equipe</span><div class="chips" id="eqChips"></div></div>
-      <div class="field"><label for="veic">Veículo</label><select id="veic"></select><span class="hint">Com equipe e veículo, a OS já entra agendada</span></div>
+      <div class="field full"><span class="lbl">Equipe</span><div class="chips" id="eqChips"></div>${qaHTML("equipe","fEq",{area:"logistica",funcao:"Motorista"})}</div>
+      <div class="field"><label for="veic">Veículo</label><select id="veic"></select><span class="hint">Com equipe e veículo, a OS já entra agendada</span>${qaHTML("veiculo","fVe")}</div>
     </div></section>
     <details class="fs" id="fMais"${ed||rec||fp||dup||FD.rep.on?" open":""}><summary>Mais detalhes <small>tipo, prioridade, canal, horários, observações${podeRepetir?", rota fixa":""}</small></summary><div class="fg">
       <div class="field"><label for="tipo">Tipo de serviço</label><select id="tipo">${optsS(TIPOS,FD.tipo)}</select><span class="hint" id="tipoHint">${ed?"":"Se não escolher, o sistema define pelo trajeto"}</span></div>
@@ -711,6 +711,9 @@ function renderForm(){
   $("#agPara").onchange=e=>{const a=fromInput(e.target.value);const p=fromInput($("#prev").value);if(a&&(!p||T(p)<=T(a))){$("#prev").value=toInput(new Date(T(a)+2*3600000).toISOString())}};
   $("#fCancel").onclick=e=>{const back=S.editId;S.editId=null;S.editRec=null;S.dupFrom=null;S.novaRec=false; if(ed){e.preventDefault();location.hash="#ordens";setTimeout(()=>openOS(back),50)} if(rec){S.cadTab="rotas"}};
   $("#fOS").onsubmit=submitForm;
+  bindQA($("#fOS"),{fSetor:row=>{FD.setorId=row.id;$("#setor").innerHTML=optsSetores(row.id,"Selecione…")},
+    fEq:row=>{if(!FD.equipeIds.includes(row.id))FD.equipeIds.push(row.id);refreshFormOptions()},
+    fVe:row=>{refreshFormOptions();$("#veic").value=row.id;FD.veiculoId=row.id}});
   FD.tipoManual=!!(ed||rec||fp||dup);
   $("#tipo").addEventListener("change",()=>{FD.tipoManual=true;$("#tipoHint").textContent=""});
   $("#solic").addEventListener("input",()=>{const c=acharContato($("#solic").value);const h=$("#solHint");
@@ -1153,8 +1156,8 @@ function bindPicker(hid,onChange){
     items=S.locais.filter(l=>l.ativo!==false||l.id===hidden.value).filter(l=>!t||normNome(l.nome).includes(t)||normNome(l.endereco).includes(t))
       .sort((a,b)=>{const as=normNome(a.nome).startsWith(t)?0:1,bs=normNome(b.nome).startsWith(t)?0:1;return as-bs||(LOCAL_TIPOS.indexOf(a.tipo||"Outro")-LOCAL_TIPOS.indexOf(b.tipo||"Outro"))||sortNome(a,b)}).slice(0,40);
     const add=canAddLocal()?`<button type="button" class="lp-add" data-lpadd>+ Cadastrar novo local${q.value.trim()?` “${esc(q.value.trim())}”`:""}</button>`:"";
-    ls.innerHTML=(items.length?items.map((l,i)=>`<button type="button" role="option" class="lp-op${i===hi?" hi":""}" data-lpid="${esc(l.id)}" aria-selected="${l.id===hidden.value}"><b>${esc(l.nome)}</b><small>${esc(localTxt(l))}</small></button>`).join("")
-      :`<p class="lp-vazio">Nenhum local encontrado${canAddLocal()?".":". Peça à logística para cadastrar."}</p>`)+add;
+    ls.innerHTML=add+(items.length?items.map((l,i)=>`<button type="button" role="option" class="lp-op${i===hi?" hi":""}" data-lpid="${esc(l.id)}" aria-selected="${l.id===hidden.value}"><b>${esc(l.nome)}</b><small>${esc(localTxt(l))}</small></button>`).join("")
+      :`<p class="lp-vazio">Nenhum local encontrado${canAddLocal()?".":". Peça à logística para cadastrar."}</p>`);
     ls.hidden=false;q.setAttribute("aria-expanded","true");
   };
   q.addEventListener("focus",()=>{q.select();lista()});
@@ -1693,13 +1696,16 @@ const optsPrest=sel=>`<option value="">Escolha o prestador…</option>`+S.presta
 function execHTML(X){ // X: {executor,equipeIds,prestadorId}
   const eq=equipeMan(X.equipeIds);
   return `<div class="field full"><span class="lbl">Quem executa</span><div class="seg2" role="group" aria-label="Quem executa"><button type="button" data-exe="interno" aria-pressed="${X.executor!=="terceiro"}">Equipe interna</button><button type="button" data-exe="terceiro" aria-pressed="${X.executor==="terceiro"}">Prestador (terceiro)</button></div></div>
-    <div class="field full" id="exInt"${X.executor==="terceiro"?" hidden":""}><span class="lbl">Técnicos</span><div class="chips">${eq.length?eq.map(p=>`<button type="button" class="chip" data-meq="${esc(p.id)}" aria-pressed="${(X.equipeIds||[]).includes(p.id)}">${esc(p.nome)}${p.funcao?`<small>${esc(p.funcao)}</small>`:""}</button>`).join(""):`<span class="hint">Cadastre os técnicos em Cadastros → Equipe, com área Manutenção.</span>`}</div></div>
-    <div class="field full" id="exTer"${X.executor==="terceiro"?"":" hidden"}><label for="mPrest">Prestador</label><select id="mPrest">${optsPrest(X.prestadorId)}</select>${S.prestadores.length?"":`<span class="hint">Cadastre prestadores em Cadastros → Prestadores.</span>`}</div>`;
+    <div class="field full" id="exInt"${X.executor==="terceiro"?" hidden":""}><span class="lbl">Técnicos</span><div class="chips" id="exChips">${chipsTec(X)}</div>${qaHTML("equipe","exTec",{area:"manutencao",funcao:"Manutenção geral"})}</div>
+    <div class="field full" id="exTer"${X.executor==="terceiro"?"":" hidden"}><label for="mPrest">Prestador</label><select id="mPrest">${optsPrest(X.prestadorId)}</select>${qaHTML("prestador","exPre")}</div>`;
 }
+function chipsTec(X){const eq=equipeMan(X.equipeIds);return eq.length?eq.map(p=>`<button type="button" class="chip" data-meq="${esc(p.id)}" aria-pressed="${(X.equipeIds||[]).includes(p.id)}">${esc(p.nome)}${p.funcao?`<small>${esc(p.funcao)}</small>`:""}</button>`).join(""):`<span class="hint">Nenhum técnico cadastrado ainda.</span>`}
 function bindExec(root,X){
   $$("[data-exe]",root).forEach(b=>b.onclick=()=>{X.executor=b.dataset.exe;$$("[data-exe]",root).forEach(x=>x.setAttribute("aria-pressed",x===b));$("#exInt",root).hidden=X.executor==="terceiro";$("#exTer",root).hidden=X.executor!=="terceiro"});
   $$("[data-meq]",root).forEach(b=>b.onclick=()=>{const id=b.dataset.meq;X.equipeIds=X.equipeIds||[];const i=X.equipeIds.indexOf(id);if(i>=0)X.equipeIds.splice(i,1);else X.equipeIds.push(id);b.setAttribute("aria-pressed",i<0)});
   const ps=$("#mPrest",root);if(ps)ps.onchange=()=>{X.prestadorId=ps.value};
+  bindQA(root,{exTec:row=>{X.executor="interno";X.equipeIds=X.equipeIds||[];if(!X.equipeIds.includes(row.id))X.equipeIds.push(row.id);const c=$("#exChips",root);if(c){c.innerHTML=chipsTec(X);bindExec(root,X)}},
+    exPre:row=>{X.executor="terceiro";X.prestadorId=row.id;const sel=$("#mPrest",root);if(sel)sel.innerHTML=optsPrest(row.id)}});
 }
 const executorOk=X=>X.executor==="terceiro"?!!X.prestadorId:(X.equipeIds||[]).length>0;
 
@@ -1854,7 +1860,7 @@ function renderMNova(){
     </div></section>
     <details class="fs" id="mMais"${abrir?" open":""}><summary>Mais detalhes <small>setor, quem pediu, programação, prazo</small></summary><div class="fg">
       <div class="field"><label for="mTipo">Tipo</label><select id="mTipo">${optsS([["corretiva","Corretiva"],["preventiva","Preventiva"]],MF.tipo)}</select></div>
-      <div class="field"><label for="mSet">Setor</label><select id="mSet">${optsSetores(MF.setorId||"","Selecione…")}</select></div>
+      <div class="field"><label for="mSet">Setor</label><select id="mSet">${optsSetores(MF.setorId||"","Selecione…")}</select>${qaHTML("setor","mSetQ")}</div>
       <div class="field"><label for="mDet">Onde exatamente</label><input type="text" id="mDet" value="${esc(MF.localDetalhe||"")}" placeholder="Ex.: banheiro masculino do 2º andar"></div>
       <div class="field"><label for="mSol">Quem pediu</label><input type="text" id="mSol" list="dlSolicM" autocomplete="off" value="${esc(MF.solicitante||"")}" placeholder="Opcional"><datalist id="dlSolicM">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}"></option>`).join("")}</datalist></div>
       <div class="field"><label for="mTel">WhatsApp de quem pediu</label><input type="tel" id="mTel" inputmode="tel" value="${esc(MF.solicitanteTelefone||"")}" placeholder="Opcional · recebe o aviso de conclusão"></div>
@@ -1865,11 +1871,12 @@ function renderMNova(){
     </div></details>
     <div class="form-foot"><span class="err" id="fErr" role="alert"></span><a class="btn" href="#m-ordens" id="fCancel">Descartar</a><button class="btn pri" type="submit" id="fSave">${ed?"Salvar alterações":"Registrar OS"}</button></div>
   </form>`;
-  bindPicker("mLoc",id=>{const e=$("#mEq");const cur=e.value;e.innerHTML=optsEquip(id,byId(S.equipamentos,cur)&&byId(S.equipamentos,cur).localId===id?cur:"")});
+  bindPicker("mLoc",id=>{const e=$("#mEq");const cur=e.value;e.innerHTML=optsEquip(id,byId(S.equipamentos,cur)&&byId(S.equipamentos,cur).localId===id?cur:"");const qb=$('[data-qactx="mSetQ"]');const l=byId(S.locais,id);if(qb)qb.dataset.qax=JSON.stringify(l&&l.tipo!=="Fornecedor"?{localId:id}:{})});
   $("#mEq").onchange=e=>{const q=byId(S.equipamentos,e.target.value);if(!q)return;if(q.localId&&!$("#mLoc").value){$("#mLoc").value=q.localId;$("#mLoc-q").value=nomeLocal(q.localId)}if(q.categoria&&!$("#mCat").value)$("#mCat").value=q.categoria;if(q.setorId&&!$("#mSet").value)$("#mSet").value=q.setorId};
   $("#mPrio").onchange=e=>{$("#slaH").textContent="Prazo padrão: "+fDur(slaH(e.target.value)*3600000)};
   $("#mSol").addEventListener("input",()=>{const c=acharContato($("#mSol").value);if(c){if(!$("#mTel").value)$("#mTel").value=c.telefone||"";if(c.setorId&&!$("#mSet").value)$("#mSet").value=c.setorId}});
   bindExec($("#fM"),MF);
+  bindQA($("#fM"),{mSetQ:row=>{$("#mSet").innerHTML=optsSetores(row.id,"Selecione…")}});
   const redraw=()=>{$("#mFotos").innerHTML=fotosM(MF.fotosAbertura,true);$$("[data-up]").forEach(x=>{x.disabled=false;x.value=""});$("#mUp").parentElement.querySelector("span").textContent="Tirar foto";$("#mUpg").parentElement.querySelector("span").textContent="Escolher da galeria";bindUploads($("#fM"),()=>MF.fotosAbertura,redraw,$("#fErr"),v=>MF.busy=v);bindZoom($("#mFotos"))};
   bindUploads($("#fM"),()=>MF.fotosAbertura,redraw,$("#fErr"),v=>MF.busy=v);
   $("#fCancel").onclick=e=>{const back=S.mEditId;S.mEditId=null;if(back){e.preventDefault();location.hash="#m-ordens";setTimeout(()=>openM(back),50)}};
@@ -2836,14 +2843,16 @@ const PASSOS_LOG=[
   {q:"Quem pediu?",hint:"A pessoa recebe o aviso de conclusão no WhatsApp.",html:d=>`<div class="fg1">
       <div class="field"><label for="wzSol">Nome</label><input type="text" id="wzSol" class="wz-in" list="dlWz" autocomplete="off" value="${esc(d.solicitante)}" placeholder="Comece a digitar"><datalist id="dlWz">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}"></option>`).join("")}</datalist><span class="hint" id="wzSolH">${acharContato(d.solicitante)?"Contato cadastrado":""}</span></div>
       <div class="field"><label for="wzTel">WhatsApp</label><input type="tel" id="wzTel" class="wz-in" inputmode="tel" value="${esc(d.tel)}" placeholder="(11) 99999-9999"></div>
-      <div class="field"><label for="wzSet">Setor</label><select id="wzSet" class="wz-in">${optsSetores(d.setorId,"Selecione…")}</select></div></div>`,
-    bind:d=>{const s=$("#wzSol");s.focus();s.addEventListener("input",()=>{const c=acharContato(s.value);if(c){$("#wzTel").value=c.telefone||"";if(c.setorId)$("#wzSet").value=c.setorId;$("#wzSolH").textContent="Contato cadastrado"}else $("#wzSolH").textContent=s.value.trim()?"Contato novo: será salvo":""})},
+      <div class="field"><label for="wzSet">Setor</label><select id="wzSet" class="wz-in">${optsSetores(d.setorId,"Selecione…")}</select>${qaHTML("setor","wzSetQ")}</div></div>`,
+    bind:d=>{const s=$("#wzSol");s.focus();s.addEventListener("input",()=>{const c=acharContato(s.value);if(c){$("#wzTel").value=c.telefone||"";if(c.setorId)$("#wzSet").value=c.setorId;$("#wzSolH").textContent="Contato cadastrado"}else $("#wzSolH").innerHTML=s.value.trim()?"<b>Solicitante novo:</b> fica cadastrado com este WhatsApp e setor ao criar a OS.":""});
+      bindQA(app,{wzSetQ:row=>{d.setorId=row.id;$("#wzSet").innerHTML=optsSetores(row.id,"Selecione…")}})},
     read:d=>{d.solicitante=$("#wzSol").value.trim();d.tel=$("#wzTel").value.trim();d.setorId=$("#wzSet").value},
     valid:d=>!d.solicitante?"Escreva o nome de quem pediu.":!d.tel?"Informe o WhatsApp de quem pediu.":!foneValido(d.tel)?"WhatsApp com DDD, por exemplo (11) 99999-9999.":!d.setorId?"Escolha o setor.":null},
   {q:"Quando?",html:d=>quandoHTML(d,false),bind:d=>bindQuando(d),read:d=>lerQuando(d),valid:d=>d.quandoK?(d.quando||d.quandoK==="sem"?null:"Escolha o dia e a hora."):"Escolha quando."},
   {q:"Quem vai?",hint:"Com equipe e veículo, a OS já aparece no celular de quem foi escalado.",html:d=>{const eq=ativos(S.equipe).filter(p=>(p.area||"logistica")!=="manutencao");
-      return `<span class="lbl">Equipe</span>${chipsEquipe(eq,d.equipeIds,"weq")}<span class="lbl" style="margin-top:16px;display:block">Veículo</span><div class="wz-tiles col2">${ativos(S.veiculos).map(v=>`<button type="button" class="wz-tile sm${d.veiculoId===v.id?" on":""}" data-wv="${esc(v.id)}"><b>${esc(v.nome)}</b><small>${esc(v.placa||"")}</small></button>`).join("")}<button type="button" class="wz-tile sm${d.veiculoId===""&&d.veicOk?" on":""}" data-wv=""><b>Sem veículo</b><small>A pé ou a definir</small></button></div>`},
-    bind:d=>{bindChips("weq",d.equipeIds);$$("[data-wv]").forEach(b=>b.onclick=()=>{d.veiculoId=b.dataset.wv;d.veicOk=true;$$("[data-wv]").forEach(x=>x.classList.toggle("on",x===b))})},valid:()=>null},
+      return `<span class="lbl">Equipe</span>${chipsEquipe(eq,d.equipeIds,"weq")}${qaHTML("equipe","wzEqQ",{area:"logistica",funcao:"Motorista"})}<span class="lbl" style="margin-top:16px;display:block">Veículo</span><div class="wz-tiles col2">${ativos(S.veiculos).map(v=>`<button type="button" class="wz-tile sm${d.veiculoId===v.id?" on":""}" data-wv="${esc(v.id)}"><b>${esc(v.nome)}</b><small>${esc(v.placa||"")}</small></button>`).join("")}<button type="button" class="wz-tile sm${d.veiculoId===""&&d.veicOk?" on":""}" data-wv=""><b>Sem veículo</b><small>A pé ou a definir</small></button></div>${qaHTML("veiculo","wzVeQ")}`},
+    bind:d=>{bindChips("weq",d.equipeIds);$$("[data-wv]").forEach(b=>b.onclick=()=>{d.veiculoId=b.dataset.wv;d.veicOk=true;$$("[data-wv]").forEach(x=>x.classList.toggle("on",x===b))});
+      bindQA(app,{wzEqQ:row=>{if(!d.equipeIds.includes(row.id))d.equipeIds.push(row.id);wzRender()},wzVeQ:row=>{d.veiculoId=row.id;d.veicOk=true;wzRender()}})},valid:()=>null},
 ];
 function paradasWz(arr,k,nome){return arr.map((p,i)=>`<div class="wz-par"><span class="lbl">${nome}${arr.length>1?" "+(i+1):""}</span>${pickerHTML("wz"+k+i,p.localId,nome+" "+(i+1))}
   <input type="text" class="wz-in" id="wz${k}d${i}" list="dlwz${k}${i}" placeholder="Setor ou detalhe (opcional)" value="${esc(p.detalhe||"")}" style="margin-top:8px"><datalist id="dlwz${k}${i}">${subsetoresOpts(p.localId)}</datalist>
@@ -2864,15 +2873,23 @@ const PASSOS_MAN=[
   {q:"Onde?",html:d=>`<div class="fg1"><div class="field"><label for="wzL-q">Local</label>${pickerHTML("wzL",d.localId,"Local")}</div>
       <div class="field"><label for="wzEq">Equipamento <i class="opc">opcional</i></label><select id="wzEq" class="wz-in">${optsEquip(d.localId,d.equipamentoId)}</select></div>
       <div class="field"><label for="wzDet">Onde exatamente <i class="opc">opcional</i></label><input type="text" id="wzDet" class="wz-in" value="${esc(d.localDetalhe)}" placeholder="Ex.: banheiro masculino do 2º andar"></div>
-      <div class="field"><label for="wzSetM">Setor <i class="opc">opcional</i></label><select id="wzSetM" class="wz-in">${optsSetores(d.setorId,"Selecione…")}</select></div></div>`,
-    bind:d=>{bindPicker("wzL",id=>{d.localId=id;$("#wzEq").innerHTML=optsEquip(id,"")});$("#wzEq").onchange=e=>{const q=byId(S.equipamentos,e.target.value);if(q){if(q.setorId&&!$("#wzSetM").value)$("#wzSetM").value=q.setorId;if(q.categoria&&!d.categoria)d.categoria=q.categoria}}},
+      <div class="field"><label for="wzSetM">Setor <i class="opc">opcional</i></label><select id="wzSetM" class="wz-in">${optsSetores(d.setorId,"Selecione…")}</select>${qaHTML("setor","wzSetMQ",d.localId?{localId:d.localId}:null)}</div></div>`,
+    bind:d=>{bindPicker("wzL",id=>{d.localId=id;$("#wzEq").innerHTML=optsEquip(id,"");const qb=$('[data-qactx="wzSetMQ"]');const l=byId(S.locais,id);if(qb)qb.dataset.qax=JSON.stringify(l&&l.tipo!=="Fornecedor"?{localId:id}:{})});$("#wzEq").onchange=e=>{const q=byId(S.equipamentos,e.target.value);if(q){if(q.setorId&&!$("#wzSetM").value)$("#wzSetM").value=q.setorId;if(q.categoria&&!d.categoria)d.categoria=q.categoria}};
+      bindQA(app,{wzSetMQ:row=>{PASSOS_MAN[2].read(d);d.setorId=row.id;wzRender()}})},
     read:d=>{d.localId=$("#wzL").value;d.equipamentoId=$("#wzEq").value;d.localDetalhe=$("#wzDet").value.trim();d.setorId=$("#wzSetM").value},valid:d=>d.localId?null:"Escolha o local."},
+  {q:"Quem pediu?",hint:"Opcional. Com WhatsApp, a pessoa pode receber o aviso quando o serviço terminar.",html:d=>`<div class="fg1">
+      <div class="field"><label for="wzSolM">Nome <i class="opc">opcional</i></label><input type="text" id="wzSolM" class="wz-in" list="dlWzM" autocomplete="off" value="${esc(d.solicitante)}" placeholder="Comece a digitar"><datalist id="dlWzM">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}"></option>`).join("")}</datalist><span class="hint" id="wzSolMH">${acharContato(d.solicitante)?"Contato cadastrado":""}</span></div>
+      <div class="field"><label for="wzTelM">WhatsApp <i class="opc">opcional</i></label><input type="tel" id="wzTelM" class="wz-in" inputmode="tel" value="${esc(d.tel)}" placeholder="(11) 99999-9999"></div></div>`,
+    bind:d=>{const s2=$("#wzSolM");s2.addEventListener("input",()=>{const c=acharContato(s2.value);if(c){$("#wzTelM").value=c.telefone||"";$("#wzSolMH").textContent="Contato cadastrado"}else $("#wzSolMH").innerHTML=s2.value.trim()?"<b>Solicitante novo:</b> fica cadastrado ao criar a OS, se tiver WhatsApp.":""})},
+    read:d=>{d.solicitante=$("#wzSolM").value.trim();d.tel=$("#wzTelM").value.trim()},
+    valid:d=>d.tel&&!foneValido(d.tel)?"WhatsApp com DDD, por exemplo (11) 99999-9999.":d.tel&&!d.solicitante?"Escreva o nome de quem pediu.":null},
   {q:"Qual a urgência?",auto:true,html:d=>`<div class="wz-tiles">${MPRIO_SOL.map(([k,l])=>{const [t,s]=l.split(" · ");return `<button type="button" class="wz-tile prio-${k}${d.prioridade===k?" on":""}" data-pr="${k}"><b>${esc(t)}</b><small>${esc(s||"")} · prazo ${esc(fDur(slaH(k)*3600000))}</small></button>`}).join("")}</div>`,
     bind:d=>$$("[data-pr]").forEach(b=>b.onclick=()=>{d.prioridade=b.dataset.pr;wzIr(1)}),valid:d=>d.prioridade?null:"Escolha a urgência."},
   {q:"Quem vai fazer?",hint:"Quem for escalado da equipe interna recebe a OS no celular.",html:d=>`<div class="wz-tiles col3">${[["interno","Equipe interna"],["terceiro","Prestador"],["depois","Decidir depois"]].map(([k,l])=>`<button type="button" class="wz-tile sm${d.exec===k?" on":""}" data-ex="${k}"><b>${l}</b></button>`).join("")}</div>
-      <div id="wzExI"${d.exec==="interno"?"":" hidden"} style="margin-top:14px">${chipsEquipe(equipeMan(d.equipeIds),d.equipeIds,"wmq")}</div>
-      <div id="wzExT"${d.exec==="terceiro"?"":" hidden"} style="margin-top:14px"><select id="wzPr" class="wz-in">${optsPrest(d.prestadorId)}</select></div>`,
-    bind:d=>{$$("[data-ex]").forEach(b=>b.onclick=()=>{d.exec=b.dataset.ex;$$("[data-ex]").forEach(x=>x.classList.toggle("on",x===b));$("#wzExI").hidden=d.exec!=="interno";$("#wzExT").hidden=d.exec!=="terceiro"});bindChips("wmq",d.equipeIds);$("#wzPr").onchange=e=>{d.prestadorId=e.target.value}},
+      <div id="wzExI"${d.exec==="interno"?"":" hidden"} style="margin-top:14px">${chipsEquipe(equipeMan(d.equipeIds),d.equipeIds,"wmq")}${qaHTML("equipe","wzTecQ",{area:"manutencao",funcao:"Manutenção geral"})}</div>
+      <div id="wzExT"${d.exec==="terceiro"?"":" hidden"} style="margin-top:14px"><select id="wzPr" class="wz-in">${optsPrest(d.prestadorId)}</select>${qaHTML("prestador","wzPreQ")}</div>`,
+    bind:d=>{$$("[data-ex]").forEach(b=>b.onclick=()=>{d.exec=b.dataset.ex;$$("[data-ex]").forEach(x=>x.classList.toggle("on",x===b));$("#wzExI").hidden=d.exec!=="interno";$("#wzExT").hidden=d.exec!=="terceiro"});bindChips("wmq",d.equipeIds);$("#wzPr").onchange=e=>{d.prestadorId=e.target.value};
+      bindQA(app,{wzTecQ:row=>{d.exec="interno";if(!d.equipeIds.includes(row.id))d.equipeIds.push(row.id);wzRender()},wzPreQ:row=>{d.exec="terceiro";d.prestadorId=row.id;wzRender()}})},
     valid:d=>!d.exec?"Escolha quem vai fazer.":d.exec==="interno"&&!d.equipeIds.length?"Escolha ao menos um técnico, ou toque em Decidir depois.":d.exec==="terceiro"&&!d.prestadorId?"Escolha o prestador, ou toque em Decidir depois.":null},
   {q:"Quando?",html:d=>quandoHTML(d,true),bind:d=>bindQuando(d),read:d=>lerQuando(d),valid:d=>d.quandoK?(d.quando||d.quandoK==="sem"?null:"Escolha o dia e a hora."):"Escolha quando."},
 ];
@@ -2886,8 +2903,8 @@ function resumoWz(){const d=W.d;const L=[];const linha=(i,t,v)=>L.push(`<div cla
     linha(5,"Quando",esc(d.quando?quandoTxt(d.quando):"Sem data"));linha(6,"Quem vai",esc(d.equipeIds.length?nomeEquipe(d.equipeIds):"A definir")+" · "+esc(d.veiculoId?nomeVeic(d.veiculoId):"sem veículo"));
     const pronta=d.quando&&d.equipeIds.length&&d.veiculoId;L.push(`<p class="wz-note">${pronta?"A OS entra como <b>agendada</b> e aparece no celular de "+esc(nomeEquipe(d.equipeIds))+".":"A OS fica <b>registrada</b>. Para agendar, defina data, equipe e veículo."}</p>`)}
   else{linha(0,"Problema",esc(d.descricao)+(d.fotos.length?` <small>· ${d.fotos.length} foto${d.fotos.length>1?"s":""}</small>`:""));linha(1,"Tipo",esc(d.categoria||"Não informado"));
-    linha(2,"Onde",esc(nomeLocal(d.localId))+(d.localDetalhe?" · "+esc(d.localDetalhe):"")+(d.equipamentoId?"<br>"+esc(nomeEquip(d.equipamentoId)):""));linha(3,"Urgência",esc((MPRIOS.find(p=>p[0]===d.prioridade)||[,""])[1]));
-    linha(4,"Quem faz",esc(d.exec==="interno"?nomeEquipe(d.equipeIds):d.exec==="terceiro"?nomePrest(d.prestadorId):"A definir na triagem"));linha(5,"Quando",esc(d.quando?quandoTxt(d.quando):"Sem data"));
+    linha(2,"Onde",esc(nomeLocal(d.localId))+(d.localDetalhe?" · "+esc(d.localDetalhe):"")+(d.setorId?"<br>"+esc(nomeSetor(d.setorId)):"")+(d.equipamentoId?"<br>"+esc(nomeEquip(d.equipamentoId)):""));linha(3,"Quem pediu",d.solicitante?esc(d.solicitante)+(d.tel?" · "+esc(fFone(d.tel)):""):"Não informado");linha(4,"Urgência",esc((MPRIOS.find(p=>p[0]===d.prioridade)||[,""])[1]));
+    linha(5,"Quem faz",esc(d.exec==="interno"?nomeEquipe(d.equipeIds):d.exec==="terceiro"?nomePrest(d.prestadorId):"A definir na triagem"));linha(6,"Quando",esc(d.quando?quandoTxt(d.quando):"Sem data"));
     L.push(`<p class="wz-note">${d.exec==="depois"?"A OS fica como <b>chamado aberto</b>, esperando a triagem.":d.exec==="interno"?"A OS entra como <b>programada</b> e aparece no celular de "+esc(nomeEquipe(d.equipeIds))+".":"A OS entra como <b>programada</b> com o prestador."}</p>`)}
   return L.join("")}
 
@@ -2895,7 +2912,7 @@ function resumoWz(){const d=W.d;const L=[];const linha=(i,t,v)=>L.push(`<div cla
 function novoWz(kind){
   if(kind==="log") return {kind,i:0,d:{tipo:"",ret:[{localId:"",detalhe:""}],ent:[{localId:"",detalhe:""}],itens:[{desc:"",qtd:"",un:"un"}],solicitante:"",tel:"",setorId:"",quandoK:"",quando:null,equipeIds:[],veiculoId:"",veicOk:false}};
   const eq=S.routeArg?byId(S.equipamentos,S.routeArg):null;
-  return {kind,i:0,d:{descricao:"",fotos:[],categoria:eq&&eq.categoria||"",catOk:!!(eq&&eq.categoria),localId:eq?eq.localId||"":"",equipamentoId:eq?eq.id:"",localDetalhe:"",setorId:eq?eq.setorId||"":"",prioridade:"",exec:"",equipeIds:[],prestadorId:"",quandoK:"",quando:null}};
+  return {kind,i:0,d:{solicitante:"",tel:"",descricao:"",fotos:[],categoria:eq&&eq.categoria||"",catOk:!!(eq&&eq.categoria),localId:eq?eq.localId||"":"",equipamentoId:eq?eq.id:"",localDetalhe:"",setorId:eq?eq.setorId||"":"",prioridade:"",exec:"",equipeIds:[],prestadorId:"",quandoK:"",quando:null}};
 }
 function wzPassos(){return W.kind==="log"?PASSOS_LOG:PASSOS_MAN}
 function renderWizard(kind){
@@ -2941,11 +2958,55 @@ async function wzCriar(){
     }else{
       const exec=d.exec==="terceiro"?"terceiro":"interno";const pronto=d.exec!=="depois";const st=pronto?"agendada":"aberto";
       const doc={tipo:"corretiva",status:st,descricao:d.descricao,fotosAbertura:d.fotos,categoria:d.categoria||null,localId:d.localId,equipamentoId:d.equipamentoId,localDetalhe:d.localDetalhe,setorId:d.setorId,prioridade:d.prioridade,
-        executor:exec,equipeIds:d.exec==="interno"?d.equipeIds.slice():[],prestadorId:d.exec==="terceiro"?d.prestadorId:"",agendadoPara:d.quando,prazo:null,solicitante:"",solicitanteId:S.uid||null,custos:[],
+        executor:exec,equipeIds:d.exec==="interno"?d.equipeIds.slice():[],prestadorId:d.exec==="terceiro"?d.prestadorId:"",agendadoPara:d.quando,prazo:null,solicitante:d.solicitante||"",solicitanteTelefone:d.tel||"",solicitanteId:S.uid||null,custos:[],
         criadoEm:now,atualizadoEm:now,triadoEm:pronto?now:null,historico:[{s:"aberto",em:now,por:S.uid||null,nota:"OS registrada por Facilities (passo a passo)"}].concat(pronto?[{s:"agendada",em:now,por:S.uid||null,nota:"Executor: "+executorTxt({executor:exec,equipeIds:d.equipeIds,prestadorId:d.prestadorId})}]:[])};
+      if(d.solicitante&&d.tel){try{await salvarContato(d.solicitante,d.tel,d.setorId||null,null)}catch(e){}}
       const id=novoId();const row=await saveM(id,doc);W.feito=true;toast(codM(row||doc)+" criada");location.hash="#m-ordens";setTimeout(()=>openM(id),60);
     }
   }catch(e){console.error(e);btn.disabled=false;btn.textContent="Criar OS";err.textContent="Não foi possível criar. Verifique a conexão e tente novamente."+(e&&e.message?" ("+e.message+")":"")}
+}
+
+/* =====================================================================
+   CADASTRO RÁPIDO DENTRO DA OS · setor, equipe, veículo, prestador, solicitante
+   ===================================================================== */
+const QA_CB={};
+const QA_DEF={
+  setor:{t:"setores",lbl:"setor",campos:c=>[["nome","Nome do setor","text","Ex.: Cozinha 2º Andar"],["localId","Unidade","unid"]],valid:d=>!d.nome?"Informe o nome do setor.":!d.localId?"Escolha a unidade.":null,
+    dup:d=>S.setores.find(x=>normNome(x.nome)===normNome(d.nome)&&(x.localId||"")===(d.localId||"")),nome:x=>nomeSetor(x.id)},
+  equipe:{t:"equipe",lbl:"pessoa na equipe",campos:c=>[["nome","Nome","text","Ex.: João Silva"],["funcao","Função","sel",FUNCOES],["telefone","Telefone","tel","Opcional"]],valid:d=>d.nome?null:"Informe o nome.",
+    dup:d=>S.equipe.find(x=>normNome(x.nome)===normNome(d.nome)),nome:x=>x.nome},
+  veiculo:{t:"veiculos",lbl:"veículo",campos:c=>[["nome","Nome","text","Ex.: Fiorino branca"],["placa","Placa","text","ABC1D23"],["tipo","Tipo","sel",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"]]],valid:d=>d.nome?null:"Informe o nome do veículo.",
+    dup:d=>S.veiculos.find(x=>normNome(x.nome)===normNome(d.nome)||(d.placa&&normNome(x.placa)===normNome(d.placa))),nome:x=>x.nome+(x.placa?" · "+x.placa:"")},
+  prestador:{t:"prestadores",lbl:"prestador terceirizado",campos:c=>[["nome","Empresa ou profissional","text","Ex.: Frio Total Climatização"],["especialidade","Especialidade","sel",[""].concat(MCATS)],["telefone","Telefone / WhatsApp","tel","Opcional"],["contato","Contato","text","Opcional: nome de quem atende"]],valid:d=>d.nome?null:"Informe o nome do prestador.",
+    dup:d=>S.prestadores.find(x=>normNome(x.nome)===normNome(d.nome)),nome:x=>x.nome}
+};
+// botão + caixa; ctx identifica o campo; cb(row) recebe o cadastro salvo
+function qaHTML(kind,ctx,extra){if(!isStaff()&&!S.demo)return "";const D=QA_DEF[kind];
+  return `<button type="button" class="qa-l" data-qa="${kind}" data-qactx="${esc(ctx)}"${extra?` data-qax='${esc(JSON.stringify(extra))}'`:""}>+ Cadastrar ${esc(D.lbl)}</button><div class="qa-box" id="qa-${esc(ctx)}" hidden></div>`}
+function bindQA(root,cbs){Object.assign(QA_CB,cbs||{});$$("[data-qa]",root||document).forEach(b=>b.onclick=()=>abrirQA(b))}
+function abrirQA(b){const kind=b.dataset.qa,ctx=b.dataset.qactx,D=QA_DEF[kind];const box=$("#qa-"+CSS.escape(ctx));if(!box)return;
+  if(!box.hidden){box.hidden=true;box.innerHTML="";return}
+  const ex=b.dataset.qax?JSON.parse(b.dataset.qax):{};
+  const unids=S.locais.filter(l=>l.ativo!==false&&l.tipo!=="Fornecedor").sort((a,c)=>{const ia=ORDEM_SIGLA.indexOf(a.sigla),ic2=ORDEM_SIGLA.indexOf(c.sigla);return (ia<0?99:ia)-(ic2<0?99:ic2)||sortNome(a,c)});
+  box.innerHTML=`<div class="qa-f"><h4>Cadastrar ${esc(D.lbl)}</h4><div class="qa-g">${D.campos().map(([k,l,t,o])=>`<div class="field"><label for="qa-${esc(ctx)}-${k}">${esc(l)}</label>${
+      t==="sel"?`<select id="qa-${esc(ctx)}-${k}">${o.map(v=>`<option value="${esc(v)}"${ex[k]===v?" selected":""}>${esc(v||"Selecione…")}</option>`).join("")}</select>`
+      :t==="unid"?`<select id="qa-${esc(ctx)}-${k}"><option value="">Selecione…</option>${unids.map(l=>`<option value="${esc(l.id)}"${ex[k]===l.id?" selected":""}>${esc(l.nome)}${l.sigla&&l.sigla!==l.nome?" ("+esc(l.sigla)+")":""}</option>`).join("")}</select>`
+      :`<input type="${t==="tel"?"tel":"text"}" id="qa-${esc(ctx)}-${k}" placeholder="${esc(o||"")}" value="${esc(ex[k]||"")}"${t==="tel"?' inputmode="tel"':""}>`}</div>`).join("")}</div>
+    <p class="err" id="qa-${esc(ctx)}-err" role="alert"></p><div class="actions"><button type="button" class="btn pri" id="qa-${esc(ctx)}-ok">Salvar e usar</button><button type="button" class="btn ghost" id="qa-${esc(ctx)}-x">Cancelar</button></div></div>`;
+  box.hidden=false;const f=$("#qa-"+CSS.escape(ctx)+"-nome");if(f)f.focus();
+  $("#qa-"+CSS.escape(ctx)+"-x").onclick=()=>{box.hidden=true;box.innerHTML=""};
+  box.querySelectorAll("input,select").forEach(i=>i.addEventListener(i.tagName==="SELECT"?"change":"input",()=>{const er=$("#qa-"+CSS.escape(ctx)+"-err");if(er)er.textContent=""}));
+  box.querySelectorAll("input").forEach(i=>i.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("#qa-"+CSS.escape(ctx)+"-ok").click()}}));
+  $("#qa-"+CSS.escape(ctx)+"-ok").onclick=async()=>{const er=$("#qa-"+CSS.escape(ctx)+"-err");const d={};D.campos().forEach(([k])=>{const e=$("#qa-"+CSS.escape(ctx)+"-"+k);d[k]=e?String(e.value).trim():""});
+    Object.keys(ex).forEach(k=>{if(d[k]===undefined)d[k]=ex[k]});
+    const v=D.valid(d);if(v){er.textContent=v;return}
+    if(d.telefone&&!foneValido(d.telefone)&&kind!=="veiculo"){er.textContent="Telefone com DDD, por exemplo (11) 99999-9999.";return}
+    const dup=D.dup(d);if(dup){if(dup.ativo===false){er.textContent="Já existe “"+D.nome(dup)+"”, mas está desativado. Reative em Cadastros.";return}box.hidden=true;box.innerHTML="";toast("Já estava cadastrado: "+D.nome(dup));if(QA_CB[ctx])QA_CB[ctx](dup,true);return}
+    Object.keys(d).forEach(k=>{if(d[k]==="")d[k]=k.endsWith("Id")?null:d[k]});if(kind==="equipe"&&!d.area)d.area="logistica";if(kind==="prestador"&&!d.especialidade)d.especialidade=null;
+    if(S.missing&&S.missing.manutencoes&&kind==="equipe")delete d.area;
+    const btn=$("#qa-"+CSS.escape(ctx)+"-ok");btn.disabled=true;btn.textContent="Salvando…";
+    try{const row=await saveCadM(D.t,null,Object.assign({ativo:true},d));box.hidden=true;box.innerHTML="";toast(D.lbl.charAt(0).toUpperCase()+D.lbl.slice(1)+" cadastrado: "+D.nome(row));if(QA_CB[ctx])QA_CB[ctx](row,false)}
+    catch(x){console.error(x);btn.disabled=false;btn.textContent="Salvar e usar";er.textContent=/row-level|permission/i.test(x.message||"")?"Seu acesso não permite este cadastro.":"Não foi possível salvar."+(x&&x.message?" ("+x.message+")":"")}};
 }
 
 /* ---------- Demonstração da manutenção ---------- */
