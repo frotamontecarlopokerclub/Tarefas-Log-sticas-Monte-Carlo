@@ -42,7 +42,7 @@ const byId=(arr,id)=>arr.find(x=>x.id===id);
 const nomeLocal=id=>(byId(S.locais,id)||{}).nome||"—";
 const siglaLocal=l=>l?(l.sigla||l.nome):"";
 const nomeSetor=id=>{const st=byId(S.setores,id);if(!st)return "—";const l=st.localId?byId(S.locais,st.localId):null;return st.nome+(l?" · "+siglaLocal(l):"")};
-const ORDEM_SIGLA=["M.C.","M.G.","Doryo","Cardoso","CD 1"];
+const ORDEM_SIGLA=["M.C.","M.G.","Doryo","Escritório","Guararapes"];
 function gruposSetores(lista){
   const g=new Map();
   lista.forEach(st=>{const k=st.localId||"";if(!g.has(k))g.set(k,[]);g.get(k).push(st)});
@@ -89,7 +89,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-console.info("Facilities MC · versão 17");
+console.info("Facilities MC · versão 18");
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1378,7 +1378,7 @@ function renderCadastros(){
     .filter(([k])=>!((k==="veiculos"||k==="rotas")&&S.role==="log"&&!isLog())&&!(k==="prestadores"&&S.role==="log"&&!isMan())&&!(k==="usuarios"&&S.role==="log"&&!isAdmin()));
   if(!tabs.some(t=>t[0]===S.cadTab)) S.cadTab="locais";
   const tab=S.cadTab;
-  let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome. <span class="versao">Versão 17</span></p></div></div>${banner()}
+  let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome. <span class="versao">Versão 18</span></p></div></div>${banner()}
   <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k==="rotas"?`<span class="c num">${S.recorrencias.filter(x=>x.ativo!==false).length}</span>`:k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
   if(tab==="usuarios"){ app.innerHTML=h+renderUsuarios(); bindCad(); bindUsuarios(); return; }
   if(tab==="rotas"){ app.innerHTML=h+renderRotasFixas(); bindCad(); bindRotasFixas(); return; }
@@ -1410,7 +1410,7 @@ function renderCadastros(){
   </div></section>`;
   app.innerHTML=h;bindCad();
 }
-const grupoLocal=l=>l.ativo===false?[9,"Desativados"]:["Clube","Restaurante","Prédio","Escritório"].includes(l.tipo)?[0,"Unidades e escritórios"]:l.tipo==="Centro de distribuição"?[1,"Centros de distribuição"]:/^Residência/.test(l.tipo||"")?[2,"Residências"]:l.tipo==="Fornecedor"?[3,"Fornecedores"]:[4,"Outros"];
+const grupoLocal=l=>l.ativo===false?[9,"Desativados"]:["Clube","Restaurante","Prédio","Escritório"].includes(l.tipo)?[0,"Unidades e escritórios"]:l.tipo==="Centro de distribuição"?[1,"Depósitos"]:/^Residência/.test(l.tipo||"")?[2,"Residências"]:l.tipo==="Fornecedor"?[3,"Fornecedores"]:[4,"Outros"];
 function cabCad(tab,list,ix){if(tab!=="locais")return "";const g=grupoLocal(list[ix]);if(ix>0&&grupoLocal(list[ix-1])[1]===g[1])return "";const n=list.filter(x=>grupoLocal(x)[1]===g[1]).length;return `<h3 class="cad-gh">${esc(g[1])} <span>${n}</span></h3>`}
 function juntarHTML(tab,x){const outros=S[tab].filter(y=>y.id!==x.id&&y.ativo!==false&&(tab!=="setores"||(y.localId||"")===(x.localId||""))).sort(sortNome);const nome=tab==="locais"?"local":"setor";
   return `<div class="cad-join"><p><b>Juntar “${esc(tab==="setores"?nomeSetor(x.id):x.nome)}” com outro ${nome}${tab==="setores"&&x.localId?" do mesmo local":""}</b><br>Tudo o que está ligado a “${esc(x.nome)}” (OS, pedidos, chamados, equipamentos, usuários e rotas fixas) passa para o ${nome} escolhido. Depois, “${esc(x.nome)}” é apagado. Não dá para desfazer.</p>
@@ -3062,7 +3062,7 @@ function loadDemoMan(){
 
 /* ---------- Demonstração (sem banco) ---------- */
 function loadDemo(){
-  const L=[["mc","Monte Carlo Poker Club","Clube"],["mg","Mirage","Clube"],["dr","Restaurante Doryo","Restaurante"],["cd1","CD Principal","Centro de distribuição"],["esc","Escritório Central","Escritório"],["cm","Prédio Cardoso de Melo","Prédio"],["rc","Residência da diretoria","Residência da chefia"],["rf","Residência de funcionário","Residência de funcionário"],["fo","Fornecedor (atacado)","Fornecedor"]];
+  const L=[["mc","Monte Carlo Poker Club","Clube"],["mg","Mirage","Clube"],["dr","Restaurante Doryo","Restaurante"],["esc","Escritório Central","Escritório"],["gu","Escritório Guararapes","Escritório"],["rc","Casas do Chefe","Residência da chefia"],["rf","Casas de Funcionários","Residência de funcionário"],["fl","Flats do Chefe","Residência da chefia"],["cd1","CD 1","Centro de distribuição"],["cd2","CD 2","Centro de distribuição"],["cm","Prédio da Cardoso","Centro de distribuição"],["dsc","Depósito Descarte","Centro de distribuição"],["dmn","Depósito Manutenção","Centro de distribuição"],["fo","Fornecedor (atacado)","Fornecedor"]];
   S.locais=L.map(([id,nome,tipo])=>({id,nome,tipo,ativo:true}));
   S.setores=["Bar","Cozinha","Eventos","Manutenção","Compras","Diretoria","Salão de jogos","Administrativo","Doryo"].map((n,i)=>({id:"s"+i,nome:n,ativo:true}));
   S.equipe=[["Motorista A","Motorista"],["Motorista B","Motorista"],["Ajudante A","Ajudante"],["Ajudante B","Ajudante"],["Coordenação","Coordenador"]].map(([n,f],i)=>({id:"e"+i,nome:n,funcao:f,ativo:true}));
@@ -3097,9 +3097,11 @@ function loadDemo(){
   ["Ana (Cozinha)","Bruno (Eventos)","Carla (Bar)","Diego (Compras)"].forEach((n,i)=>S.names["demo-u"+i]=n);
   S.meus=S.pedidos.slice(1,4).map(x=>Object.assign({},x,{uid:"demo"}));S.uid="demo";S.names.demo="Você";
   const pm=new Date();pm.setDate(1);pm.setMonth(pm.getMonth()-1);
-  S.locais.forEach(l=>{l.sigla={mc:"M.C.",mg:"M.G.",dr:"Doryo",cm:"Cardoso",cd1:"CD 1"}[l.id]||""});
-  S.setores=[["Bar 2 Andar","mc"],["Cozinha 2º Andar","mc"],["Decoração e Eventos","mc"],["Manutenção","mc"],["Compras","mc"],["Valet","mc"],["Bar (Vip)","mg"],["Cozinha (VIP)","mg"],["Valet","mg"],["Decoração e Eventos","dr"],["Garagem","cm"],["Disponível","cd1"]]
-    .map(([n,l],i)=>({id:"s"+i,nome:n,localId:l,ativo:true}));
+  S.locais.forEach(l=>{l.sigla={mc:"M.C.",mg:"M.G.",dr:"Doryo",esc:"Escritório",gu:"Guararapes",cm:"Cardoso",cd1:"CD 1",cd2:"CD 2",dsc:"Descarte",dmn:"Dep. Manutenção"}[l.id]||""});
+  {const P=["Jogo","A&B","Recepção","T.I.","Administrativo","Financeiro","Manutenção","Segurança","Bombeiros","RH","Operações e Logística","Compras","Uniforme","Portaria","Estoque","Limpeza","Estacionamento","Eventos e Decoração","Controle de Acesso"];
+    const base=[["A&B","mc"],["Jogo","mc"],["Eventos e Decoração","mc"],["Manutenção","mc"],["Compras","mc"],["Estacionamento","mc"],["A&B","mg"],["Jogo","mg"],["Estacionamento","mg"],["Eventos e Decoração","dr"],["Administrativo","esc"],["Estoque","mc"]];
+    S.setores=base.map(([n,l],i)=>({id:"s"+i,nome:n,localId:l,ativo:true}));let k=base.length;
+    [["mc",P],["mg",P.concat(["Marketing"])],["dr",P],["esc",P]].forEach(([l,lista])=>lista.forEach(n=>{if(!S.setores.some(x=>x.localId===l&&x.nome===n))S.setores.push({id:"s"+(k++),nome:n,localId:l,ativo:true})}));}
   S.solicitantes=[{id:"c1",nome:"Laura Souza",telefone:"(11) 99999-8888",setorId:"s4",ativo:true},{id:"c2",nome:"Marcos Lima",telefone:"(11) 98888-7777",setorId:"s1",ativo:true}];
   S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
     modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];

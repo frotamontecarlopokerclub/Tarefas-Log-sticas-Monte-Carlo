@@ -31,6 +31,7 @@ Não há instalação nem programação. São três contas gratuitas e cerca de 
 | `supabase/11_reposicao_pendencias.sql` | Valor de reposição e vida útil dos equipamentos (consertar ou trocar) |
 | `supabase/12_equipe_campo.sql` | Acesso da equipe de campo (usuário e senha, só as próprias missões) |
 | `supabase/13_setores_sem_andar.sql` | Junta os setores que só mudavam de andar (Jogo 2, 3, 4… → Jogo) e cria o "Juntar com…" |
+| `supabase/14_locais_setores_oficiais.sql` | Deixa locais e setores exatamente como a lista oficial (pode ser rodado sem o 13) |
 | `assets/qrcode.js` | Gerador das etiquetas com QR Code dos equipamentos |
 | `supabase/functions/enviar-whatsapp/index.ts` | Função do servidor que envia o WhatsApp automático |
 | `WHATSAPP-AUTOMATICO.md` | Passo a passo da Meta e do Supabase para o envio automático (opcional) |
@@ -55,7 +56,7 @@ Entrar no Supabase e na Vercel com o GitHub deixa tudo ligado com um único logi
 3. No menu da esquerda, abra **SQL Editor** e clique em **New query**.
 4. Abra o arquivo `supabase/01_estrutura.sql` no Bloco de Notas, copie tudo, cole no editor e clique em **Run**. Deve aparecer *Success. No rows returned*.
 5. Abra outra *New query*, faça o mesmo com `supabase/02_cadastros.sql` e clique em **Run**.
-6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql`, `supabase/09_acesso_por_area.sql`, `supabase/10_custos_gestao.sql`, `supabase/11_reposicao_pendencias.sql`, `supabase/12_equipe_campo.sql` e por fim `supabase/13_setores_sem_andar.sql`.
+6. Repita com `supabase/03_novidades.sql`, depois `supabase/04_km_whatsapp.sql` `supabase/05_solicitantes_whatsapp_auto.sql` `supabase/06_locais_permissoes.sql`, `supabase/07_setores_por_local.sql`, `supabase/08_manutencao.sql`, `supabase/09_acesso_por_area.sql`, `supabase/10_custos_gestao.sql`, `supabase/11_reposicao_pendencias.sql`, `supabase/12_equipe_campo.sql` e por fim `supabase/14_locais_setores_oficiais.sql` (o 13 é opcional: o 14 já faz o trabalho dele).
 7. Confira em **Table Editor**: devem aparecer as tabelas `os`, `pedidos`, `locais` e as outras, com os seus locais e setores já preenchidos.
 
 ## Etapa 3 · Ajustar o login no Supabase
@@ -330,3 +331,39 @@ Se o nome já existir, o sistema usa o cadastro que já existe em vez de duplica
 **Cadastro rápido de setor:** recusa nomes com andar ("Jogo 3º andar") e lembra que o andar vai na observação.
 
 **Como instalar:** no Supabase, rode `supabase/13_setores_sem_andar.sql`. No GitHub, envie `app.js`, `styles.css`, `README.md` e o `.sql` dentro da pasta `supabase`.
+
+## Atualização 18 · Locais e setores oficiais
+
+O script `14_locais_setores_oficiais.sql` deixa o cadastro exatamente assim:
+
+| Local | Setores |
+|---|---|
+| Monte Carlo Poker Club (M.C.) | Jogo, A&B, Recepção, T.I., Administrativo, Financeiro, Manutenção, Segurança, Bombeiros, RH, Operações e Logística, Compras, Uniforme, Portaria, Estoque, Limpeza, Estacionamento, Eventos e Decoração, Controle de Acesso |
+| Mirage (M.G.) | Os mesmos 19 e mais Marketing |
+| Restaurante Doryo | Os mesmos 19 |
+| Escritório Central | Os mesmos 19 |
+| Escritório Guararapes, Casas do Chefe, Casas de Funcionários, Flats do Chefe | Sem setores |
+| Depósitos: CD 1, CD 2, Prédio da Cardoso, Depósito Descarte, Depósito Manutenção | Sem setores |
+
+O andar, a sala ou a mesa vão no campo **Observação** da OS.
+
+**O que acontece com o que já existe**
+- Locais com nome antigo são renomeados: *Residência da chefia* vira **Casas do Chefe**, *Residência de funcionário* vira **Casas de Funcionários** e *Prédio Cardoso de Melo* vira **Prédio da Cardoso**. Os que faltam são criados, sem endereço: preencha em Cadastros → Locais. Fornecedores não mudam.
+- Os setores antigos passam para os oficiais do mesmo local, levando as OS, pedidos, chamados, equipamentos, usuários e rotas fixas:
+  - Bar, Cozinha, Confeitaria e Refeitório → **A&B**;
+  - Caixa → **Jogo**;
+  - Valet e Garagem → **Estacionamento**;
+  - Brigada → **Bombeiros**;
+  - Frota → **Operações e Logística**;
+  - Mídia e Som → **T.I.**;
+  - Recursos Humanos → **RH**;
+  - Sala de Uniformes → **Uniforme**;
+  - Decoração e Eventos → **Eventos e Decoração**;
+  - os andares (Jogo 2, 3, 4, Arena…) viram um só.
+- *Disponível* e os setores do Prédio da Cardoso e do CD 1 deixam de existir. As OS ligadas a eles ficam sem setor, mas mantêm o local.
+- Setores criados por vocês que não estão na lista oficial são desativados: somem das listas e ficam no histórico.
+
+**Como instalar**
+1. No Supabase, no projeto do Facilities e com o tradutor desligado, rode `supabase/14_locais_setores_oficiais.sql`. Não dá para desfazer a junção dos setores.
+2. No GitHub, envie o pacote completo, **menos o `config.js`**.
+3. Em **Cadastros**, o selo deve mostrar **Versão 18**.
