@@ -52,6 +52,7 @@ function gruposSetores(lista){
 }
 function optsSetores(sel,vazio,incluirId){
   const lista=S.setores.filter(x=>x.ativo!==false||x.id===sel||x.id===incluirId);
+  if(!lista.some(x=>x.localId)) return (vazio!=null?`<option value="">${esc(vazio)}</option>`:"")+lista.slice().sort(sortNome).map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.nome)}</option>`).join("");
   return (vazio!=null?`<option value="">${esc(vazio)}</option>`:"")+gruposSetores(lista).map(gp=>`<optgroup label="${esc(gp.local?gp.local.nome+(gp.local.sigla&&gp.local.sigla!==gp.local.nome?" ("+gp.local.sigla+")":""):"Sem local")}">${gp.itens.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.nome)}${gp.local?" · "+esc(siglaLocal(gp.local)):""}</option>`).join("")}</optgroup>`).join("");
 }
 const nomeVeic=id=>{const v=byId(S.veiculos,id);return v?(v.nome+(v.placa?" · "+v.placa:"")):"—"};
@@ -88,6 +89,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
+console.info("Facilities MC · versão 17");
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1106,7 +1108,7 @@ function renderStops(){
     <span class="sn num" aria-hidden="true">${i+1}</span>
     <select id="st-t-${i}" aria-label="Tipo da parada ${i+1}">${optsS(PTIPOS,p.tipo)}</select>
     ${pickerHTML("st-l-"+i,p.localId,"Local da parada "+(i+1),true)}
-    <input type="text" id="st-d-${i}" list="dl-st-${i}" autocomplete="off" aria-label="Detalhe da parada ${i+1}" placeholder="Setor ou detalhe (ex.: Cozinha 2º Andar)" value="${esc(p.detalhe||"")}"><datalist id="dl-st-${i}">${subsetoresOpts(p.localId)}</datalist>
+    <input type="text" id="st-d-${i}" list="dl-st-${i}" autocomplete="off" aria-label="Observação da parada ${i+1}" placeholder="Observação: andar, sala… (ex.: 3º andar)" value="${esc(p.detalhe||"")}"><datalist id="dl-st-${i}">${subsetoresOpts(p.localId)}</datalist>
     <button type="button" class="x" data-stup="${i}" aria-label="Subir parada ${i+1}"${i===0?" disabled":""}>↑</button>
     <button type="button" class="x" data-strm="${i}" aria-label="Remover parada ${i+1}"${FD.paradas.length<=2?" disabled":""}>×</button></div>
     <div class="lp-new stop-new" id="st-l-${i}-new" hidden></div>`).join("");
@@ -1135,7 +1137,8 @@ function stopsHTML(o,canAct){
 
 /* ---------- CAMPO DE LOCAL COM BUSCA E CADASTRO RÁPIDO ---------- */
 const canAddLocal=()=>S.demo||isStaff()||(S.role==="sol"&&S.podeLocal===true);
-function subsetoresOpts(localId){return localId?S.setores.filter(x=>x.ativo!==false&&x.localId===localId).sort(sortNome).map(x=>`<option value="${esc(x.nome)}"></option>`).join(""):""}
+const OBS_LOCAL=["Térreo","Subsolo","1º andar","2º andar","3º andar","4º andar","Arena","Área VIP","Recepção","Doca de carga","Estoque","Cozinha"];
+function subsetoresOpts(localId){return OBS_LOCAL.map(x=>`<option value="${esc(x)}"></option>`).join("")}
 function localTxt(l){return [l.tipo,l.endereco].filter(Boolean).join(" · ")}
 function pickerHTML(hid,valueId,label,fora){
   const l=valueId?byId(S.locais,valueId):null;
@@ -1358,8 +1361,9 @@ const CAD={
   locais:{t:"Locais",col:"locais",desc:"Clubes, restaurante, centros de distribuição, escritórios, prédio e residências atendidas.",
     f:[["nome","Nome","text"],["sigla","Sigla","text"],["tipo","Tipo","select",LOCAL_TIPOS],["endereco","Endereço","text"],["contato","Contato no local","text"],["orcamentoMensal","Orçamento mensal (R$)","money"]],
     m:x=>[[x.sigla,x.tipo,nOuNull(x.orcamentoMensal)!=null?"Orçamento "+fBRL(x.orcamentoMensal)+"/mês":""].filter(Boolean).join(" · "),x.endereco||x.contato]},
-  setores:{t:"Setores",col:"setores",desc:"Setores que pedem serviços à logística. Base do indicador de demanda por setor.",
-    f:[["nome","Nome","text"],["localId","Local","local"]],m:x=>{const l=byId(S.locais,x.localId);return [l?l.nome:(x.unidade||"Sem local"),""]}},
+  setores:{t:"Setores",col:"setores",desc:"Um setor por local, sem andar: Jogo · M.C., Bar · M.G.… O andar ou a sala vão na observação da OS.",
+    f:[["nome","Nome","text"],["localId","Local","local"]],m:x=>{const l=byId(S.locais,x.localId);const nO=S.os.filter(o=>o.setorId===x.id).length,nM=S.manutencoes.filter(m=>m.setorId===x.id).length;
+      return [l?l.nome:(x.unidade||"Sem local"),nO||nM?[nO?nO+" OS de logística":"",nM?nM+" de manutenção":""].filter(Boolean).join(" · "):""]}},
   solicitantes:{t:"Solicitantes",col:"solicitantes",desc:"Quem pede serviços à logística. O WhatsApp cadastrado recebe o aviso de conclusão.",
     f:[["nome","Nome","text"],["telefone","WhatsApp","tel"],["setorId","Setor","setor"]],m:x=>[fFone(x.telefone),x.setorId?nomeSetor(x.setorId):""]},
   equipe:{t:"Equipe",col:"equipe",desc:"Motoristas, ajudantes, técnicos e coordenação que executam as OS. A área define em qual lista a pessoa aparece.",
@@ -1374,7 +1378,7 @@ function renderCadastros(){
     .filter(([k])=>!((k==="veiculos"||k==="rotas")&&S.role==="log"&&!isLog())&&!(k==="prestadores"&&S.role==="log"&&!isMan())&&!(k==="usuarios"&&S.role==="log"&&!isAdmin()));
   if(!tabs.some(t=>t[0]===S.cadTab)) S.cadTab="locais";
   const tab=S.cadTab;
-  let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome.</p></div></div>${banner()}
+  let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome. <span class="versao">Versão 17</span></p></div></div>${banner()}
   <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k==="rotas"?`<span class="c num">${S.recorrencias.filter(x=>x.ativo!==false).length}</span>`:k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
   if(tab==="usuarios"){ app.innerHTML=h+renderUsuarios(); bindCad(); bindUsuarios(); return; }
   if(tab==="rotas"){ app.innerHTML=h+renderRotasFixas(); bindCad(); bindRotasFixas(); return; }
@@ -1394,19 +1398,38 @@ function renderCadastros(){
         <div class="filters">${MPRIOS.map(([k,l])=>`<div class="field"><label for="sla-${k}">${l} (h)</label><input type="number" id="sla-${k}" min="1" step="1" value="${esc(slaH(k))}"${isMan()?"":" disabled"}></div>`).join("")}${isMan()?`<button class="btn pri" id="slaOk" type="button">Salvar prazos</button>`:""}</div></div></section>`:"");
     app.innerHTML=h;bindCad();return;
   }
-  const C=CAD[tab];let list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||sortNome(a,b));
+  const C=CAD[tab];let list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||(tab==="locais"?grupoLocal(a)[0]-grupoLocal(b)[0]:0)||sortNome(a,b));
   if(tab==="setores"){const at=gruposSetores(list.filter(x=>x.ativo!==false)).flatMap(g=>g.itens);list=at.concat(list.filter(x=>x.ativo===false))}
   const ed=S.cadEdit;
   const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${optsSetores((x||{})[k]||"","Sem setor")}</select>`:t==="local"?`<select id="ce-${k}">${opts(S.locais.filter(l=>l.ativo!==false||l.id===(x||{})[k]).sort(sortNome),(x||{})[k]||"","Sem local")}</select>`:t==="money"?`<input type="text" inputmode="decimal" id="ce-${k}" placeholder="Ex.: 1,80" value="${esc(nOuNull((x||{})[k])!=null?String((x||{})[k]).replace(".",","):"")}">`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||(Array.isArray(o[0])?o[0][0]:o[0]))}</select>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
     <div class="actions"><button class="btn pri sm" type="submit">Salvar</button><button class="btn sm ghost" type="button" data-cx>Cancelar</button></div></form>`;
   h+=`<section class="card"><div class="card-h"><h2>${C.t}</h2><span class="sub">${esc(C.desc)}</span></div><div class="card-b">
     ${isStaff()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
-    ${list.length?list.map(x=>ed===x.id?editor(x,x.id):`<div class="cad-row${x.ativo===false?" off":""}"><span class="n">${esc(x.nome)}${x.ativo===false?` <span style="color:var(--faint);font-weight:500">desativado</span>`:""}</span><span class="m">${esc((C.m(x)[0])||"")}</span><span class="m">${esc((C.m(x)[1])||"")}</span>
-      ${isStaff()?`<span class="actions"><button class="btn sm ghost" data-ed="${esc(x.id)}" type="button">Editar</button><button class="btn sm ghost" data-tg="${esc(x.id)}" type="button">${x.ativo===false?"Reativar":"Desativar"}</button></span>`:"<span></span>"}</div>`).join(""):`<p style="color:var(--mute)">Nenhum cadastro ainda.</p>`}
+    ${list.length?list.map((x,ix)=>cabCad(tab,list,ix)+(ed===x.id?editor(x,x.id):S.cadJoin===x.id?juntarHTML(tab,x):`<div class="cad-row${x.ativo===false?" off":""}"><span class="n">${esc(x.nome)}${x.ativo===false?` <span style="color:var(--faint);font-weight:500">desativado</span>`:""}</span><span class="m">${esc((C.m(x)[0])||"")}</span><span class="m">${esc((C.m(x)[1])||"")}</span>
+      ${isStaff()?`<span class="actions"><button class="btn sm ghost" data-ed="${esc(x.id)}" type="button">Editar</button><button class="btn sm ghost" data-tg="${esc(x.id)}" type="button">${x.ativo===false?"Reativar":"Desativar"}</button>${(tab==="locais"||tab==="setores")&&(isAdmin()||S.demo)?`<button class="btn sm ghost" data-join="${esc(x.id)}" type="button" title="Juntar com outro cadastro repetido">Juntar com…</button>`:""}</span>`:"<span></span>"}</div>`)).join(""):`<p style="color:var(--mute)">Nenhum cadastro ainda.</p>`}
   </div></section>`;
   app.innerHTML=h;bindCad();
 }
+const grupoLocal=l=>l.ativo===false?[9,"Desativados"]:["Clube","Restaurante","Prédio","Escritório"].includes(l.tipo)?[0,"Unidades e escritórios"]:l.tipo==="Centro de distribuição"?[1,"Centros de distribuição"]:/^Residência/.test(l.tipo||"")?[2,"Residências"]:l.tipo==="Fornecedor"?[3,"Fornecedores"]:[4,"Outros"];
+function cabCad(tab,list,ix){if(tab!=="locais")return "";const g=grupoLocal(list[ix]);if(ix>0&&grupoLocal(list[ix-1])[1]===g[1])return "";const n=list.filter(x=>grupoLocal(x)[1]===g[1]).length;return `<h3 class="cad-gh">${esc(g[1])} <span>${n}</span></h3>`}
+function juntarHTML(tab,x){const outros=S[tab].filter(y=>y.id!==x.id&&y.ativo!==false&&(tab!=="setores"||(y.localId||"")===(x.localId||""))).sort(sortNome);const nome=tab==="locais"?"local":"setor";
+  return `<div class="cad-join"><p><b>Juntar “${esc(tab==="setores"?nomeSetor(x.id):x.nome)}” com outro ${nome}${tab==="setores"&&x.localId?" do mesmo local":""}</b><br>Tudo o que está ligado a “${esc(x.nome)}” (OS, pedidos, chamados, equipamentos, usuários e rotas fixas) passa para o ${nome} escolhido. Depois, “${esc(x.nome)}” é apagado. Não dá para desfazer.</p>
+    <div class="filters"><div class="field grow"><label for="jn-sel">Fica com</label><select id="jn-sel"><option value="">Escolha o ${nome} certo…</option>${outros.map(y=>`<option value="${esc(y.id)}">${esc(tab==="setores"?nomeSetor(y.id):y.nome)}${tab==="locais"&&y.tipo?" · "+esc(y.tipo):""}</option>`).join("")}</select></div>
+    <button class="btn danger" type="button" data-joinok="${esc(x.id)}">Juntar</button><button class="btn ghost" type="button" data-joinx>Cancelar</button></div><p class="err" id="jn-err" role="alert"></p></div>`}
+async function juntarCadastro(tab,de,para){
+  if(!S.demo){const {error}=await sb.rpc("juntar_cadastro",{tabela:tab,de,para});if(error)throw error;await Promise.all([tab,"locais","setores","os","pedidos","manutencoes","equipamentos","planos","solicitantes","perfis","recorrencias"].filter((v,i,a)=>a.indexOf(v)===i).map(carregar));return}
+  const k=tab==="locais"?["origemId","destinoId","localId"]:["setorId"];
+  [S.os,S.pedidos,S.manutencoes,S.equipamentos,S.planos,S.solicitantes,S.setores,S.perfis||[]].forEach(arr=>arr.forEach(o=>k.forEach(c=>{if(o[c]===de)o[c]=para})));
+  S.os.forEach(o=>(o.paradas||[]).forEach(p=>{if(p.localId===de)p.localId=para}));
+  S[tab]=S[tab].filter(x=>x.id!==de);
+}
 function bindCad(){
+  $$("[data-join]").forEach(b=>b.onclick=()=>{S.cadJoin=b.dataset.join;S.cadEdit=null;renderCadastros()});
+  $$("[data-joinx]").forEach(b=>b.onclick=()=>{S.cadJoin=null;renderCadastros()});
+  $$("[data-joinok]").forEach(b=>b.onclick=async()=>{const para=$("#jn-sel").value;const er=$("#jn-err");if(!para){er.textContent="Escolha com qual cadastro juntar.";return}
+    b.disabled=true;b.textContent="Juntando…";const de=b.dataset.joinok;const nm=(byId(S[S.cadTab],de)||{}).nome,nm2=(byId(S[S.cadTab],para)||{}).nome;
+    try{await juntarCadastro(S.cadTab,de,para);S.cadJoin=null;toast("“"+nm+"” juntado com “"+nm2+"”");renderCadastros()}
+    catch(e){console.error(e);b.disabled=false;b.textContent="Juntar";er.textContent=/juntar_cadastro|schema cache|Could not find/i.test(e.message||"")?"Rode o script 13 no Supabase para juntar cadastros.":"Não foi possível juntar: "+(e.message||"erro")}});
   $$("[data-ct]").forEach(b=>b.onclick=()=>{S.cadTab=b.dataset.ct;S.cadEdit=null;renderCadastros()});
   const tol=$("#tolOk");if(tol)tol.onclick=async()=>{const v=Math.max(0,Number($("#tol").value)||0);
     try{ if(S.demo){S.config.toleranciaMin=v}else{ const {error}=await sb.from("config").update({tolerancia_min:v}).eq("id",1); if(error)throw error; S.config.toleranciaMin=v; } toast("Tolerância salva");}catch(e){toast("Não foi possível salvar.")}};
@@ -1525,9 +1548,9 @@ function renderSolicitar(){
     </div></section>
     <section class="fs"><h2>Trajeto</h2><div class="fg">
       <div class="field"><label class="req" for="orig-q">Retirar em</label>${pickerHTML("orig",FD.origemId,"Retirar em")}</div>
-      <div class="field"><label for="origD">Detalhe da retirada</label><input type="text" id="origD" list="dl-origD" autocomplete="off" placeholder="Setor ou detalhe (ex.: estoque seco)"><datalist id="dl-origD"></datalist></div>
+      <div class="field"><label for="origD">Observação da retirada</label><input type="text" id="origD" list="dl-origD" autocomplete="off" placeholder="Observação: andar, sala… (ex.: estoque seco)"><datalist id="dl-origD"></datalist></div>
       <div class="field"><label class="req" for="dest-q">Entregar em</label>${pickerHTML("dest",FD.destinoId,"Entregar em")}</div>
-      <div class="field"><label for="destD">Detalhe da entrega</label><input type="text" id="destD" list="dl-destD" autocomplete="off" placeholder="Setor ou detalhe (ex.: Cozinha 2º Andar)"><datalist id="dl-destD"></datalist></div>
+      <div class="field"><label for="destD">Observação da entrega</label><input type="text" id="destD" list="dl-destD" autocomplete="off" placeholder="Observação: andar, sala… (ex.: 3º andar)"><datalist id="dl-destD"></datalist></div>
     </div></section>
     <section class="fs"><h2>Itens</h2><div class="items" id="items"></div><div style="margin-top:10px"><button type="button" class="btn sm" id="addIt">Adicionar item</button></div></section>
     <section class="fs"><h2>Quando</h2><div class="fg">
@@ -1805,7 +1828,7 @@ function renderMChamado(){
     <section class="fs"><h2>Onde</h2><div class="fg">
       <div class="field"><label class="req" for="mLoc-q">Local</label>${pickerHTML("mLoc",MF.localId,"Local")}</div>
       <div class="field"><label for="mSet">Setor</label><select id="mSet">${optsSetores(MF.setorId,"Selecione…")}</select></div>
-      <div class="field"><label for="mDet">Onde exatamente</label><input type="text" id="mDet" placeholder="Ex.: banheiro masculino do 2º andar"></div>
+      <div class="field"><label for="mDet">Observação do local</label><input type="text" id="mDet" list="dlObsC" placeholder="Ex.: 3º andar, banheiro masculino"><datalist id="dlObsC">${subsetoresOpts()}</datalist></div>
       <div class="field"><label for="mEq">Equipamento</label><select id="mEq">${optsEquip(MF.localId,MF.equipamentoId)}</select></div>
     </div></section>
     <section class="fs"><h2>Contato</h2><div class="fg">
@@ -1861,7 +1884,7 @@ function renderMNova(){
     <details class="fs" id="mMais"${abrir?" open":""}><summary>Mais detalhes <small>setor, quem pediu, programação, prazo</small></summary><div class="fg">
       <div class="field"><label for="mTipo">Tipo</label><select id="mTipo">${optsS([["corretiva","Corretiva"],["preventiva","Preventiva"]],MF.tipo)}</select></div>
       <div class="field"><label for="mSet">Setor</label><select id="mSet">${optsSetores(MF.setorId||"","Selecione…")}</select>${qaHTML("setor","mSetQ")}</div>
-      <div class="field"><label for="mDet">Onde exatamente</label><input type="text" id="mDet" value="${esc(MF.localDetalhe||"")}" placeholder="Ex.: banheiro masculino do 2º andar"></div>
+      <div class="field"><label for="mDet">Observação do local</label><input type="text" id="mDet" list="dlObsN" value="${esc(MF.localDetalhe||"")}" placeholder="Ex.: 3º andar, mesa de Omaha 5"><datalist id="dlObsN">${subsetoresOpts()}</datalist></div>
       <div class="field"><label for="mSol">Quem pediu</label><input type="text" id="mSol" list="dlSolicM" autocomplete="off" value="${esc(MF.solicitante||"")}" placeholder="Opcional"><datalist id="dlSolicM">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}"></option>`).join("")}</datalist></div>
       <div class="field"><label for="mTel">WhatsApp de quem pediu</label><input type="tel" id="mTel" inputmode="tel" value="${esc(MF.solicitanteTelefone||"")}" placeholder="Opcional · recebe o aviso de conclusão"></div>
       ${execHTML(MF)}
@@ -2855,7 +2878,7 @@ const PASSOS_LOG=[
       bindQA(app,{wzEqQ:row=>{if(!d.equipeIds.includes(row.id))d.equipeIds.push(row.id);wzRender()},wzVeQ:row=>{d.veiculoId=row.id;d.veicOk=true;wzRender()}})},valid:()=>null},
 ];
 function paradasWz(arr,k,nome){return arr.map((p,i)=>`<div class="wz-par"><span class="lbl">${nome}${arr.length>1?" "+(i+1):""}</span>${pickerHTML("wz"+k+i,p.localId,nome+" "+(i+1))}
-  <input type="text" class="wz-in" id="wz${k}d${i}" list="dlwz${k}${i}" placeholder="Setor ou detalhe (opcional)" value="${esc(p.detalhe||"")}" style="margin-top:8px"><datalist id="dlwz${k}${i}">${subsetoresOpts(p.localId)}</datalist>
+  <input type="text" class="wz-in" id="wz${k}d${i}" list="dlwz${k}${i}" placeholder="Observação (opcional): andar, sala, doca…" value="${esc(p.detalhe||"")}" style="margin-top:8px"><datalist id="dlwz${k}${i}">${subsetoresOpts(p.localId)}</datalist>
   ${arr.length>1?`<button type="button" class="ms-link" data-wprm="${k}${i}">Remover</button>`:""}</div>`).join("")+`<button type="button" class="btn" id="wpAdd${k}">+ ${k==="r"?"Outra retirada":"Outra entrega"}</button>`}
 function bindParadasWz(arr,k){arr.forEach((_,i)=>bindPicker("wz"+k+i,id=>{arr[i].localId=id;const dl=$("#dlwz"+k+i);if(dl)dl.innerHTML=subsetoresOpts(id)}));
   $("#wpAdd"+k).onclick=()=>{lerParadasWz(arr,k);arr.push({localId:"",detalhe:""});wzRender();const q=$("#wz"+k+(arr.length-1)+"-q");if(q)q.focus()};
@@ -2872,7 +2895,7 @@ const PASSOS_MAN=[
     bind:d=>$$("[data-ct2]").forEach(b=>b.onclick=()=>{d.categoria=b.dataset.ct2;d.catOk=true;wzIr(1)}),valid:d=>d.catOk||d.categoria?null:"Escolha uma opção."},
   {q:"Onde?",html:d=>`<div class="fg1"><div class="field"><label for="wzL-q">Local</label>${pickerHTML("wzL",d.localId,"Local")}</div>
       <div class="field"><label for="wzEq">Equipamento <i class="opc">opcional</i></label><select id="wzEq" class="wz-in">${optsEquip(d.localId,d.equipamentoId)}</select></div>
-      <div class="field"><label for="wzDet">Onde exatamente <i class="opc">opcional</i></label><input type="text" id="wzDet" class="wz-in" value="${esc(d.localDetalhe)}" placeholder="Ex.: banheiro masculino do 2º andar"></div>
+      <div class="field"><label for="wzDet">Observação do local <i class="opc">opcional</i></label><input type="text" id="wzDet" class="wz-in" list="dlObsW" value="${esc(d.localDetalhe)}" placeholder="Ex.: 3º andar, mesa de Omaha 5"><datalist id="dlObsW">${subsetoresOpts()}</datalist></div>
       <div class="field"><label for="wzSetM">Setor <i class="opc">opcional</i></label><select id="wzSetM" class="wz-in">${optsSetores(d.setorId,"Selecione…")}</select>${qaHTML("setor","wzSetMQ",d.localId?{localId:d.localId}:null)}</div></div>`,
     bind:d=>{bindPicker("wzL",id=>{d.localId=id;$("#wzEq").innerHTML=optsEquip(id,"");const qb=$('[data-qactx="wzSetMQ"]');const l=byId(S.locais,id);if(qb)qb.dataset.qax=JSON.stringify(l&&l.tipo!=="Fornecedor"?{localId:id}:{})});$("#wzEq").onchange=e=>{const q=byId(S.equipamentos,e.target.value);if(q){if(q.setorId&&!$("#wzSetM").value)$("#wzSetM").value=q.setorId;if(q.categoria&&!d.categoria)d.categoria=q.categoria}};
       bindQA(app,{wzSetMQ:row=>{PASSOS_MAN[2].read(d);d.setorId=row.id;wzRender()}})},
@@ -2971,7 +2994,7 @@ async function wzCriar(){
    ===================================================================== */
 const QA_CB={};
 const QA_DEF={
-  setor:{t:"setores",lbl:"setor",campos:c=>[["nome","Nome do setor","text","Ex.: Cozinha 2º Andar"],["localId","Unidade","unid"]],valid:d=>!d.nome?"Informe o nome do setor.":!d.localId?"Escolha a unidade.":null,
+  setor:{t:"setores",lbl:"setor",campos:c=>[["nome","Nome do setor","text","Ex.: Jogo, Bar, Cozinha (sem o andar)"],["localId","Unidade","unid"]],valid:d=>!d.nome?"Informe o nome do setor.":/\d\s*º?\s*andar|t[ée]rreo|\bvip\b/i.test(d.nome)?"Escreva só o setor, sem o andar. O andar vai na observação da OS.":!d.localId?"Escolha a unidade.":null,
     dup:d=>S.setores.find(x=>normNome(x.nome)===normNome(d.nome)&&(x.localId||"")===(d.localId||"")),nome:x=>nomeSetor(x.id)},
   equipe:{t:"equipe",lbl:"pessoa na equipe",campos:c=>[["nome","Nome","text","Ex.: João Silva"],["funcao","Função","sel",FUNCOES],["telefone","Telefone","tel","Opcional"]],valid:d=>d.nome?null:"Informe o nome.",
     dup:d=>S.equipe.find(x=>normNome(x.nome)===normNome(d.nome)),nome:x=>x.nome},
