@@ -372,3 +372,10 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 - Rode `supabase/15_locais_somente_oficiais.sql` **depois do 14**. Ele junta "Residência 1/2/3… da chefia" em **Casas do Chefe**, as de funcionário em **Casas de Funcionários**, "Estoque Central M.C." no **Monte Carlo** (setor Estoque) e desativa qualquer outro local que não seja oficial nem fornecedor.
 - Os endereços das casas ficam todos juntos no endereço do local.
 - Em Cadastros → Setores, a lista agora vem separada por local.
+
+## Atualização 20 · Celular
+- Campos com letra de 16px no celular: o iPhone não dá mais zoom sozinho ao tocar num campo.
+- Telas mais compactas no celular (títulos, cartões, indicadores e listas).
+- O número da versão aparece também na tela de login.
+- `vercel.json` faz o navegador sempre buscar a versão nova; os arquivos são carregados com `?v=20`.
+- No site publicado, se a configuração não carregar, aparece "Não foi possível conectar" em vez do modo demonstração.

@@ -89,14 +89,17 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-console.info("Facilities MC · versão 19");
+const VERSAO=20;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
 
 async function boot(){
   try{ const ls=localStorage.getItem("mc-log-f"); if(ls) Object.assign(S.f,JSON.parse(ls)); }catch(e){}
-  if(!CFG.supabaseUrl||!CFG.supabaseAnonKey||!window.supabase){ S.demo=true; S.role="log"; loadDemo(); buildNav(); route(); return; }
+  if(!CFG.supabaseUrl||!CFG.supabaseAnonKey||!window.supabase){
+    const publicado=/^https?:$/.test(location.protocol)&&!/^(localhost|127\.|192\.168\.)/.test(location.hostname)&&!/[?&]demo\b/.test(location.search);
+    if(publicado){ const app=$("#app"); app.innerHTML=`<div class="empty"><h3>Não foi possível conectar ao sistema</h3><p>${!window.supabase?"A biblioteca de login não carregou. Verifique a internet":"O arquivo de configuração não carregou"} e toque em recarregar.</p><p><button class="btn pri" type="button" onclick="location.reload()">Recarregar</button></p><p style="color:var(--faint);font-size:12px">Versão ${VERSAO}</p></div>`; return; }
+    S.demo=true; S.role="log"; loadDemo(); buildNav(); route(); return; }
   sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey);
   sb.auth.onAuthStateChange((ev)=>{
     if(ev==="PASSWORD_RECOVERY"){ S.recovery=true; renderAuth("nova-senha"); }
@@ -164,7 +167,7 @@ async function resolveNames(){ /* nomes vêm da tabela de perfis */ }
 function renderAuth(mode){
   document.body.classList.add("auth"); S.role=null;
   const err=`<p class="err" id="aErr" role="alert"></p>`;
-  const card=(t,p,body)=>`<div class="auth-wrap"><section class="auth-card"><h1>${t}</h1>${p?`<p class="auth-p">${p}</p>`:""}${body}</section></div>`;
+  const card=(t,p,body)=>`<div class="auth-wrap"><section class="auth-card"><h1>${t}</h1>${p?`<p class="auth-p">${p}</p>`:""}${body}<p class="auth-v">Versão ${VERSAO}</p></section></div>`;
   let h="";
   if(mode==="entrar") h=card("Entrar","Ordens de serviço de logística e manutenção do Grupo.",`<form id="aF" class="auth-f" novalidate>
       <div class="field"><label for="aEm">Usuário ou e-mail</label><input type="text" id="aEm" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required></div>
@@ -1378,7 +1381,7 @@ function renderCadastros(){
     .filter(([k])=>!((k==="veiculos"||k==="rotas")&&S.role==="log"&&!isLog())&&!(k==="prestadores"&&S.role==="log"&&!isMan())&&!(k==="usuarios"&&S.role==="log"&&!isAdmin()));
   if(!tabs.some(t=>t[0]===S.cadTab)) S.cadTab="locais";
   const tab=S.cadTab;
-  let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome. <span class="versao">Versão 19</span></p></div></div>${banner()}
+  let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome. <span class="versao">Versão ${VERSAO}</span></p></div></div>${banner()}
   <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k==="rotas"?`<span class="c num">${S.recorrencias.filter(x=>x.ativo!==false).length}</span>`:k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
   if(tab==="usuarios"){ app.innerHTML=h+renderUsuarios(); bindCad(); bindUsuarios(); return; }
   if(tab==="rotas"){ app.innerHTML=h+renderRotasFixas(); bindCad(); bindRotasFixas(); return; }
