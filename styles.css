@@ -847,3 +847,18 @@ a.btn{text-decoration:none}a.btn:not(.pri):not(.danger){color:var(--ink)}
 .fr-grid{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
 .fr-p small{letter-spacing:.02em;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:760px){.fr-grid{grid-template-columns:1fr}}
+
+/* ---------- Lavagem (versão 22) ---------- */
+.fr-st{grid-template-columns:repeat(2,minmax(0,1fr))}
+.fr-sits{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+@media (max-width:1100px){.fr-sits{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}}
+.fr-sit p small{color:var(--faint)}
+.fr-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fr-opt{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;min-height:72px;padding:10px 12px;border:2px solid var(--line-strong);border-radius:12px;background:var(--card);color:var(--ink);cursor:pointer;font:inherit}
+.fr-opt b{font-size:15px}.fr-opt small{font-size:12px;color:var(--mute);line-height:1.3}
+.fr-opt.on{border-color:var(--accent);background:var(--accent);color:var(--on-accent)}.fr-opt.on small{color:var(--on-accent);opacity:.85}
+.fr-lvg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fr-cbt{display:flex;gap:8px;margin-top:4px}.fr-cbt .btn{flex:1;justify-content:center}
+.fr-hist .photos{margin-top:6px;grid-template-columns:repeat(auto-fill,56px);gap:6px}
+@media (max-width:760px){.fr-sits{grid-template-columns:repeat(2,minmax(0,1fr))}.fr-ft .actions .btn{padding:5px 9px}}
+@media (max-width:380px){.fr-opts,.fr-lvg{grid-template-columns:1fr}}

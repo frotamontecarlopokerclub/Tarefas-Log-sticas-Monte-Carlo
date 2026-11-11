@@ -388,3 +388,10 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 - O km do veículo se atualiza pela conferência, pelos serviços lançados e pelo km final das rotas.
 - A equipe de campo vê no topo de "Minhas missões" os veículos que precisam de conferência.
 - O Painel da logística mostra o quadro "Frota · atenção" com o que está vencido ou perto de vencer.
+
+## Atualização 22 · Lavagem e higienização
+- Rode `supabase/18_lavagem.sql` (depois do 17).
+- Cada veículo tem o prazo de lavagem (padrão 7 dias) e de higienização interna (padrão 30 dias), em Frota → Editar cadastro.
+- Lançamento em Frota → "Registrar lavagem" (ou pelo botão "Lavagem" de cada veículo): lavagem externa, lavagem completa (vale como lavagem e higienização), higienização interna ou com ozônio/ar; data, valor, local, km e foto opcionais.
+- A equipe de campo vê no celular os veículos com lavagem pendente e pode registrar.
+- O painel e a frota mostram a limpeza atrasada, vencendo ou sem registro; o valor entra no total de serviços do veículo.
