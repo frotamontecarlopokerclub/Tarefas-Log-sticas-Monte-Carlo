@@ -379,3 +379,12 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 - O número da versão aparece também na tela de login.
 - `vercel.json` faz o navegador sempre buscar a versão nova; os arquivos são carregados com `?v=20`.
 - No site publicado, se a configuração não carregar, aparece "Não foi possível conectar" em vez do modo demonstração.
+
+## Atualização 21 · Frota
+- Rode `supabase/17_frota.sql` (depois do 16).
+- Novo menu **Frota** na logística: situação de cada veículo, alertas de conferência, troca de óleo e revisão.
+- Cadastro completo do veículo: marca, modelo, cor, ano, combustível, RENAVAM, chassi, uso (logística, traslado, escolta, particular do chefe), km inicial, intervalos de óleo e revisão (km e, se quiser, meses) e documento em PDF ou foto (arquivo privado).
+- Conferência semanal (prazo ajustável na tela Frota): óleo, água, vidros, travas, fechaduras, estepe, pneus e km. Item ruim abre na hora uma OS de manutenção (categoria Veículos, prioridade alta).
+- O km do veículo se atualiza pela conferência, pelos serviços lançados e pelo km final das rotas.
+- A equipe de campo vê no topo de "Minhas missões" os veículos que precisam de conferência.
+- O Painel da logística mostra o quadro "Frota · atenção" com o que está vencido ou perto de vencer.

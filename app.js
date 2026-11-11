@@ -11,7 +11,7 @@ const LOCAL_TIPOS=["Clube","Restaurante","Centro de distribuição","Escritório
 const FUNCOES=["Motorista","Ajudante","Coordenador","Operador","Eletricista","Encanador","Técnico de refrigeração","Técnico de ar-condicionado","Pedreiro","Pintor","Marceneiro","Serralheiro","Manutenção geral","Supervisor de manutenção"];
 const ST={registrada:"Registrada",agendada:"Agendada",em_rota:"Em rota",concluida:"Concluída",cancelada:"Cancelada"};
 const ABERTOS=["registrada","agendada","em_rota"];
-const MCATS=["Elétrica","Hidráulica","Ar-condicionado","Refrigeração","Cozinha industrial","Civil / alvenaria","Pintura","Marcenaria","Serralheria","Gerador / energia","Incêndio / segurança","Elevador","TI / telefonia","Jardinagem","Limpeza técnica","Outros"];
+const MCATS=["Elétrica","Hidráulica","Ar-condicionado","Refrigeração","Cozinha industrial","Civil / alvenaria","Pintura","Marcenaria","Serralheria","Gerador / energia","Incêndio / segurança","Elevador","TI / telefonia","Jardinagem","Limpeza técnica","Veículos","Outros"];
 const MPRIOS=[["urgente","Urgente"],["alta","Alta"],["normal","Normal"],["baixa","Baixa"]];
 const MPRIO_SOL=[["normal","Normal · pode ser nos próximos dias"],["alta","Alta · está atrapalhando o trabalho"],["urgente","Urgente · risco, vazamento ou parou a operação"],["baixa","Baixa · pode esperar"]];
 const MST={aberto:"Chamado aberto",agendada:"Programada",em_execucao:"Em execução",aguardando:"Aguardando",concluida:"Concluída",cancelada:"Cancelada"};
@@ -23,7 +23,7 @@ const ESPERAS=["Peça ou material","Orçamento","Prestador","Liberação do seto
 const AREAS=[["logistica","Logística"],["manutencao","Manutenção"],["ambas","Logística e manutenção"]];
 
 /* ---------- Estado ---------- */
-const S={areaAcesso:"ambas",gm:null,gRes:false,os:[],locais:[],setores:[],equipe:[],veiculos:[],config:{toleranciaMin:15},
+const S={areaAcesso:"ambas",veiculo_conferencias:[],veiculo_servicos:[],frotaDias:7,vServ:null,cf:null,gm:null,gRes:false,os:[],locais:[],setores:[],equipe:[],veiculos:[],config:{toleranciaMin:15},
   uid:null,role:null,meName:"",demo:false,loaded:{os:false},names:{},pedidos:[],meus:[],relatorios:[],perfis:[],recovery:false,authMsg:"",meuSetor:null,
   fromPedido:null,recusando:null,pTab:"aguardando",rm:null,copyOpen:false,recorrencias:[],solicitantes:[],meuTelefone:"",dupFrom:null,editRec:null,novaRec:false,recDel:null,
   route:"painel",openId:null,action:null,editId:null,routeArg:null,
@@ -89,7 +89,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=20;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=21;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -123,7 +123,7 @@ async function startSession(session){
   if(areaFixa()) S.area=areaFixa();
   document.body.classList.remove("auth"); document.body.classList.toggle("campo",S.role==="campo");
   buildNav(); if(!location.hash||location.hash.length<2) location.replace("#"+navCfg().home); route();
-  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes","manutencoes","equipamentos","prestadores","planos"].map(carregar));
+  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes","manutencoes","equipamentos","prestadores","planos","veiculo_conferencias","veiculo_servicos"].map(carregar));
   buildNav(); render();
   if(isLog()) gerarRecorrentes(); if(isMan()) gerarPreventivas();
   assinarTempoReal();
@@ -133,9 +133,11 @@ async function carregar(t){
   if(t==="os") q=q.order("criado_em",{ascending:false}).limit(3000);
   if(t==="pedidos") q=q.order("criado_em",{ascending:false}).limit(1000);
   if(t==="manutencoes") q=q.order("criado_em",{ascending:false}).limit(3000);
+  if(t==="veiculo_conferencias") q=q.order("feito_em",{ascending:false}).limit(3000);
   const {data,error}=await q;
   if(error){ console.warn(t,error); if(error.code==="42P01"||error.code==="PGRST205"||/does not exist|schema cache|Could not find the table/i.test(error.message||"")) S.missing[t]=true; return; }
   S.missing[t]=false;
+  if(t==="config"&&data[0]&&data[0].frota_conferencia_dias) S.frotaDias=data[0].frota_conferencia_dias;
   if(t==="config"){ const c=data[0]; if(c) S.config={toleranciaMin:c.tolerancia_min,checklist:Array.isArray(c.checklist)?c.checklist:null,whatsappAuto:c.whatsapp_auto===true,slaMan:c.sla_manutencao&&typeof c.sla_manutencao==="object"?c.sla_manutencao:null,custoKmPadrao:c.custo_km_padrao!=null?Number(c.custo_km_padrao):0,custoHoraPadrao:c.custo_hora_padrao!=null?Number(c.custo_hora_padrao):0}; return; }
   if(t==="perfis"){ S.perfis=data.map(fromDb); S.perfis.forEach(p=>S.names[p.id]=p.nome||p.email||""); return; }
   if(t==="pedidos"){ const l=data.map(r=>{const p=fromDb(r);p.pid=p.id;p.uid=p.solicitanteId;return p});
@@ -297,7 +299,7 @@ function isMan(){return S.role==="log"&&S.areaAcesso!=="logistica"}
 function isAdmin(){return S.role==="log"&&S.areaAcesso==="ambas"}
 function areaFixa(){return S.role!=="log"?null:S.areaAcesso==="logistica"?"log":S.areaAcesso==="manutencao"?"man":null}
 const LABELS={painel:"Painel",ordens:"Ordens",pedidos:"Pedidos",agenda:"Agenda",relatorio:"Relatório",cadastros:"Cadastros",nova:"Nova OS",solicitar:"Novo pedido",meus:"Meus pedidos",
-  gestao:"Gestão",missoes:"Minhas missões",missao:"Missão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento"};
+  gestao:"Gestão",missoes:"Minhas missões",missao:"Missão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Frota",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo"};
 const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   agenda:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',pedidos:'<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
   relatorio:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 17v-4M12 17V8M16 17v-6"/>',cadastros:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
@@ -305,7 +307,7 @@ const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect 
   wrench:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
   prev:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>',
   equip:'<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M19 9h3M19 15h3M2 9h3M2 15h3"/>'};
-ICO.gestao='<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/><path d="M15 8h4v4"/>';
+ICO.frota='<path d="M3 13l2-6h14l2 6v5h-2.5M3 13v5h2.5M3 13h18"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/><path d="M9.5 17.5h5"/>';ICO.gestao='<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/><path d="M15 8h4v4"/>';
 Object.assign(ICO,{"m-painel":ICO.painel,"m-ordens":ICO.wrench,"m-prev":ICO.prev,"m-equip":ICO.equip,"m-meus":ICO.meus,"m-eq":ICO.equip});
 const svgI=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[k]}</svg>`;
 function navCfg(){
@@ -315,9 +317,9 @@ function navCfg(){
     if(S.role==="sol")return {top:["m-meus","m-equip"],cta:"m-chamado",mob:["m-meus","m-chamado","m-equip"],more:[],home:"m-meus"};
     return {top:["gestao","m-painel","m-ordens","m-prev","m-equip"],cta:null,mob:["gestao","m-painel","m-ordens","m-equip"],more:["m-prev"],home:"gestao"};
   }
-  if(S.role==="log")return {top:["painel","ordens","pedidos","agenda","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),cta:"nova",mob:["painel","ordens","nova","agenda"],more:["pedidos","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),home:"painel"};
+  if(S.role==="log")return {top:["painel","ordens","pedidos","agenda","frota","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),cta:"nova",mob:["painel","ordens","nova","agenda"],more:["frota","pedidos","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),home:"painel"};
   if(S.role==="sol")return {top:["meus","ordens","agenda","painel","relatorio"],cta:"solicitar",mob:["meus","ordens","solicitar","painel"],more:["agenda","relatorio"],home:"meus"};
-  return {top:["gestao","painel","ordens","agenda","relatorio"],cta:null,mob:["gestao","painel","ordens","agenda"],more:["relatorio"],home:"gestao"};
+  return {top:["gestao","painel","ordens","agenda","frota","relatorio"],cta:null,mob:["gestao","painel","ordens","agenda"],more:["frota","relatorio"],home:"gestao"};
 }
 const pendentes=()=>S.pedidos.filter(x=>x.status==="aguardando").length;
 const chamadosNovos=()=>isMan()?S.manutencoes.filter(m=>m.status==="aberto").length:0;
@@ -342,7 +344,7 @@ function markNav(){const c=navCfg();$$("[data-r]").forEach(a=>a.setAttribute("ar
 
 
 /* ---------- Roteamento ---------- */
-const ROTAS_LOG=["painel","ordens","pedidos","agenda","relatorio","nova","solicitar","meus"];
+const ROTAS_LOG=["painel","ordens","pedidos","agenda","relatorio","nova","solicitar","meus","frota","veiculo","veiculo-editar"];
 function route(){
   const hh=(location.hash||"").slice(1);const [h0,arg]=hh.split("/");let h=h0||"";
   if(document.body.classList.contains("auth")) return;
@@ -351,14 +353,14 @@ function route(){
   let bloq=false;if(areaFixa()&&novaArea&&novaArea!==areaFixa()){novaArea=null;h="";bloq=true}
   if(novaArea&&novaArea!==S.area){S.area=novaArea;try{localStorage.setItem("mc-area",S.area)}catch(e){}buildNav()}
   if(h==="m-chamado"&&isMan())h="m-nova";
-  const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],S.role==="campo"?["missao"]:["m-eq"]);
+  const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],S.role==="campo"?["missao","conferir"]:["m-eq"].concat(S.role==="log"||S.role==="ver"?["veiculo"]:[],S.role==="log"?["veiculo-editar","conferir"]:[]));
   S.route=ok.includes(h)?h:c.home; S.routeArg=ok.includes(h)?(arg||null):null;
   if(bloq){try{history.replaceState(null,"","#"+S.route)}catch(e){}}
   $("#sheetL").innerHTML="";
   markNav();
   render(true); window.scrollTo(0,0);
 }
-window.addEventListener("hashchange",()=>{ if(S.openId||S.mOpen)closeOS(); if(location.hash!=="#nova"){S.editId=null;S.fromPedido=null;S.dupFrom=null;S.editRec=null;S.novaRec=false} if(location.hash!=="#m-nova")S.mEditId=null; S.eqEdit=null;S.editEq=null;S.planEdit=null;S.planDel=null; route(); });
+window.addEventListener("hashchange",()=>{ if(S.openId||S.mOpen)closeOS(); if(location.hash!=="#nova"){S.editId=null;S.fromPedido=null;S.dupFrom=null;S.editRec=null;S.novaRec=false} if(location.hash!=="#m-nova")S.mEditId=null; S.eqEdit=null;S.editEq=null;S.planEdit=null;S.planDel=null;S.vServ=null;if(!location.hash.startsWith("#conferir"))S.cf=null; route(); });
 
 /* ---------- Render principal ---------- */
 let formMounted=false;
@@ -370,12 +372,13 @@ function render(force){
   if(S.route==="nova"||S.route==="solicitar"){ if(force||!formMounted){ S.route==="nova"?(wizardLog()?renderWizard("log"):renderForm()):renderSolicitar(); formMounted=true; } else (S.route==="nova"?refreshFormOptions:refreshPedOptions)(); }
   else if(S.route==="m-nova"||S.route==="m-chamado"){ if(force||!formMounted){ S.route==="m-nova"?(wizardMan()?renderWizard("man"):renderMNova()):renderMChamado(); formMounted=true; } else refreshPickers(); }
   else if(S.route==="missao"){ if(force||!formMounted){ renderMissao(); formMounted=true; } }
+  else if(S.route==="conferir"||S.route==="veiculo-editar"){ if(force||!formMounted){ (S.route==="conferir"?renderConferir:renderVeiculoEditar)(); formMounted=true; } }
   else { formMounted=false;
     const fn={painel:renderPainel,ordens:renderOrdens,agenda:renderAgenda,cadastros:renderCadastros,pedidos:renderPedidos,meus:renderMeus,relatorio:renderRelatorio,
-      gestao:renderGestao,missoes:renderMissoes,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus}[S.route]||renderPainel;
+      gestao:renderGestao,missoes:renderMissoes,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo}[S.route]||renderPainel;
     // preserva foco em campos de busca
     const ae=document.activeElement, aid=ae&&ae.id, pos=ae&&ae.selectionStart;
-    if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq))) { /* não redesenha durante edição */ }
+    if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq)||(S.route==="veiculo"&&S.vServ))) { /* não redesenha durante edição */ }
     else fn();
     if(aid){const el=document.getElementById(aid); if(el&&el!==ae){el.focus(); try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(e){}}}
   }
@@ -431,7 +434,7 @@ function renderPainel(){
   const canc=list.filter(o=>o.status==="cancelada").length;
 
   let h=`<div class="head"><div><h1>Painel da <em>logística</em></h1><p>Demanda, prazos e tempos de atendimento das movimentações entre as unidades do Grupo.</p></div>
-  <div class="act"><button class="btn" id="exp" type="button">Exportar CSV</button></div></div>${banner()}
+  <div class="act"><button class="btn" id="exp" type="button">Exportar CSV</button></div></div>${banner()}${frotaPainelHTML()}
   <div class="filters">
     <div class="field"><label for="fPer">Período</label><select id="fPer">${optsS(perOpts,S.f.periodo)}</select></div>
     <div class="field"><label for="fSet">Setor solicitante</label><select id="fSet">${optsSetores(S.f.setor,"Todos os setores")}</select></div>
@@ -1373,7 +1376,7 @@ const CAD={
     f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["area","Área","select",AREAS],["telefone","Telefone","tel"],["custoHora","Custo por hora (R$)","money"]],m:x=>[[x.funcao,(AREAS.find(a=>a[0]===(x.area||"logistica"))||[,""])[1]].filter(Boolean).join(" · "),[x.telefone,nOuNull(x.custoHora)!=null?fBRL(x.custoHora)+"/h":"Custo/h: padrão"].filter(Boolean).join(" · ")]},
   prestadores:{t:"Prestadores",col:"prestadores",desc:"Empresas e profissionais terceirizados da manutenção. O painel soma OS e custos por prestador.",
     f:[["nome","Nome","text"],["especialidade","Especialidade","select",MCATS],["telefone","Telefone","tel"],["contato","Contato","text"],["documento","CNPJ / CPF","text"]],m:x=>[[x.especialidade,x.telefone].filter(Boolean).join(" · "),x.contato||x.documento]},
-  veiculos:{t:"Veículos",col:"veiculos",desc:"Frota usada nas movimentações. O painel soma horas em rota e km rodados.",
+  veiculos:{t:"Veículos",col:"veiculos",desc:"Frota usada nas movimentações. Toque em Editar para o cadastro completo, ou veja tudo em Frota.",
     f:[["nome","Modelo / apelido","text"],["placa","Placa","text"],["tipo","Tipo","select",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"]],["capacidade","Capacidade","text"],["custoKm","Custo por km (R$)","money"]],m:x=>{const u=ultimoKm(x.id);return [[x.placa,x.tipo,nOuNull(x.custoKm)!=null?fBRL(x.custoKm)+"/km":"Custo/km: padrão"].filter(Boolean).join(" · "),u?"Odômetro: "+fKm(u.km)+" · "+fData(u.em):"Odômetro: sem registro"]}}
 };
 function renderCadastros(){
@@ -1456,8 +1459,8 @@ function bindCad(){
     try{ if(!S.demo){const {error}=await sb.from("config").update({custo_km_padrao:km,custo_hora_padrao:hr}).eq("id",1);if(error)throw error;} S.config.custoKmPadrao=km;S.config.custoHoraPadrao=hr;toast("Custos padrão salvos"); }catch(e){toast("Não foi possível salvar. Rode o script 10 no Supabase.")}};
   const so=$("#slaOk");if(so)so.onclick=async()=>{const v={};MPRIOS.forEach(([k])=>v[k]=Math.max(1,Math.round(Number($("#sla-"+k).value)||SLA_PADRAO[k])));
     try{ if(!S.demo){const {error}=await sb.from("config").update({sla_manutencao:v}).eq("id",1);if(error)throw error;} S.config.slaMan=v; toast("Prazos salvos"); }catch(e){toast("Não foi possível salvar. Rode o script 08 no Supabase.")}};
-  const nb=$("[data-new]");if(nb)nb.onclick=()=>{S.cadEdit="__new";renderCadastros();const f=$("#ce-nome");if(f)f.focus()};
-  $$("[data-ed]").forEach(b=>b.onclick=()=>{S.cadEdit=b.dataset.ed;renderCadastros()});
+  const nb=$("[data-new]");if(nb)nb.onclick=()=>{if(S.cadTab==="veiculos"){location.hash="#veiculo-editar/novo";return}S.cadEdit="__new";renderCadastros();const f=$("#ce-nome");if(f)f.focus()};
+  $$("[data-ed]").forEach(b=>b.onclick=()=>{if(S.cadTab==="veiculos"){location.hash="#veiculo-editar/"+b.dataset.ed;return}S.cadEdit=b.dataset.ed;renderCadastros()});
   $$("[data-cx]").forEach(b=>b.onclick=()=>{S.cadEdit=null;renderCadastros()});
   $$("[data-tg]").forEach(b=>b.onclick=async()=>{const x=byId(S[S.cadTab],b.dataset.tg);const on=x.ativo===false;
     try{ if(S.demo){x.ativo=on;renderCadastros()} else { const {error}=await sb.from(CAD[S.cadTab].col).update({ativo:on}).eq("id",x.id); if(error)throw error; await carregar(CAD[S.cadTab].col); renderCadastros(); } }catch(e){toast("Não foi possível alterar.")}});
@@ -2677,9 +2680,11 @@ function renderMissoes(){
   const L=minhasMissoes();const agora=L.filter(x=>x.ativo),hoje=L.filter(x=>!x.ativo&&x.quando&&dayKey(x.quando)<=dayKey(new Date())),dep=L.filter(x=>!x.ativo&&(!x.quando||dayKey(x.quando)>dayKey(new Date())));
   const F=feitasHoje();
   if(!L.length) h+=`<div class="ms-empty">${ic("ok","ic xl")}<h2>Nenhuma missão para você agora</h2><p>Quando a coordenação escalar você, a missão aparece aqui na hora.</p></div>`;
+  h+=frotaCampoHTML(true);
   if(agora.length) h+=`<h2 class="ms-sec">Em andamento</h2>${agora.map(msCard).join("")}`;
   if(hoje.length) h+=`<h2 class="ms-sec">Para hoje</h2>${hoje.map(msCard).join("")}`;
   if(dep.length) h+=`<h2 class="ms-sec">Próximos dias</h2>${dep.map(msCard).join("")}`;
+  h+=frotaCampoHTML(false);
   if(F.length) h+=`<h2 class="ms-sec">Feitas hoje · ${F.length}</h2>${F.map(x=>`<div class="ms-done">${ic("ok","ic sm")}<span><b>${esc(x.k==="log"?codigo(x.o):codM(x.o))}</b> ${esc(tituloMs(x))}</span><span class="num">${fHora(x.o.concluidoEm)}</span></div>`).join("")}`;
   app.innerHTML=h+sairHTML();
   $$("[data-ms]").forEach(b=>b.onclick=()=>{location.hash="#missao/"+b.dataset.ms});bindSairMs();
@@ -3036,6 +3041,328 @@ function abrirQA(b){const kind=b.dataset.qa,ctx=b.dataset.qactx,D=QA_DEF[kind];c
     catch(x){console.error(x);btn.disabled=false;btn.textContent="Salvar e usar";er.textContent=/row-level|permission/i.test(x.message||"")?"Seu acesso não permite este cadastro.":"Não foi possível salvar."+(x&&x.message?" ("+x.message+")":"")}};
 }
 
+/* =====================================================================
+   FROTA · cadastro completo, conferência semanal, óleo e revisão por km
+   ===================================================================== */
+const COMBUSTIVEIS=["Flex (gasolina e álcool)","Gasolina comum","Gasolina aditivada","Gasolina Podium","Álcool (etanol)","Álcool aditivado","Diesel S500","Diesel S10","GNV","Elétrico","Híbrido","Híbrido plug-in"];
+const USOS_VEIC=["Logística","Traslado","Escolta","Particular do chefe"];
+const TIPOS_VEIC=["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"];
+const CONF_ITENS=[["oleo","Óleo do motor","nível e vazamento"],["agua","Água do radiador","nível do reservatório"],["vidros","Vidros","para-brisa, janelas e retrovisores"],
+  ["travas","Travas","travamento das portas"],["fechaduras","Fechaduras","portas, porta-malas e chave"],["estepe","Estepe","calibrado, com macaco e chave de roda"],["pneus","Pneus","calibragem e desgaste"]];
+const DIA_MS=86400000;
+const confDias=()=>Math.max(1,Number(S.frotaDias)||7);
+const inicioDia=d=>{d=new Date(d);d.setHours(0,0,0,0);return d.getTime()};
+const plural=(n,s,p)=>n+" "+(n===1?s:(p||s+"s"));
+const veicAtivos=()=>S.veiculos.filter(v=>v.ativo!==false);
+const nomeV=v=>v?v.nome+(v.placa?" · "+v.placa:""):"Veículo";
+const confsDe=id=>(S.veiculo_conferencias||[]).filter(c=>c.veiculoId===id).sort((a,b)=>T(b.feitoEm)-T(a.feitoEm));
+const servsDe=id=>(S.veiculo_servicos||[]).filter(c=>c.veiculoId===id).sort((a,b)=>String(b.feitoEm||"").localeCompare(String(a.feitoEm||""))||T(b.criadoEm)-T(a.criadoEm));
+const frotaSemScript=()=>!S.demo&&(S.missing.veiculo_conferencias||S.missing.veiculo_servicos);
+const SERV_LBL={oleo:"Troca de óleo",revisao:"Revisão",outro:"Outro serviço"};
+
+function kmVeic(v){
+  const c=[nOuNull(v.kmAtual),nOuNull(v.kmInicial)];
+  const u=typeof ultimoKm==="function"?ultimoKm(v.id):null;if(u)c.push(u.km);
+  confsDe(v.id).forEach(x=>c.push(nOuNull(x.km)));servsDe(v.id).forEach(x=>c.push(nOuNull(x.km)));
+  const k=c.filter(x=>x!=null);return k.length?Math.max(...k):null;
+}
+function prazoConf(v){
+  const c=confsDe(v.id)[0],n=confDias();
+  if(!c)return {st:"nunca",nivel:"alto",txt:"Nunca conferido",n};
+  const prox=T(c.feitoEm)+n*DIA_MS;const dias=Math.round((inicioDia(prox)-inicioDia(Date.now()))/DIA_MS);
+  const st=dias<0?"atras":dias===0?"hoje":dias===1?"perto":"ok";
+  const txt=st==="atras"?"Atrasada há "+plural(-dias,"dia"):st==="hoje"?"Vence hoje":st==="perto"?"Vence amanhã":"Em dia até "+fData(new Date(prox).toISOString()).slice(0,5);
+  return {st,nivel:st==="atras"?"alto":st==="ok"?"ok":"medio",txt,ult:c,prox,dias,n};
+}
+function prazoServ(v,tipo){
+  const p=tipo==="oleo"?"oleo":"revisao";
+  const iv=Number(v[p+"IntervaloKm"])||10000,meses=nOuNull(v[p+"Meses"]);
+  const ultKm=nOuNull(v[p+"UltimaKm"]),ultEm=v[p+"UltimaEm"]||null;
+  const base=ultKm!=null?ultKm:nOuNull(v.kmInicial),km=kmVeic(v);
+  const r={iv,meses,ultKm,ultEm,base,km,st:"sem",nivel:"sem",txt:ultKm==null&&base==null?"Informe o km da última "+(tipo==="oleo"?"troca":"revisão"):"Sem dados"};
+  if(base==null&&!(meses&&ultEm))return r;
+  const margem=Math.max(500,Math.round(iv*.1));let st="ok";
+  if(base!=null&&km!=null){r.prox=base+iv;r.falta=r.prox-km;if(r.falta<=0)st="venc";else if(r.falta<=margem)st="perto"}
+  if(meses&&ultEm){const d=new Date(String(ultEm).slice(0,10)+"T12:00:00");d.setMonth(d.getMonth()+meses);r.proxData=dayKey(d);
+    r.diasData=Math.round((inicioDia(d)-inicioDia(Date.now()))/DIA_MS);if(r.diasData<=0)st="venc";else if(r.diasData<=15&&st==="ok")st="perto"}
+  r.st=st;r.nivel=st==="venc"?"alto":st==="perto"?"medio":"ok";
+  if(st==="venc")r.txt=r.falta!=null&&r.falta<=0?"Vencida há "+fKm(-r.falta):"Venceu em "+fDia(r.proxData);
+  else if(r.falta!=null)r.txt="Faltam "+fKm(r.falta)+(r.diasData!=null&&r.diasData<=15?" ou "+plural(r.diasData,"dia"):"");
+  else r.txt="Vence em "+plural(r.diasData,"dia");
+  return r;
+}
+function alertasFrota(){
+  const out=[];
+  veicAtivos().forEach(v=>{const c=prazoConf(v),o=prazoServ(v,"oleo"),r=prazoServ(v,"revisao");
+    if(c.nivel!=="ok")out.push({v,k:"conf",nivel:c.nivel,lbl:"Conferência semanal",txt:c.txt});
+    if(o.nivel==="alto"||o.nivel==="medio")out.push({v,k:"oleo",nivel:o.nivel,lbl:"Troca de óleo",txt:o.txt});
+    if(r.nivel==="alto"||r.nivel==="medio")out.push({v,k:"rev",nivel:r.nivel,lbl:"Revisão",txt:r.txt});});
+  return out.sort((a,b)=>(a.nivel==="alto"?0:1)-(b.nivel==="alto"?0:1)||sortNome(a.v,b.v));
+}
+const gravV=v=>{const s=[prazoConf(v),prazoServ(v,"oleo"),prazoServ(v,"revisao")];return s.filter(x=>x.nivel==="alto").length*10+s.filter(x=>x.nivel==="medio").length};
+const pillF=(lbl,p)=>`<span class="fr-p ${p.nivel}"><small>${esc(lbl)}</small>${esc(p.txt)}</span>`;
+const avisoScript17=()=>frotaSemScript()&&isStaff()?`<div class="banner"><b>Falta rodar o script 17 no Supabase.</b> Sem ele, a conferência, a troca de óleo e a revisão não são salvas.</div>`:"";
+
+/* ---------- painel: alerta da frota ---------- */
+function frotaPainelHTML(){
+  if(!(isStaff()||S.role==="ver")||!veicAtivos().length||frotaSemScript())return "";
+  const A=alertasFrota();
+  if(!A.length)return `<a class="fr-ok" href="#frota">${ic("ok","ic sm")}<span><b>Frota em dia.</b> Conferências, óleo e revisões sem pendência.</span><span class="lnk">Ver frota</span></a>`;
+  const alto=A.filter(a=>a.nivel==="alto").length;
+  return `<section class="card fr-pn"><div class="card-h"><h2>Frota · atenção</h2><span class="sub">${plural(A.length,"pendência")}${alto?" · "+alto+" vencida"+(alto>1?"s":""):""}</span></div><div class="card-b">
+    <div class="fr-als">${A.slice(0,8).map(a=>`<a class="fr-al ${a.nivel}" href="#veiculo/${esc(a.v.id)}"><b>${esc(nomeV(a.v))}</b><span>${esc(a.lbl)} · ${esc(a.txt)}</span></a>`).join("")}</div>
+    <div class="actions" style="margin-top:10px"><a class="btn sm" href="#frota">Ver a frota${A.length>8?" ("+A.length+")":""}</a>${isStaff()||S.role==="campo"?`<a class="btn sm ghost" href="#conferir">Conferir um veículo</a>`:""}</div></div></section>`;
+}
+
+/* ---------- lista da frota ---------- */
+function renderFrota(){
+  const vs=veicAtivos().slice().sort((a,b)=>gravV(b)-gravV(a)||sortNome(a,b));
+  let h=`<div class="head"><div><h1>Frota</h1><p>Conferência a cada ${plural(confDias(),"dia")}, quilometragem, troca de óleo e revisão de cada veículo.</p></div>
+    <div class="act"><a class="btn" href="#conferir">Conferir veículo</a>${isLog()?`<a class="btn pri" href="#veiculo-editar/novo">Cadastrar veículo</a>`:""}</div></div>${banner()}${avisoScript17()}`;
+  if(!vs.length){app.innerHTML=h+`<div class="empty"><h3>Nenhum veículo cadastrado</h3><p>Cadastre os veículos com o km inicial para o sistema calcular a troca de óleo e a revisão.</p>${isLog()?`<p><a class="btn pri" href="#veiculo-editar/novo">Cadastrar veículo</a></p>`:""}</div>`;return}
+  const pc=vs.map(prazoConf),po=vs.map(v=>prazoServ(v,"oleo")),pr=vs.map(v=>prazoServ(v,"revisao"));
+  const emDia=pc.filter(p=>p.nivel==="ok").length,atr=pc.filter(p=>p.nivel==="alto").length;
+  const nO=po.filter(p=>p.nivel==="alto"||p.nivel==="medio").length,nR=pr.filter(p=>p.nivel==="alto"||p.nivel==="medio").length;
+  const usos=USOS_VEIC.map(u=>[u,vs.filter(v=>v.uso===u).length]).filter(x=>x[1]).map(x=>x[1]+" "+x[0].toLowerCase()).join(" · ");
+  h+=`<div class="kpis">${kpi("Veículos ativos",vs.length,"",usos||"Informe o uso no cadastro")}${kpi("Conferência em dia",emDia,"de "+vs.length,atr?plural(atr,"atrasada")+" ou nunca feita":"Tudo conferido",atr?"alert":"")}
+    ${kpi("Troca de óleo",nO,"",nO?"vencida ou perto de vencer":"Nenhuma pendente",po.some(p=>p.nivel==="alto")?"alert":"")}${kpi("Revisão",nR,"",nR?"vencida ou perto de vencer":"Nenhuma pendente",pr.some(p=>p.nivel==="alto")?"alert":"")}</div>
+    <div class="fr-grid">${vs.map((v,i)=>{const km=kmVeic(v);return `<article class="fr-card">
+      <a class="fr-top" href="#veiculo/${esc(v.id)}"><span class="fr-n">${esc(v.nome)}</span>${v.placa?`<span class="fr-pl">${esc(v.placa)}</span>`:""}</a>
+      <p class="fr-sub">${esc([[v.marca,v.modelo].filter(Boolean).join(" "),v.ano,v.cor].filter(Boolean).join(" · ")||v.tipo||"")}${v.uso?` <span class="fr-uso">${esc(v.uso)}</span>`:""}</p>
+      <div class="fr-st">${pillF("Conferência",pc[i])}${pillF("Óleo",po[i])}${pillF("Revisão",pr[i])}</div>
+      <div class="fr-ft"><span class="num">${km!=null?fKm(km):"Km não informado"}</span><span class="actions"><a class="btn sm${pc[i].nivel!=="ok"?" pri":""}" href="#conferir/${esc(v.id)}">Conferir</a><a class="btn sm ghost" href="#veiculo/${esc(v.id)}">Detalhes</a></span></div></article>`}).join("")}</div>`;
+  if(isLog()&&!frotaSemScript())h+=`<section class="card" style="margin-top:16px"><div class="card-h"><h2>Regra da conferência</h2></div><div class="card-b"><div class="filters">
+    <div class="field"><label for="frDias">Conferir cada veículo a cada (dias)</label><input type="number" id="frDias" min="1" max="60" step="1" value="${esc(confDias())}"></div><button class="btn pri" id="frDiasOk" type="button">Salvar</button></div></div></section>`;
+  app.innerHTML=h;
+  const fd=$("#frDiasOk");if(fd)fd.onclick=async()=>{const n=Math.round(Number($("#frDias").value));if(!(n>=1&&n<=60)){toast("Use um número de 1 a 60 dias.");return}
+    try{if(!S.demo){const {error}=await sb.from("config").update({frota_conferencia_dias:n}).eq("id",1);if(error)throw error}S.frotaDias=n;toast("Conferência a cada "+plural(n,"dia"));renderFrota()}catch(e){toast("Não foi possível salvar. Rode o script 17 no Supabase.")}};
+}
+
+/* ---------- detalhe do veículo ---------- */
+function blocoServ(v,tipo){
+  const p=prazoServ(v,tipo),nm=tipo==="oleo"?"Troca de óleo":"Revisão",k=tipo==="oleo"?"oleo":"revisao";
+  const linhas=[p.ultKm!=null||p.ultEm?"Última: "+[p.ultKm!=null?fKm(p.ultKm):"",p.ultEm?"em "+fDia(p.ultEm):""].filter(Boolean).join(" "):p.base!=null?"Sem registro; contando do km inicial ("+fKm(p.base)+")":"Sem registro",
+    "A cada "+fKm(p.iv)+(p.meses?" ou "+plural(p.meses,"mês","meses"):""),p.prox!=null||p.proxData?"Próxima: "+[p.prox!=null?fKm(p.prox):"",p.proxData?(p.prox!=null?"ou ":"")+fDia(p.proxData):""].filter(Boolean).join(" "):""].filter(Boolean);
+  const os=S.manutencoes.find(m=>m.veiculoId===v.id&&m.categoria==="Veículos"&&MABERTOS.includes(m.status)&&String(m.titulo||"").startsWith(tipo==="oleo"?"Troca de óleo":"Revisão"));
+  return `<div class="fr-sit ${p.nivel}"><h3>${nm}</h3><p class="fr-big">${esc(p.txt)}</p>${linhas.map(l=>`<p>${esc(l)}</p>`).join("")}
+    ${os?`<p class="fr-os">${esc(codM(os))} aberta · ${esc(MST[os.status]||os.status)}</p>`:""}
+    ${isStaff()?`<div class="actions"><button class="btn sm${p.nivel==="alto"?" pri":""}" type="button" data-vserv="${k}">Registrar ${tipo==="oleo"?"troca":"revisão"}</button>${(p.nivel==="alto"||p.nivel==="medio")&&!os&&(isLog()||isMan())?`<button class="btn sm ghost" type="button" data-vos="${k}">Abrir OS</button>`:""}</div>`:""}</div>`;
+}
+function renderVeiculo(){
+  const v=byId(S.veiculos,S.routeArg);
+  if(!v){app.innerHTML=`<div class="empty"><h3>Veículo não encontrado</h3><p><a class="btn" href="#frota">Voltar para a frota</a></p></div>`;return}
+  const c=prazoConf(v),km=kmVeic(v),cs=confsDe(v.id),ss=servsDe(v.id),ms=S.manutencoes.filter(m=>m.veiculoId===v.id).sort((a,b)=>T(b.criadoEm)-T(a.criadoEm));
+  const fs=S.vServ&&S.vServ.id===v.id?S.vServ:null;
+  let h=`<p class="fr-back"><a href="#frota">← Frota</a></p><div class="head"><div><h1>${esc(v.nome)}${v.placa?` <span class="fr-pl big">${esc(v.placa)}</span>`:""}</h1><p>${esc([[v.marca,v.modelo].filter(Boolean).join(" "),v.ano,v.cor,v.uso].filter(Boolean).join(" · "))}</p></div>
+    <div class="act"><a class="btn pri" href="#conferir/${esc(v.id)}">Conferir agora</a>${isLog()?`<a class="btn" href="#veiculo-editar/${esc(v.id)}">Editar cadastro</a>`:""}</div></div>${banner()}${avisoScript17()}
+    <div class="fr-sits">
+      <div class="fr-sit ${c.nivel}"><h3>Conferência semanal</h3><p class="fr-big">${esc(c.txt)}</p>${c.ult?`<p>Última: ${esc(fDH(c.ult.feitoEm))}${c.ult.feitoPorNome?" · "+esc(c.ult.feitoPorNome):""}</p><p>${c.ult.problemas?esc(plural(c.ult.problemas,"item ruim","itens ruins")):"Tudo OK"}${c.ult.km!=null?" · "+esc(fKm(c.ult.km)):""}</p>`:`<p>A cada ${esc(plural(c.n,"dia"))}</p>`}
+        <div class="actions"><a class="btn sm${c.nivel!=="ok"?" pri":""}" href="#conferir/${esc(v.id)}">Conferir</a></div></div>
+      ${blocoServ(v,"oleo")}${blocoServ(v,"revisao")}
+      <div class="fr-sit"><h3>Quilometragem</h3><p class="fr-big num">${km!=null?esc(fKm(km)):"—"}</p><p>Atualiza sozinha pela conferência, pelos serviços e pelo km final das rotas.</p>${v.kmInicial!=null?`<p>Km inicial no cadastro: ${esc(fKm(v.kmInicial))}</p>`:""}</div>
+    </div>`;
+  if(fs)h+=`<section class="card fr-form"><div class="card-h"><h2>Registrar ${esc(SERV_LBL[fs.tipo].toLowerCase())}</h2></div><div class="card-b"><div class="filters">
+      <div class="field"><label for="vsTipo">Serviço</label><select id="vsTipo">${optsS(Object.entries(SERV_LBL),fs.tipo)}</select></div>
+      <div class="field"><label for="vsKm" class="req">Km no painel</label><input type="number" id="vsKm" inputmode="numeric" min="0" value="${esc(fs.km!=null?fs.km:km!=null?km:"")}"></div>
+      <div class="field"><label for="vsDt" class="req">Data</label><input type="date" id="vsDt" value="${esc(fs.dt||dayKey(new Date()))}" max="${dayKey(new Date())}"></div>
+      <div class="field"><label for="vsCusto">Custo (R$)</label><input type="text" id="vsCusto" inputmode="decimal" placeholder="Opcional" value="${esc(fs.custo||"")}"></div>
+      <div class="field grow"><label for="vsOf">Oficina / posto</label><input type="text" id="vsOf" placeholder="Opcional" value="${esc(fs.oficina||"")}"></div></div>
+      <div class="field" style="margin-top:10px"><label for="vsObs">O que foi feito</label><textarea id="vsObs" rows="2" placeholder="Ex.: óleo 5W30 sintético e filtro de óleo">${esc(fs.obs||"")}</textarea></div>
+      <p class="err" id="vsErr" role="alert"></p><div class="actions"><button class="btn pri" type="button" id="vsOk">Salvar</button><button class="btn ghost" type="button" id="vsX">Cancelar</button></div></div></section>`;
+  const dado=(l,x)=>`<div><dt>${esc(l)}</dt><dd>${x==null||x===""?"—":esc(x)}</dd></div>`;
+  h+=`<div class="fr-cols"><section class="card"><div class="card-h"><h2>Dados do veículo</h2></div><div class="card-b"><dl class="dl">
+      ${dado("Placa",v.placa)}${dado("Tipo",v.tipo)}${dado("Uso",v.uso)}${dado("Combustível",v.combustivel)}${dado("Marca",v.marca)}${dado("Modelo",v.modelo)}${dado("Cor",v.cor)}${dado("Ano",v.ano)}
+      ${dado("RENAVAM",v.renavam)}${dado("Chassi",v.chassi)}${dado("Capacidade",v.capacidade)}${dado("Custo por km",nOuNull(v.custoKm)!=null?fBRL(v.custoKm):"Padrão")}</dl>
+      <div class="fr-doc">${v.documentoPath?`<button class="btn sm" type="button" id="vDoc">Ver documento</button><span>${esc(v.documentoNome||"Documento do veículo")}</span>`:`<span>Documento do veículo não anexado.</span>${isLog()?`<a class="btn sm ghost" href="#veiculo-editar/${esc(v.id)}">Anexar</a>`:""}`}</div></div></section>
+    <section class="card"><div class="card-h"><h2>OS de manutenção</h2><span class="sub">${ms.length?plural(ms.length,"OS"):""}</span></div><div class="card-b">
+      ${ms.length?`<ul class="fr-hist">${ms.slice(0,12).map(m=>`<li><span><b>${esc(codM(m))}</b> ${esc(m.titulo||"")}</span><span class="fr-hs">${esc(MST[m.status]||m.status)} · ${esc(fData(m.criadoEm))}</span></li>`).join("")}</ul>`:`<p class="fr-none">Nenhuma OS ligada a este veículo. Item ruim na conferência abre uma OS sozinho.</p>`}</div></section></div>
+    <div class="fr-cols"><section class="card"><div class="card-h"><h2>Conferências</h2><span class="sub">${cs.length?plural(cs.length,"registro"):""}</span></div><div class="card-b">
+      ${cs.length?`<ul class="fr-hist">${cs.slice(0,15).map(x=>{const r=(x.itens||[]).filter(i=>i.ok===false);const m=x.manutencaoId&&byId(S.manutencoes,x.manutencaoId);
+        return `<li><span><b>${esc(fDH(x.feitoEm))}</b> ${esc(x.feitoPorNome||"")}${x.km!=null?" · "+esc(fKm(x.km)):""}</span><span class="fr-hs ${r.length?"pb":"okk"}">${r.length?esc(r.map(i=>i.label).join(", "))+(m?" → "+esc(codM(m)):""):"Tudo OK"}</span></li>`}).join("")}</ul>`:`<p class="fr-none">Ainda não foi conferido.</p>`}</div></section>
+    <section class="card"><div class="card-h"><h2>Serviços</h2><span class="sub">${ss.length?fBRL(ss.reduce((s,x)=>s+(Number(x.custo)||0),0))+" no total":""}</span></div><div class="card-b">
+      ${isStaff()?`<div class="actions" style="margin-bottom:8px"><button class="btn sm" type="button" data-vserv="outro">Registrar outro serviço</button></div>`:""}
+      ${ss.length?`<ul class="fr-hist">${ss.slice(0,20).map(x=>`<li><span><b>${esc(SERV_LBL[x.tipo]||x.tipo)}</b> ${esc(fDia(x.feitoEm))}${x.km!=null?" · "+esc(fKm(x.km)):""}${x.oficina?" · "+esc(x.oficina):""}${x.obs?`<br><small>${esc(x.obs)}</small>`:""}</span><span class="fr-hs">${x.custo!=null?esc(fBRL(x.custo)):""}${isStaff()?` <button class="lnk" type="button" data-vsdel="${esc(x.id)}">Apagar</button>`:""}</span></li>`).join("")}</ul>`:`<p class="fr-none">Nenhum serviço registrado.</p>`}</div></section></div>`;
+  app.innerHTML=h;bindVeiculo(v);
+}
+function bindVeiculo(v){
+  $$("[data-vserv]").forEach(b=>b.onclick=()=>{S.vServ={id:v.id,tipo:b.dataset.vserv};renderVeiculo();const f=$("#vsKm");if(f){f.scrollIntoView({block:"center"});f.focus()}});
+  const vx=$("#vsX");if(vx)vx.onclick=()=>{S.vServ=null;renderVeiculo()};
+  const vt=$("#vsTipo");if(vt)vt.onchange=()=>{S.vServ=Object.assign(S.vServ,lerServ(),{tipo:vt.value});renderVeiculo()};
+  const ok=$("#vsOk");if(ok)ok.onclick=async()=>{const d=lerServ(),er=$("#vsErr");er.textContent="";
+    const km=d.km===""?null:Math.round(Number(d.km));if(d.km!==""&&!(km>=0)){er.textContent="Km inválido.";return}
+    if(km==null&&d.tipo!=="outro"){er.textContent="Informe o km do painel no dia do serviço.";return}
+    if(!d.dt){er.textContent="Informe a data.";return}
+    let custo=null;if(d.custo!==""){custo=numBR(d.custo);if(custo===""||custo<0){er.textContent="Custo inválido. Use vírgula, por exemplo 280,00.";return}}
+    const row={veiculoId:v.id,tipo:d.tipo,km,feitoEm:d.dt,custo,oficina:d.oficina||null,obs:d.obs||null};
+    ok.disabled=true;ok.textContent="Salvando…";
+    try{await salvarServ(v,row);S.vServ=null;toast(SERV_LBL[d.tipo]+" registrada");renderVeiculo()}
+    catch(e){console.error(e);ok.disabled=false;ok.textContent="Salvar";er.textContent=/schema cache|Could not find|does not exist/i.test(e.message||"")?"Rode o script 17 no Supabase.":"Não foi possível salvar."+(e.message?" ("+e.message+")":"")}};
+  $$("[data-vsdel]").forEach(b=>b.onclick=async()=>{if(b.dataset.c!=="1"){b.dataset.c="1";b.textContent="Confirmar?";return}
+    try{if(S.demo)S.veiculo_servicos=S.veiculo_servicos.filter(x=>x.id!==b.dataset.vsdel);else{const {error}=await sb.from("veiculo_servicos").delete().eq("id",b.dataset.vsdel);if(error)throw error;await carregar("veiculo_servicos")}toast("Serviço apagado. Confira a última troca no cadastro.");renderVeiculo()}catch(e){toast("Não foi possível apagar.")}});
+  $$("[data-vos]").forEach(b=>b.onclick=async()=>{const t=b.dataset.vos,p=prazoServ(v,t);b.disabled=true;b.textContent="Abrindo…";
+    const txt=(t==="oleo"?"Troca de óleo":"Revisão")+" do veículo "+nomeV(v)+". "+p.txt+(p.prox!=null?". Prevista para "+fKm(p.prox):"")+(km=>km!=null?"; km atual "+fKm(km):"")(p.km)+".";
+    try{let r;if(S.demo){r={manutencao_numero:demoManNum()};S.manutencoes.unshift({id:novoId(),numero:r.manutencao_numero,status:"aberto",tipo:"preventiva",categoria:"Veículos",prioridade:"normal",titulo:(t==="oleo"?"Troca de óleo":"Revisão")+" · "+nomeV(v),descricao:txt,veiculoId:v.id,solicitante:S.meName||"Coordenação",localDetalhe:"Veículo "+nomeV(v),historico:[{s:"aberto",em:nowISO(),por:S.uid||null,nota:"Aberta pelo controle da frota"}],criadoEm:nowISO(),custos:[],fotosAbertura:[],fotosAntes:[],fotosDepois:[],equipeIds:[]})}
+      else{const {data,error}=await sb.rpc("abrir_os_veiculo",{p_veiculo:v.id,p_tipo:t,p_texto:txt});if(error)throw error;r=data;await carregar("manutencoes")}
+      buildNav();toast((r.ja_existia?"Já existia a OS ":"OS aberta: ")+"MAN-"+String(r.manutencao_numero).padStart(4,"0"));renderVeiculo()}
+    catch(e){console.error(e);b.disabled=false;b.textContent="Abrir OS";toast(/schema cache|Could not find/i.test(e.message||"")?"Rode o script 17 no Supabase.":"Não foi possível abrir a OS.")}});
+  const dc=$("#vDoc");if(dc)dc.onclick=()=>abrirDocVeic(v);
+}
+const lerServ=()=>({tipo:$("#vsTipo").value,km:$("#vsKm").value.trim(),dt:$("#vsDt").value,custo:$("#vsCusto").value.trim(),oficina:$("#vsOf").value.trim(),obs:$("#vsObs").value.trim()});
+const demoManNum=()=>Math.max(0,...S.manutencoes.map(m=>Number(m.numero)||0))+1;
+async function salvarServ(v,row){
+  if(S.demo){S.veiculo_servicos.push(Object.assign({id:novoId(),criadoEm:nowISO()},row));
+    if(row.tipo==="oleo"&&(v.oleoUltimaKm==null||row.km>=v.oleoUltimaKm)){v.oleoUltimaKm=row.km;v.oleoUltimaEm=row.feitoEm}
+    if(row.tipo==="revisao"&&(v.revisaoUltimaKm==null||row.km>=v.revisaoUltimaKm)){v.revisaoUltimaKm=row.km;v.revisaoUltimaEm=row.feitoEm}
+    if(row.km!=null&&(v.kmAtual==null||row.km>v.kmAtual))v.kmAtual=row.km;return}
+  const {error}=await sb.from("veiculo_servicos").insert(toDb(row));if(error)throw error;
+  await Promise.all(["veiculo_servicos","veiculos"].map(carregar));
+}
+async function abrirDocVeic(v){
+  if(S.demo){const u=(S.docDemo||{})[v.documentoPath];if(u)window.open(u,"_blank","noopener");else toast("No modo demonstração o arquivo não fica guardado.");return}
+  const w=window.open("","_blank");
+  const {data,error}=await sb.storage.from("documentos").createSignedUrl(v.documentoPath,600);
+  if(error||!data){if(w)w.close();toast("Não foi possível abrir o documento.");return}
+  if(w)w.location.href=data.signedUrl;else location.href=data.signedUrl;
+}
+
+/* ---------- cadastro do veículo ---------- */
+const V_CAMPOS=[
+  ["Identificação",[["nome","Nome / apelido","text","Ex.: Fiorino branca",1],["placa","Placa","text","ABC1D23"],["tipo","Tipo","sel",TIPOS_VEIC],["uso","Uso","sel",USOS_VEIC,1],
+    ["marca","Marca","text","Ex.: Fiat"],["modelo","Modelo","text","Ex.: Fiorino Endurance"],["cor","Cor","text","Ex.: Branca"],["ano","Ano","int","Ex.: 2022"],
+    ["combustivel","Combustível","sel",COMBUSTIVEIS],["renavam","RENAVAM","text","11 números"],["chassi","Chassi","text","17 letras e números"],["capacidade","Capacidade","text","Ex.: 650 kg"],["custoKm","Custo por km (R$)","money","Opcional"]]],
+  ["Quilometragem",[["kmInicial","Km no momento do cadastro","int","Ex.: 40250",1],["kmAtual","Km atual","int","Se já rodou desde o cadastro"]]],
+  ["Troca de óleo",[["oleoIntervaloKm","Trocar a cada (km)","int","10000",1],["oleoMeses","ou a cada (meses)","int","Opcional"],["oleoUltimaKm","Km da última troca","int","Vazio = conta do km inicial"],["oleoUltimaEm","Data da última troca","date",""]]],
+  ["Revisão",[["revisaoIntervaloKm","Revisar a cada (km)","int","10000",1],["revisaoMeses","ou a cada (meses)","int","Opcional"],["revisaoUltimaKm","Km da última revisão","int","Vazio = conta do km inicial"],["revisaoUltimaEm","Data da última revisão","date",""]]]];
+function renderVeiculoEditar(){
+  if(!isLog()){app.innerHTML=`<div class="empty"><h3>Somente a coordenação da logística edita veículos.</h3><p><a class="btn" href="#frota">Voltar</a></p></div>`;return}
+  const novo=S.routeArg==="novo",v0=novo?{tipo:"Utilitário",uso:"Logística"}:byId(S.veiculos,S.routeArg);const v=v0&&Object.assign({},v0,{oleoIntervaloKm:v0.oleoIntervaloKm||10000,revisaoIntervaloKm:v0.revisaoIntervaloKm||10000});
+  if(!v){app.innerHTML=`<div class="empty"><h3>Veículo não encontrado</h3><p><a class="btn" href="#frota">Voltar</a></p></div>`;return}
+  S.vDoc=null;
+  const campo=([k,l,t,o,req])=>{const val=v[k]==null?"":v[k];const id="vf-"+k;
+    return `<div class="field"><label for="${id}"${req?' class="req"':""}>${esc(l)}</label>${t==="sel"?`<select id="${id}"><option value="">Selecione…</option>${optsS(o,val)}</select>`
+      :`<input id="${id}" type="${t==="date"?"date":t==="int"?"number":"text"}"${t==="int"?' inputmode="numeric" min="0" step="1"':t==="money"?' inputmode="decimal"':""}${k==="placa"||k==="chassi"?' autocapitalize="characters"':""} placeholder="${esc(o||"")}" value="${esc(t==="money"&&val!==""?String(val).replace(".",","):String(val).slice(0,t==="date"?10:999))}">`}</div>`};
+  app.innerHTML=`<p class="fr-back"><a href="${novo?"#frota":"#veiculo/"+esc(v.id)}">← ${novo?"Frota":esc(v.nome)}</a></p><div class="head"><div><h1>${novo?"Cadastrar veículo":"Editar "+esc(v.nome)}</h1><p>Com o km e a última troca, o sistema calcula sozinho a próxima troca de óleo e a próxima revisão.</p></div></div>${banner()}
+    <form id="vF" class="fr-ed" novalidate>${V_CAMPOS.map(([g,cs])=>`<section class="card"><div class="card-h"><h2>${esc(g)}</h2></div><div class="card-b"><div class="fr-g">${cs.filter(c=>!(novo&&c[0]==="kmAtual")).map(campo).join("")}</div></div></section>`).join("")}
+    <section class="card"><div class="card-h"><h2>Documento do veículo</h2><span class="sub">PDF ou foto do CRLV, até 10 MB. Só a coordenação vê.</span></div><div class="card-b">
+      <div class="fr-doc">${v.documentoPath?`<button class="btn sm" type="button" id="vDoc">Ver documento atual</button><span>${esc(v.documentoNome||"")}</span>`:"<span>Nenhum documento anexado.</span>"}</div>
+      <label class="btn sm" style="margin-top:10px">${v.documentoPath?"Trocar documento":"Anexar documento"}<input type="file" id="vf-doc" accept="application/pdf,image/*" hidden></label><span id="vf-docn" class="fr-docn"></span></div></section>
+    <p class="err" id="vfErr" role="alert"></p><div class="actions fr-save"><button class="btn pri" type="submit" id="vfOk">${novo?"Cadastrar veículo":"Salvar alterações"}</button><a class="btn ghost" href="${novo?"#frota":"#veiculo/"+esc(v.id)}">Cancelar</a></div></form>`;
+  const dc=$("#vDoc");if(dc)dc.onclick=()=>abrirDocVeic(v);
+  $("#vf-doc").onchange=e=>{const f=e.target.files[0];if(!f)return;if(f.size>10*1024*1024){toast("O arquivo passa de 10 MB.");e.target.value="";return}S.vDoc=f;$("#vf-docn").textContent="Vai anexar: "+f.name};
+  $("#vF").onsubmit=async e=>{e.preventDefault();const er=$("#vfErr");er.textContent="";const d={};
+    for(const [,cs] of V_CAMPOS)for(const [k,l,t,,req] of cs){const el=$("#vf-"+k);if(!el)continue;let x=el.value.trim();
+      if(req&&x===""&&!(k==="nome"&&$("#vf-modelo").value.trim())){er.textContent="Preencha: "+l+".";el.focus();return}
+      if(t==="int"){if(x===""){d[k]=null;continue}const n=Number(x);if(!(Number.isInteger(n)&&n>=0)){er.textContent=l+": use só números inteiros.";el.focus();return}d[k]=n;continue}
+      if(t==="money"){if(x===""){d[k]=null;continue}const n=numBR(x);if(n===""||n<0){er.textContent=l+": valor inválido.";el.focus();return}d[k]=n;continue}
+      d[k]=x===""?null:x}
+    if(!d.nome)d.nome=[d.modelo,d.placa].filter(Boolean).join(" · ");
+    if(d.placa){d.placa=d.placa.toUpperCase().replace(/[\s-]/g,"");if(!/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(d.placa)){er.textContent="Placa inválida. Use o formato ABC1D23 ou ABC1234.";return}}
+    if(d.chassi){d.chassi=d.chassi.toUpperCase().replace(/\s/g,"");if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(d.chassi)){er.textContent="O chassi tem 17 letras e números (sem I, O e Q).";return}}
+    if(d.renavam){d.renavam=d.renavam.replace(/\D/g,"");if(!/^\d{9,11}$/.test(d.renavam)){er.textContent="O RENAVAM tem de 9 a 11 números.";return}}
+    const ano=new Date().getFullYear()+1;if(d.ano!=null&&(d.ano<1950||d.ano>ano)){er.textContent="Ano inválido.";return}
+    if(!(d.oleoIntervaloKm>0)||!(d.revisaoIntervaloKm>0)){er.textContent="O intervalo da troca e da revisão precisa ser maior que zero.";return}
+    if(d.oleoMeses===0||d.revisaoMeses===0){er.textContent="Meses precisa ser maior que zero, ou deixe vazio.";return}
+    if(d.kmInicial!=null){if(d.oleoUltimaKm!=null&&d.oleoUltimaKm>(d.kmAtual??d.kmInicial)+50000){er.textContent="O km da última troca está muito acima do km do veículo. Confira.";return}}
+    if(novo)d.kmAtual=d.kmInicial;
+    else if(d.kmAtual!=null&&v.kmAtual!=null&&d.kmAtual<v.kmAtual&&d.kmAtual<(kmVeic(v)||0)){er.textContent="O km atual informado é menor que o último registrado ("+fKm(kmVeic(v))+").";return}
+    if(!novo&&d.kmAtual==null)delete d.kmAtual;
+    const dup=S.veiculos.find(x=>x.id!==v.id&&d.placa&&String(x.placa||"").toUpperCase().replace(/[\s-]/g,"")===d.placa);if(dup){er.textContent="Já existe um veículo com essa placa: "+dup.nome+".";return}
+    const b=$("#vfOk");b.disabled=true;b.textContent="Salvando…";
+    try{const row=await saveCadM("veiculos",novo?null:v.id,novo?Object.assign({ativo:true},d):d);
+      if(S.vDoc){b.textContent="Enviando documento…";await enviarDocVeic(row,S.vDoc);S.vDoc=null}
+      toast(novo?"Veículo cadastrado":"Veículo salvo");location.hash="#veiculo/"+row.id}
+    catch(x){console.error(x);b.disabled=false;b.textContent=novo?"Cadastrar veículo":"Salvar alterações";
+      er.textContent=/column|schema cache|Could not find/i.test(x.message||"")?"Rode o script 17 no Supabase para salvar os novos campos.":/mime|type/i.test(x.message||"")?"Tipo de arquivo não aceito. Use PDF ou foto.":"Não foi possível salvar."+(x.message?" ("+x.message+")":"")}};
+}
+async function enviarDocVeic(v,file){
+  const ext=((file.name.split(".").pop()||"pdf").toLowerCase().replace(/[^a-z0-9]/g,"")||"pdf").slice(0,5);
+  const path="veiculos/"+v.id+"/"+Date.now()+"."+ext;
+  if(S.demo){S.docDemo=S.docDemo||{};S.docDemo[path]=URL.createObjectURL(file)}
+  else{const {error}=await sb.storage.from("documentos").upload(path,file,{contentType:file.type||"application/pdf",upsert:false});if(error)throw error;
+    if(v.documentoPath)sb.storage.from("documentos").remove([v.documentoPath]).catch(()=>{})}
+  await saveCadM("veiculos",v.id,{documentoPath:path,documentoNome:file.name.slice(0,120)});
+}
+
+/* ---------- conferência semanal ---------- */
+function renderConferir(){
+  const voltar=S.role==="campo"?"#missoes":"#frota",vl=S.role==="campo"?"Minhas missões":"Frota";
+  const bar=`<div class="ms-bar"><a class="ms-back" href="${voltar}">${ic("back","ic")}${vl}</a><span class="ms-cod">Conferência</span></div>`;
+  const v=S.routeArg&&byId(S.veiculos,S.routeArg);
+  if(!v){const vs=veicAtivos().slice().sort((a,b)=>{const pa=prazoConf(a),pb=prazoConf(b);return (pa.nivel==="ok")-(pb.nivel==="ok")||sortNome(a,b)});
+    app.innerHTML=`<div class="fr-cf">${bar}<h1 class="ms-h">Qual veículo você vai conferir?</h1>${vs.length?vs.map(x=>{const p=prazoConf(x);return `<a class="fr-pick ${p.nivel}" href="#conferir/${esc(x.id)}"><b>${esc(x.nome)}${x.placa?` <span class="fr-pl">${esc(x.placa)}</span>`:""}</b><span>${esc(p.txt)}</span></a>`}).join(""):`<div class="ms-empty"><h2>Nenhum veículo cadastrado</h2></div>`}</div>`;return}
+  if(!S.cf||S.cf.vid!==v.id)S.cf={vid:v.id,km:"",it:{},outro:"",busy:false,fim:null};
+  const A=S.cf;
+  if(A.fim){app.innerHTML=`<div class="ms-fim">${ic("ok","ic xl")}<h1>Conferência registrada</h1><p>${esc(nomeV(v))} · ${esc(fKm(A.fim.km))}</p>
+      ${A.fim.n?`<div class="ms-box warn" style="text-align:left">${esc(plural(A.fim.n,"item ruim virou","itens ruins viraram"))} a OS de manutenção <b>${esc(A.fim.os||"")}</b>, que já está na fila da manutenção.</div>`:`<p>Tudo certo com o veículo.</p>`}
+      <a class="ms-cta" href="${voltar}">Voltar</a>${veicAtivos().some(x=>x.id!==v.id&&prazoConf(x).nivel!=="ok")?`<a class="ms-cta sec" href="#conferir" style="margin-top:10px">Conferir outro veículo</a>`:""}</div>`;
+    $$(".ms-cta").forEach(a=>a.addEventListener("click",()=>{S.cf=null}));return}
+  const ult=kmVeic(v),p=prazoConf(v);
+  app.innerHTML=`<div class="fr-cf">${bar}<h1 class="ms-h">${esc(v.nome)}${v.placa?` <span class="fr-pl">${esc(v.placa)}</span>`:""}</h1><p class="ms-sub">${esc(p.txt)}${p.ult?" · última em "+esc(fData(p.ult.feitoEm)):""}</p>
+    <div class="ms-box"><label class="ms-lbl" for="cfKm">Km no painel agora</label><input class="ms-in big num" id="cfKm" type="number" inputmode="numeric" min="0" value="${esc(A.km)}" placeholder="${ult!=null?esc(String(ult)):"Ex.: 124300"}">${ult!=null?`<span class="hint">Último registrado: ${esc(fKm(ult))}</span>`:""}</div>
+    <div class="ms-box"><span class="ms-lbl">Confira cada item</span>${CONF_ITENS.map(([k,l,dica])=>{const c=A.it[k]||{};return `<div class="ms-ck"><span>${esc(l)}<small class="fr-dica">${esc(dica)}</small></span><span class="ms-ckb"><button type="button" class="${c.ok===true?"on ok":""}" data-cfk="${k}" data-v="1" aria-pressed="${c.ok===true}">Bom</button><button type="button" class="${c.ok===false?"on pb":""}" data-cfk="${k}" data-v="0" aria-pressed="${c.ok===false}">Ruim</button></span>${c.ok===false?`<input type="text" class="ms-in" id="cfo-${k}" placeholder="O que está ruim?" value="${esc(c.obs||"")}">`:""}</div>`}).join("")}
+      <button type="button" class="lnk fr-tudo" id="cfTudo">Marcar todos como bom</button></div>
+    <div class="ms-box"><label class="ms-lbl" for="cfOutro">Outro problema <i>opcional</i></label><textarea class="ms-in" id="cfOutro" rows="2" placeholder="Ex.: luz do freio queimada, barulho na suspensão">${esc(A.outro)}</textarea><span class="hint">Se escrever aqui, também vira OS.</span></div>
+    <p class="err" id="cfErr" role="alert"></p><button class="ms-cta" id="cfOk" type="button"${A.busy?" disabled":""}>${A.busy?"Enviando…":"Registrar conferência"}</button></div>`;
+  const guarda=()=>{A.km=$("#cfKm").value.trim();A.outro=$("#cfOutro").value;CONF_ITENS.forEach(([k])=>{const i=$("#cfo-"+k);if(i&&A.it[k])A.it[k].obs=i.value})};
+  $$("[data-cfk]").forEach(b=>b.onclick=()=>{guarda();const k=b.dataset.cfk;A.it[k]=Object.assign(A.it[k]||{},{ok:b.dataset.v==="1"});renderConferir();const i=$("#cfo-"+k);if(i)i.focus()});
+  $("#cfTudo").onclick=()=>{guarda();CONF_ITENS.forEach(([k])=>{if(!A.it[k]||A.it[k].ok==null)A.it[k]={ok:true}});renderConferir()};
+  $("#cfOk").onclick=async()=>{guarda();const er=$("#cfErr");er.textContent="";
+    const km=Math.round(Number(A.km));if(A.km===""||!(km>=0)){er.textContent="Informe o km do painel.";$("#cfKm").focus();return}
+    if(ult!=null&&km<ult){er.textContent="O km informado ("+fKm(km)+") é menor que o último registrado ("+fKm(ult)+"). Confira o painel.";$("#cfKm").focus();return}
+    if(ult!=null&&km>ult+20000){er.textContent="O km está "+fKm(km-ult)+" acima do último registro. Confira se digitou certo.";if(A.kmOk!==km){A.kmOk=km;er.textContent+=" Toque de novo para confirmar.";return}}
+    const falta=CONF_ITENS.filter(([k])=>!A.it[k]||A.it[k].ok==null);if(falta.length){er.textContent="Falta marcar: "+falta.map(x=>x[1]).join(", ")+".";return}
+    const semObs=CONF_ITENS.find(([k])=>A.it[k].ok===false&&!String(A.it[k].obs||"").trim());if(semObs){er.textContent="Diga o que está ruim em: "+semObs[1]+".";const i=$("#cfo-"+semObs[0]);if(i)i.focus();return}
+    const itens=CONF_ITENS.map(([k,l])=>({k,label:l,ok:A.it[k].ok,obs:A.it[k].ok===false?String(A.it[k].obs).trim():""}));
+    if(A.outro.trim())itens.push({k:"outro",label:"Outro problema",ok:false,obs:A.outro.trim()});
+    A.busy=true;$("#cfOk").disabled=true;$("#cfOk").textContent="Enviando…";
+    try{const r=await registrarConf(v,km,itens);A.busy=false;A.fim={km,n:r.problemas,os:r.manutencao_numero?"MAN-"+String(r.manutencao_numero).padStart(4,"0"):""};renderConferir();window.scrollTo(0,0)}
+    catch(e){console.error(e);A.busy=false;const b=$("#cfOk");if(b){b.disabled=false;b.textContent="Registrar conferência"}
+      er.textContent=/registrar_conferencia|schema cache|Could not find/i.test(e.message||"")?"Falta rodar o script 17 no Supabase.":/Failed to fetch|NetworkError|network/i.test(e.message||"")?"Sem internet. Confira a conexão e toque de novo.":"Não foi possível registrar: "+(e.message||"erro")}};
+}
+async function registrarConf(v,km,itens){
+  const n=itens.filter(i=>i.ok===false).length;
+  if(S.demo){let num=null,mid=null;
+    if(n){num=demoManNum();mid=novoId();const ruins=itens.filter(i=>!i.ok);
+      S.manutencoes.unshift({id:mid,numero:num,status:"aberto",tipo:"corretiva",categoria:"Veículos",prioridade:"alta",titulo:("Veículo "+nomeV(v)+": "+ruins.map(i=>i.label.toLowerCase()).join(", ")).slice(0,200),
+        descricao:"Problemas encontrados na conferência semanal de "+fDH(nowISO())+" por "+(S.meName||"equipe")+" (km "+km+"):\n"+ruins.map(i=>"• "+i.label+(i.obs?": "+i.obs:"")).join("\n"),
+        veiculoId:v.id,solicitante:S.meName||"Equipe",localDetalhe:"Veículo "+nomeV(v),historico:[{s:"aberto",em:nowISO(),por:S.uid||null,nota:"Aberta pela conferência do veículo"}],criadoEm:nowISO(),custos:[],fotosAbertura:[],fotosAntes:[],fotosDepois:[],equipeIds:[]})}
+    S.veiculo_conferencias.push({id:novoId(),veiculoId:v.id,feitoEm:nowISO(),feitoPorNome:S.meName||"Demonstração",km,itens,problemas:n,manutencaoId:mid});
+    if(v.kmAtual==null||km>v.kmAtual)v.kmAtual=km;buildNav();return {problemas:n,manutencao_numero:num}}
+  const {data,error}=await sb.rpc("registrar_conferencia",{p_veiculo:v.id,p_km:km,p_itens:itens,p_obs:null});if(error)throw error;
+  await Promise.all(["veiculo_conferencias","veiculos"].concat(isMan()?["manutencoes"]:[]).map(carregar));buildNav();
+  return data;
+}
+
+/* ---------- equipe de campo: veículos para conferir ---------- */
+function frotaCampoHTML(topo){
+  if(frotaSemScript()||!veicAtivos().length)return "";
+  const pend=veicAtivos().map(v=>[v,prazoConf(v)]).filter(([,p])=>p.nivel!=="ok").sort((a,b)=>(a[1].nivel==="alto"?0:1)-(b[1].nivel==="alto"?0:1)||sortNome(a[0],b[0]));
+  if(topo!==!!pend.length)return "";
+  return `<h2 class="ms-sec">Conferência dos veículos${pend.length?" · "+pend.length:""}</h2>${pend.length?pend.map(([v,p])=>`<a class="fr-pick ${p.nivel}" href="#conferir/${esc(v.id)}"><b>${esc(v.nome)}${v.placa?` <span class="fr-pl">${esc(v.placa)}</span>`:""}</b><span>${esc(p.txt)}</span></a>`).join(""):`<p class="fr-none">Todos os veículos foram conferidos.</p>`}
+    <a class="btn ghost fr-outro" href="#conferir">Conferir outro veículo</a>`;
+}
+
+/* ---------- demonstração da frota ---------- */
+function loadDemoFrota(){
+  const ag=Date.now(),dias=n=>new Date(ag-n*DIA_MS).toISOString(),dt=n=>dayKey(new Date(ag-n*DIA_MS));
+  const extra=[
+    {marca:"Renault",modelo:"Master Furgão",cor:"Branca",ano:2021,combustivel:"Diesel S10",uso:"Logística",renavam:"01234567890",chassi:"93YMAF4CEMJ123456",kmInicial:86200,kmAtual:94850,oleoIntervaloKm:10000,oleoUltimaKm:85400,oleoUltimaEm:dt(160),revisaoIntervaloKm:20000,revisaoMeses:12,revisaoUltimaKm:80000,revisaoUltimaEm:dt(300)},
+    {marca:"Fiat",modelo:"Fiorino Endurance",cor:"Branca",ano:2023,combustivel:"Flex (gasolina e álcool)",uso:"Logística",kmInicial:31000,kmAtual:38620,oleoIntervaloKm:10000,oleoUltimaKm:30000,oleoUltimaEm:dt(120),revisaoIntervaloKm:10000,revisaoUltimaKm:30000,revisaoUltimaEm:dt(120)},
+    {marca:"Mercedes-Benz",modelo:"Accelo 1016",cor:"Branca",ano:2019,combustivel:"Diesel S10",uso:"Logística",kmInicial:152000,kmAtual:154300,oleoIntervaloKm:15000,oleoUltimaKm:150000,oleoUltimaEm:dt(40),revisaoIntervaloKm:30000,revisaoUltimaKm:150000,revisaoUltimaEm:dt(40)}];
+  S.veiculos.forEach((v,i)=>Object.assign(v,extra[i]||{}));
+  S.veiculos.forEach(v=>{const u=ultimoKm(v.id);if(u&&v.kmAtual!=null&&u.km>v.kmAtual){const d=u.km-v.kmAtual+120;["kmInicial","kmAtual","oleoUltimaKm","revisaoUltimaKm"].forEach(k=>{if(v[k]!=null)v[k]+=d})}});
+  S.veiculos.push({id:"v3",nome:"SW4 preta",placa:"MCX2E10",tipo:"Carro",ativo:true,marca:"Toyota",modelo:"Hilux SW4 Diamond",cor:"Preta",ano:2024,combustivel:"Diesel S10",uso:"Particular do chefe",kmInicial:12000,kmAtual:19700,oleoIntervaloKm:10000,oleoMeses:6,oleoUltimaKm:12000,oleoUltimaEm:dt(175),revisaoIntervaloKm:10000,revisaoMeses:12,revisaoUltimaKm:10000,revisaoUltimaEm:dt(200)},
+    {id:"v4",nome:"Corolla Cross",placa:"MCT4F22",tipo:"Carro",ativo:true,marca:"Toyota",modelo:"Corolla Cross XRE",cor:"Prata",ano:2023,combustivel:"Gasolina aditivada",uso:"Traslado",kmInicial:22000,kmAtual:27400,oleoIntervaloKm:10000,oleoUltimaKm:22000,oleoUltimaEm:dt(90),revisaoIntervaloKm:10000,revisaoUltimaKm:20000,revisaoUltimaEm:dt(110)});
+  const ok=k=>CONF_ITENS.map(([kk,l])=>({k:kk,label:l,ok:kk!==k,obs:kk===k?"desgaste no dianteiro esquerdo":""}));
+  S.veiculo_conferencias=[{id:"c1",veiculoId:"v0",feitoEm:dias(3),feitoPorNome:"João Motorista",km:94700,itens:ok(null),problemas:0},
+    {id:"c2",veiculoId:"v1",feitoEm:dias(9),feitoPorNome:"João Motorista",km:38400,itens:ok("pneus"),problemas:1},
+    {id:"c3",veiculoId:"v3",feitoEm:dias(6),feitoPorNome:"Carlos",km:19650,itens:ok(null),problemas:0},
+    {id:"c4",veiculoId:"v4",feitoEm:dias(1),feitoPorNome:"Carlos",km:27380,itens:ok(null),problemas:0}];
+  S.veiculo_servicos=[{id:"s1",veiculoId:"v0",tipo:"oleo",km:85400,feitoEm:dt(160),custo:420,oficina:"Auto Center Vila Olímpia",obs:"Óleo 15W40 e filtro"},
+    {id:"s2",veiculoId:"v0",tipo:"revisao",km:80000,feitoEm:dt(300),custo:1850,oficina:"Concessionária Renault"},
+    {id:"s3",veiculoId:"v3",tipo:"oleo",km:12000,feitoEm:dt(175),custo:690,oficina:"Toyota Morumbi"}];
+}
+
 /* ---------- Demonstração da manutenção ---------- */
 function loadDemoMan(){
   const now=Date.now();let seed=11;const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};const pick=a=>a[Math.floor(rnd()*a.length)];
@@ -3109,7 +3436,7 @@ function loadDemo(){
   S.solicitantes=[{id:"c1",nome:"Laura Souza",telefone:"(11) 99999-8888",setorId:"s4",ativo:true},{id:"c2",nome:"Marcos Lima",telefone:"(11) 98888-7777",setorId:"s1",ativo:true}];
   S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
     modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];
-  loadDemoMan();
+  loadDemoMan(); loadDemoFrota();
   S.relatorios=[{id:pm.getFullYear()+"-"+pad(pm.getMonth()+1),geradoEm:new Date(now-12*86400000).toISOString(),resumo:"Exemplo de fechamento. O volume cresceu puxado por Eventos e Bar, e a rota CD → Mirage concentrou a maior parte das transferências. O tempo de resposta caiu, mas um terço das OS concluídas passou da previsão de término, quase todas em retiradas de fornecedor.",destaques:["Rever a previsão de término das retiradas em fornecedor, que costumam levar mais de 2 h.","Concentrar as entregas CD → Mirage em uma rota fixa pela manhã."]}];
 }
 
