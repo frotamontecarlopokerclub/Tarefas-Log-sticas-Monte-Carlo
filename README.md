@@ -402,3 +402,6 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 - Menu da Frota: Painel (pendências, OS abertas dos veículos, custo por veículo e por tipo, km nas rotas, últimos registros), Veículos, Conferências, Lavagens, Serviços e custos (com exportação CSV) e Cadastros.
 - Novo acesso "Só frota" em Cadastros → Usuários. "Logística e frota" (antigo "Só logística") continua vendo a frota. "Todas as áreas" vê tudo.
 - O quadro da frota saiu do Painel da logística. O número no botão Frota mostra os itens vencidos ou atrasados.
+
+## Atualização 24 · Tipos de veículo
+- Tipos: Carro, Utilitário, Van, Caminhão 3/4, Caminhão toco, Moto, SUV, Caminhonete e Outro.

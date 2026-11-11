@@ -89,7 +89,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=23;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=24;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1386,7 +1386,7 @@ const CAD={
   prestadores:{t:"Prestadores",col:"prestadores",desc:"Empresas e profissionais terceirizados da manutenção. O painel soma OS e custos por prestador.",
     f:[["nome","Nome","text"],["especialidade","Especialidade","select",MCATS],["telefone","Telefone","tel"],["contato","Contato","text"],["documento","CNPJ / CPF","text"]],m:x=>[[x.especialidade,x.telefone].filter(Boolean).join(" · "),x.contato||x.documento]},
   veiculos:{t:"Veículos",col:"veiculos",desc:"Frota usada nas movimentações. Toque em Editar para o cadastro completo, ou veja tudo em Frota.",
-    f:[["nome","Modelo / apelido","text"],["placa","Placa","text"],["tipo","Tipo","select",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"]],["capacidade","Capacidade","text"],["custoKm","Custo por km (R$)","money"]],m:x=>{const u=ultimoKm(x.id);return [[x.placa,x.tipo,nOuNull(x.custoKm)!=null?fBRL(x.custoKm)+"/km":"Custo/km: padrão"].filter(Boolean).join(" · "),u?"Odômetro: "+fKm(u.km)+" · "+fData(u.em):"Odômetro: sem registro"]}}
+    f:[["nome","Modelo / apelido","text"],["placa","Placa","text"],["tipo","Tipo","select",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","SUV","Caminhonete","Outro"]],["capacidade","Capacidade","text"],["custoKm","Custo por km (R$)","money"]],m:x=>{const u=ultimoKm(x.id);return [[x.placa,x.tipo,nOuNull(x.custoKm)!=null?fBRL(x.custoKm)+"/km":"Custo/km: padrão"].filter(Boolean).join(" · "),u?"Odômetro: "+fKm(u.km)+" · "+fData(u.em):"Odômetro: sem registro"]}}
 };
 function renderCadastros(){
   const tabs=[["locais","Locais"],["setores","Setores"],["solicitantes","Solicitantes"],["equipe","Equipe"],["veiculos","Veículos"],["prestadores","Prestadores"],["rotas","Rotas fixas"],["usuarios","Usuários"],["config","Regras"]]
@@ -3016,7 +3016,7 @@ const QA_DEF={
     dup:d=>S.setores.find(x=>normNome(x.nome)===normNome(d.nome)&&(x.localId||"")===(d.localId||"")),nome:x=>nomeSetor(x.id)},
   equipe:{t:"equipe",lbl:"pessoa na equipe",campos:c=>[["nome","Nome","text","Ex.: João Silva"],["funcao","Função","sel",FUNCOES],["telefone","Telefone","tel","Opcional"]],valid:d=>d.nome?null:"Informe o nome.",
     dup:d=>S.equipe.find(x=>normNome(x.nome)===normNome(d.nome)),nome:x=>x.nome},
-  veiculo:{t:"veiculos",lbl:"veículo",campos:c=>[["nome","Nome","text","Ex.: Fiorino branca"],["placa","Placa","text","ABC1D23"],["tipo","Tipo","sel",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"]]],valid:d=>d.nome?null:"Informe o nome do veículo.",
+  veiculo:{t:"veiculos",lbl:"veículo",campos:c=>[["nome","Nome","text","Ex.: Fiorino branca"],["placa","Placa","text","ABC1D23"],["tipo","Tipo","sel",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","SUV","Caminhonete","Outro"]]],valid:d=>d.nome?null:"Informe o nome do veículo.",
     dup:d=>S.veiculos.find(x=>normNome(x.nome)===normNome(d.nome)||(d.placa&&normNome(x.placa)===normNome(d.placa))),nome:x=>x.nome+(x.placa?" · "+x.placa:"")},
   prestador:{t:"prestadores",lbl:"prestador terceirizado",campos:c=>[["nome","Empresa ou profissional","text","Ex.: Frio Total Climatização"],["especialidade","Especialidade","sel",[""].concat(MCATS)],["telefone","Telefone / WhatsApp","tel","Opcional"],["contato","Contato","text","Opcional: nome de quem atende"]],valid:d=>d.nome?null:"Informe o nome do prestador.",
     dup:d=>S.prestadores.find(x=>normNome(x.nome)===normNome(d.nome)),nome:x=>x.nome}
@@ -3055,7 +3055,7 @@ function abrirQA(b){const kind=b.dataset.qa,ctx=b.dataset.qactx,D=QA_DEF[kind];c
    ===================================================================== */
 const COMBUSTIVEIS=["Flex (gasolina e álcool)","Gasolina comum","Gasolina aditivada","Gasolina Podium","Álcool (etanol)","Álcool aditivado","Diesel S500","Diesel S10","GNV","Elétrico","Híbrido","Híbrido plug-in"];
 const USOS_VEIC=["Logística","Traslado","Escolta","Particular do chefe"];
-const TIPOS_VEIC=["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","Outro"];
+const TIPOS_VEIC=["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","SUV","Caminhonete","Outro"];
 const CONF_ITENS=[["oleo","Óleo do motor","nível e vazamento"],["agua","Água do radiador","nível do reservatório"],["vidros","Vidros","para-brisa, janelas e retrovisores"],
   ["travas","Travas","travamento das portas"],["fechaduras","Fechaduras","portas, porta-malas e chave"],["estepe","Estepe","calibrado, com macaco e chave de roda"],["pneus","Pneus","calibragem e desgaste"]];
 const DIA_MS=86400000;
