@@ -395,3 +395,10 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 - Lançamento em Frota → "Registrar lavagem" (ou pelo botão "Lavagem" de cada veículo): lavagem externa, lavagem completa (vale como lavagem e higienização), higienização interna ou com ozônio/ar; data, valor, local, km e foto opcionais.
 - A equipe de campo vê no celular os veículos com lavagem pendente e pode registrar.
 - O painel e a frota mostram a limpeza atrasada, vencendo ou sem registro; o valor entra no total de serviços do veículo.
+
+## Atualização 23 · Frota como área própria
+- Rode `supabase/19_area_frota.sql` (depois do 18).
+- No topo, o seletor tem três áreas: **Logística · Manutenção · Frota**.
+- Menu da Frota: Painel (pendências, OS abertas dos veículos, custo por veículo e por tipo, km nas rotas, últimos registros), Veículos, Conferências, Lavagens, Serviços e custos (com exportação CSV) e Cadastros.
+- Novo acesso "Só frota" em Cadastros → Usuários. "Logística e frota" (antigo "Só logística") continua vendo a frota. "Todas as áreas" vê tudo.
+- O quadro da frota saiu do Painel da logística. O número no botão Frota mostra os itens vencidos ou atrasados.

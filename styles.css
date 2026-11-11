@@ -862,3 +862,9 @@ a.btn{text-decoration:none}a.btn:not(.pri):not(.danger){color:var(--ink)}
 .fr-hist .photos{margin-top:6px;grid-template-columns:repeat(auto-fill,56px);gap:6px}
 @media (max-width:760px){.fr-sits{grid-template-columns:repeat(2,minmax(0,1fr))}.fr-ft .actions .btn{padding:5px 9px}}
 @media (max-width:380px){.fr-opts,.fr-lvg{grid-template-columns:1fr}}
+
+/* ---------- Área da frota (versão 23) ---------- */
+.area-sw.tres button{padding:6px 11px}
+@media (max-width:420px){.area-sw.tres button{padding:6px 8px;font-size:12px}}
+.fr-hist a,.fr-al a{color:var(--ink);font-weight:700;text-decoration:none}
+.fr-hist a:hover{text-decoration:underline}

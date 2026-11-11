@@ -27,7 +27,7 @@ const S={areaAcesso:"ambas",veiculo_conferencias:[],veiculo_servicos:[],frotaDia
   uid:null,role:null,meName:"",demo:false,loaded:{os:false},names:{},pedidos:[],meus:[],relatorios:[],perfis:[],recovery:false,authMsg:"",meuSetor:null,
   fromPedido:null,recusando:null,pTab:"aguardando",rm:null,copyOpen:false,recorrencias:[],solicitantes:[],meuTelefone:"",dupFrom:null,editRec:null,novaRec:false,recDel:null,
   route:"painel",openId:null,action:null,editId:null,routeArg:null,
-  area:(()=>{try{return localStorage.getItem("mc-area")==="man"?"man":"log"}catch(e){return "log"}})(),
+  area:(()=>{try{const a=localStorage.getItem("mc-area");return a==="man"||a==="frota"?a:"log"}catch(e){return "log"}})(),
   manutencoes:[],equipamentos:[],prestadores:[],planos:[],missing:{},mOpen:null,mAct:null,mEditId:null,eqEdit:null,editEq:null,planEdit:null,planX:null,planDel:null,
   mlf:{status:"abertas",q:"",local:"",cat:"",tipo:""},mf:(()=>{try{return Object.assign({periodo:"30",local:"",cat:""},JSON.parse(localStorage.getItem("mc-man-f")||"{}"))}catch(e){return {periodo:"30",local:"",cat:""}}})(),ef:{q:"",local:"",cat:"",inativos:false},
   f:{periodo:"30",setor:"",local:""},
@@ -89,7 +89,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=22;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=23;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -120,7 +120,7 @@ async function startSession(session){
   if(!PAPEL_ROLE[perfil.papel]) return renderAuth(perfil.papel==="bloqueado"?"bloqueado":"pendente");
   if(perfil.trocar_senha) return renderAuth("trocar");
   S.role=PAPEL_ROLE[perfil.papel];
-  if(areaFixa()) S.area=areaFixa();
+  {const ap=areasPermitidas();if(ap.length&&!ap.includes(S.area))S.area=ap[0];}
   document.body.classList.remove("auth"); document.body.classList.toggle("campo",S.role==="campo");
   buildNav(); if(!location.hash||location.hash.length<2) location.replace("#"+navCfg().home); route();
   await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes","manutencoes","equipamentos","prestadores","planos","veiculo_conferencias","veiculo_servicos"].map(carregar));
@@ -259,7 +259,7 @@ function renderUsuarios(){
   return `<section class="card usr"><div class="card-h"><h2>Usuários</h2><span class="sub">${ps.length} conta${ps.length===1?"":"s"}${pend?` · <b class="late">${pend} aguardando liberação</b>`:""}</span></div><div class="card-b">
     <details class="usr-leg"${ps.some(p=>p.papel==="campo")?"":" open"}><summary>Entenda os tipos de acesso</summary><div class="usr-help">
       <div><b>Equipe de campo</b><span>Motoristas, ajudantes e técnicos. Escolha quem é a pessoa no cadastro da equipe. No celular, ela vê só as missões em que foi escalada e não cria nem altera OS.</span></div>
-      <div><b>Gestão</b><span>Recebe os pedidos, cria as OS e escala equipe, veículo e horário. A área limita a Logística, a Manutenção ou as duas. Só quem tem as duas libera usuários.</span></div>
+      <div><b>Gestão</b><span>Recebe os pedidos, cria as OS e escala equipe, veículo e horário. A área limita a Logística (com a Frota), a Manutenção, só a Frota ou todas. Só quem tem todas libera usuários.</span></div>
       <div><b>Solicitante</b><span>Faz pedidos à logística e abre chamados de manutenção. Pode ter permissão para cadastrar fornecedor novo.</span></div>
       <div><b>Somente leitura</b><span>Diretoria: vê painéis, OS e a Gestão, sem alterar nada.</span></div></div>
       <p class="hint" style="margin:10px 0 0">Esqueceram a senha? Toque em <b>Nova senha</b> no cartão da pessoa: o sistema mostra uma senha provisória e, no próximo acesso, ela cria a dela.</p></details>
@@ -292,14 +292,16 @@ function bindUsuarios(){
     b.disabled=false; if(error){toast(error.message||"Não foi possível salvar.");return} await carregar("perfis"); buildNav(); toast("Acesso atualizado"); renderCadastros();});
 }
 
-const AREAS_ACESSO=[["ambas","As duas áreas"],["logistica","Só logística"],["manutencao","Só manutenção"]];
+const AREAS_ACESSO=[["ambas","Todas as áreas"],["logistica","Logística e frota"],["manutencao","Só manutenção"],["frota","Só frota"]];
 function isStaff(){return S.role==="log"}
-function isLog(){return S.role==="log"&&S.areaAcesso!=="manutencao"}
-function isMan(){return S.role==="log"&&S.areaAcesso!=="logistica"}
+function isLog(){return S.role==="log"&&(S.areaAcesso==="ambas"||S.areaAcesso==="logistica")}
+function isMan(){return S.role==="log"&&(S.areaAcesso==="ambas"||S.areaAcesso==="manutencao")}
+function isFrota(){return S.role==="log"&&["ambas","logistica","frota"].includes(S.areaAcesso)}
+function areasPermitidas(){if(S.role==="campo")return [];if(S.role==="sol")return ["log","man"];if(S.role!=="log")return ["log","man","frota"];return {logistica:["log","frota"],manutencao:["man"],frota:["frota"]}[S.areaAcesso]||["log","man","frota"]}
 function isAdmin(){return S.role==="log"&&S.areaAcesso==="ambas"}
-function areaFixa(){return S.role!=="log"?null:S.areaAcesso==="logistica"?"log":S.areaAcesso==="manutencao"?"man":null}
+function areaFixa(){if(S.role!=="log")return null;const a=areasPermitidas();return a.length===1?a[0]:null}
 const LABELS={painel:"Painel",ordens:"Ordens",pedidos:"Pedidos",agenda:"Agenda",relatorio:"Relatório",cadastros:"Cadastros",nova:"Nova OS",solicitar:"Novo pedido",meus:"Meus pedidos",
-  gestao:"Gestão",missoes:"Minhas missões",missao:"Missão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Frota",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem"};
+  gestao:"Gestão",missoes:"Minhas missões",missao:"Missão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Veículos",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem","f-painel":"Painel","f-conf":"Conferências","f-lav":"Lavagens","f-serv":"Serviços e custos"};
 const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   agenda:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',pedidos:'<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
   relatorio:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 17v-4M12 17V8M16 17v-6"/>',cadastros:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
@@ -307,29 +309,35 @@ const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect 
   wrench:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
   prev:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>',
   equip:'<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M19 9h3M19 15h3M2 9h3M2 15h3"/>'};
-ICO.frota='<path d="M3 13l2-6h14l2 6v5h-2.5M3 13v5h2.5M3 13h18"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/><path d="M9.5 17.5h5"/>';ICO.gestao='<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/><path d="M15 8h4v4"/>';
-Object.assign(ICO,{"m-painel":ICO.painel,"m-ordens":ICO.wrench,"m-prev":ICO.prev,"m-equip":ICO.equip,"m-meus":ICO.meus,"m-eq":ICO.equip});
+ICO.frota='<path d="M3 13l2-6h14l2 6v5h-2.5M3 13v5h2.5M3 13h18"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/><path d="M9.5 17.5h5"/>';ICO["f-lav"]='<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9 14a3 3 0 0 0 3 3"/>';ICO.gestao='<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/><path d="M15 8h4v4"/>';
+Object.assign(ICO,{"f-painel":ICO.painel,"f-conf":ICO.meus,"f-serv":ICO.wrench,conferir:ICO.meus,lavar:ICO["f-lav"],"m-painel":ICO.painel,"m-ordens":ICO.wrench,"m-prev":ICO.prev,"m-equip":ICO.equip,"m-meus":ICO.meus,"m-eq":ICO.equip});
 const svgI=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[k]}</svg>`;
 function navCfg(){
   if(S.role==="campo")return {top:["missoes"],cta:null,mob:[],more:[],home:"missoes"};
+  if(S.area==="frota"){
+    if(S.role==="log")return {top:["f-painel","frota","f-conf","f-lav","f-serv","cadastros"],cta:"conferir",mob:["f-painel","frota","conferir","f-lav"],more:["f-conf","f-serv","cadastros"],home:"f-painel"};
+    return {top:["f-painel","frota","f-conf","f-lav","f-serv"],cta:null,mob:["f-painel","frota","f-conf","f-lav"],more:["f-serv"],home:"f-painel"};
+  }
   if(S.area==="man"){
     if(S.role==="log")return {top:["m-painel","m-ordens","m-prev","m-equip"].concat(isAdmin()?["gestao"]:[],["cadastros"]),cta:"m-nova",mob:["m-painel","m-ordens","m-nova","m-prev"],more:["m-equip"].concat(isAdmin()?["gestao"]:[],["cadastros"]),home:"m-ordens"};
     if(S.role==="sol")return {top:["m-meus","m-equip"],cta:"m-chamado",mob:["m-meus","m-chamado","m-equip"],more:[],home:"m-meus"};
     return {top:["gestao","m-painel","m-ordens","m-prev","m-equip"],cta:null,mob:["gestao","m-painel","m-ordens","m-equip"],more:["m-prev"],home:"gestao"};
   }
-  if(S.role==="log")return {top:["painel","ordens","pedidos","agenda","frota","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),cta:"nova",mob:["painel","ordens","nova","agenda"],more:["frota","pedidos","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),home:"painel"};
+  if(S.role==="log")return {top:["painel","ordens","pedidos","agenda","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),cta:"nova",mob:["painel","ordens","nova","agenda"],more:["pedidos","relatorio"].concat(isAdmin()?["gestao"]:[],["cadastros"]),home:"painel"};
   if(S.role==="sol")return {top:["meus","ordens","agenda","painel","relatorio"],cta:"solicitar",mob:["meus","ordens","solicitar","painel"],more:["agenda","relatorio"],home:"meus"};
-  return {top:["gestao","painel","ordens","agenda","frota","relatorio"],cta:null,mob:["gestao","painel","ordens","agenda"],more:["frota","relatorio"],home:"gestao"};
+  return {top:["gestao","painel","ordens","agenda","relatorio"],cta:null,mob:["gestao","painel","ordens","agenda"],more:["relatorio"],home:"gestao"};
 }
 const pendentes=()=>S.pedidos.filter(x=>x.status==="aguardando").length;
 const chamadosNovos=()=>isMan()?S.manutencoes.filter(m=>m.status==="aberto").length:0;
 const usuariosPendentes=()=>isAdmin()?(S.perfis||[]).filter(p=>p.papel==="pendente").length:0;
 function buildNav(){
   const c=navCfg(),pd=pendentes(),up=usuariosPendentes(),cn=chamadosNovos(),bd=r=>r==="pedidos"&&pd?`<span class="bdg">${pd}</span>`:r==="m-ordens"&&cn?`<span class="bdg" title="Chamados aguardando triagem">${cn}</span>`:r==="cadastros"&&up?`<span class="bdg" title="Usuários aguardando liberação">${up}</span>`:"";
-  const sw=$("#areaSw");if(sw){sw.innerHTML=S.role&&S.role!=="campo"&&!areaFixa()?`<button type="button" data-area="log" aria-pressed="${S.area!=="man"}">Logística${S.area==="man"&&pd?` <span class="bdg">${pd}</span>`:""}</button><button type="button" data-area="man" aria-pressed="${S.area==="man"}">Manutenção${S.area!=="man"&&cn?` <span class="bdg">${cn}</span>`:""}</button>`:"";
+  const sw=$("#areaSw");if(sw){const ap=areasPermitidas();const fa=S.area!=="frota"&&ap.includes("frota")&&!frotaSemScript()?alertasFrota().filter(a=>a.nivel==="alto").length:0;const bA={log:S.area!=="log"?pd:0,man:S.area!=="man"?cn:0,frota:fa};
+    sw.innerHTML=S.role&&S.role!=="campo"&&ap.length>1?ap.map(a=>`<button type="button" data-area="${a}" aria-pressed="${S.area===a}">${{log:"Logística",man:"Manutenção",frota:"Frota"}[a]}${bA[a]?` <span class="bdg"${a==="frota"?' title="Itens da frota vencidos ou atrasados"':""}>${bA[a]}</span>`:""}</button>`).join(""):"";
+    sw.classList.toggle("tres",ap.length>2);
     $$("[data-area]",sw).forEach(b=>b.onclick=()=>{if(S.area===b.dataset.area)return;S.area=b.dataset.area;try{localStorage.setItem("mc-area",S.area)}catch(e){}const h="#"+navCfg().home;buildNav();if(location.hash===h)route();else location.hash=h;});}
   $("#topnav").innerHTML=c.top.map(r=>`<a href="#${r}" data-r="${r}">${LABELS[r]}${bd(r)}</a>`).join("")+(c.cta?`<a href="#${c.cta}" class="btn-new" data-r="${c.cta}">${LABELS[c.cta]}</a>`:"")+(S.demo?"":`<button class="who" id="sairTop" type="button" title="Sair do sistema">${esc(S.meName)} · Sair</button>`);
-  const LM=Object.assign({},LABELS,{meus:"Pedidos",solicitar:"Pedir","m-ordens":"Chamados","m-equip":"Equip.","m-chamado":"Chamado","m-meus":"Chamados"});
+  const LM=Object.assign({},LABELS,{conferir:"Conferir","f-serv":"Custos",meus:"Pedidos",solicitar:"Pedir","m-ordens":"Chamados","m-equip":"Equip.","m-chamado":"Chamado","m-meus":"Chamados"});
   const mob=c.mob.map(r=>r===c.cta?`<a href="#${r}" data-r="${r}" class="new"><span class="c">${svgI("plus")}</span>${LM[r]}</a>`:`<a href="#${r}" data-r="${r}">${svgI(r)}${LM[r]}${bd(r)}</a>`);
   if(S.role!=="campo"&&(c.more.length||!S.demo)) mob.push(`<button type="button" id="maisB">${svgI("mais")}Mais${(c.more.includes("pedidos")&&pd)||up?`<span class="bdg">${(c.more.includes("pedidos")?pd:0)+up}</span>`:""}</button>`);
   const st=$("#sairTop");if(st)st.onclick=sair;
@@ -344,13 +352,14 @@ function markNav(){const c=navCfg();$$("[data-r]").forEach(a=>a.setAttribute("ar
 
 
 /* ---------- Roteamento ---------- */
-const ROTAS_LOG=["painel","ordens","pedidos","agenda","relatorio","nova","solicitar","meus","frota","veiculo","veiculo-editar"];
+const ROTAS_LOG=["painel","ordens","pedidos","agenda","relatorio","nova","solicitar","meus"];
+const ROTAS_FROTA=["f-painel","frota","veiculo","veiculo-editar","f-conf","f-lav","f-serv","conferir","lavar"];
 function route(){
   const hh=(location.hash||"").slice(1);const [h0,arg]=hh.split("/");let h=h0||"";
   if(document.body.classList.contains("auth")) return;
   if(!S.role){S.route=h||"painel";render(true);return}
-  let novaArea=h.startsWith("m-")?"man":ROTAS_LOG.includes(h)?"log":null;
-  let bloq=false;if(areaFixa()&&novaArea&&novaArea!==areaFixa()){novaArea=null;h="";bloq=true}
+  let novaArea=S.role==="campo"?null:h.startsWith("m-")?"man":ROTAS_LOG.includes(h)?"log":ROTAS_FROTA.includes(h)?"frota":null;
+  let bloq=false;{const ap=areasPermitidas();if(novaArea&&ap.length&&!ap.includes(novaArea)){novaArea=null;h="";bloq=true}}
   if(novaArea&&novaArea!==S.area){S.area=novaArea;try{localStorage.setItem("mc-area",S.area)}catch(e){}buildNav()}
   if(h==="m-chamado"&&isMan())h="m-nova";
   const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],S.role==="campo"?["missao","conferir","lavar"]:["m-eq"].concat(S.role==="log"||S.role==="ver"?["veiculo"]:[],S.role==="log"?["veiculo-editar","conferir","lavar"]:[]));
@@ -375,7 +384,7 @@ function render(force){
   else if(S.route==="conferir"||S.route==="veiculo-editar"||S.route==="lavar"){ if(force||!formMounted){ ({conferir:renderConferir,lavar:renderLavar}[S.route]||renderVeiculoEditar)(); formMounted=true; } }
   else { formMounted=false;
     const fn={painel:renderPainel,ordens:renderOrdens,agenda:renderAgenda,cadastros:renderCadastros,pedidos:renderPedidos,meus:renderMeus,relatorio:renderRelatorio,
-      gestao:renderGestao,missoes:renderMissoes,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo}[S.route]||renderPainel;
+      gestao:renderGestao,missoes:renderMissoes,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo,"f-painel":renderFPainel,"f-conf":renderFConf,"f-lav":renderFLav,"f-serv":renderFServ}[S.route]||renderPainel;
     // preserva foco em campos de busca
     const ae=document.activeElement, aid=ae&&ae.id, pos=ae&&ae.selectionStart;
     if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq)||(S.route==="veiculo"&&S.vServ))) { /* não redesenha durante edição */ }
@@ -387,7 +396,7 @@ function render(force){
 }
 function banner(){
   if(S.demo) return `<div class="banner"><b>Modo demonstração.</b> O arquivo config.js ainda não tem o endereço e a chave do Supabase. Os dados abaixo são exemplos e não são salvos.
-    <span class="demo-roles">Ver como: ${[["log:ambas","Coordenação"],["log:logistica","Equipe logística"],["log:manutencao","Equipe manutenção"],["campo:ambas","Equipe de campo (celular)"],["sol:ambas","Solicitante"],["ver:ambas","Leitura"]].map(([k,l])=>`<button type="button" class="btn sm${S.role+":"+S.areaAcesso===k?" pri":""}" data-demorole="${k}">${l}</button>`).join("")}</span></div>`;
+    <span class="demo-roles">Ver como: ${[["log:ambas","Coordenação"],["log:logistica","Equipe logística"],["log:manutencao","Equipe manutenção"],["log:frota","Equipe frota"],["campo:ambas","Equipe de campo (celular)"],["sol:ambas","Solicitante"],["ver:ambas","Leitura"]].map(([k,l])=>`<button type="button" class="btn sm${S.role+":"+S.areaAcesso===k?" pri":""}" data-demorole="${k}">${l}</button>`).join("")}</span></div>`;
   if(S.role==="ver") return `<div class="banner"><b>Somente leitura.</b> Seu acesso permite consultar as OS e os indicadores. Para fazer pedidos e abrir chamados, peça à coordenação o acesso de Solicitante.</div>`;
   return "";
 }
@@ -434,7 +443,7 @@ function renderPainel(){
   const canc=list.filter(o=>o.status==="cancelada").length;
 
   let h=`<div class="head"><div><h1>Painel da <em>logística</em></h1><p>Demanda, prazos e tempos de atendimento das movimentações entre as unidades do Grupo.</p></div>
-  <div class="act"><button class="btn" id="exp" type="button">Exportar CSV</button></div></div>${banner()}${frotaPainelHTML()}
+  <div class="act"><button class="btn" id="exp" type="button">Exportar CSV</button></div></div>${banner()}
   <div class="filters">
     <div class="field"><label for="fPer">Período</label><select id="fPer">${optsS(perOpts,S.f.periodo)}</select></div>
     <div class="field"><label for="fSet">Setor solicitante</label><select id="fSet">${optsSetores(S.f.setor,"Todos os setores")}</select></div>
@@ -1661,7 +1670,7 @@ document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest
   if(r==="campo"){S.demoEquipeId="e0";S.meName="Motorista A";const h=new Date();S.os.filter(o=>(o.equipeIds||[]).includes("e0")&&["agendada","em_rota"].includes(o.status)).length||S.os.filter(o=>o.status==="agendada").slice(0,2).forEach(o=>{o.equipeIds=["e0"]});
     S.manutencoes.filter(m=>["agendada","em_execucao"].includes(m.status)&&m.executor!=="terceiro").slice(0,2).forEach(m=>{if(!m.equipeIds.includes("e0"))m.equipeIds=m.equipeIds.concat(["e0"])});
     buildNav();if(location.hash==="#missoes")route();else location.hash="#missoes";return}
-  if(S.meName==="Motorista A")S.meName="";if(areaFixa()){S.area=areaFixa();const h="#"+navCfg().home;buildNav();if(location.hash===h)route();else location.hash=h;return}buildNav();route();});
+  if(S.meName==="Motorista A")S.meName="";{const ap=areasPermitidas();if(ap.length&&!ap.includes(S.area))S.area=ap[0]}if(areaFixa()){S.area=areaFixa();const h="#"+navCfg().home;buildNav();if(location.hash===h)route();else location.hash=h;return}buildNav();route();});
 
 /* =====================================================================
    MANUTENÇÃO · Facilities
@@ -3134,9 +3143,9 @@ function frotaPainelHTML(){
 /* ---------- lista da frota ---------- */
 function renderFrota(){
   const vs=veicAtivos().slice().sort((a,b)=>gravV(b)-gravV(a)||sortNome(a,b));
-  let h=`<div class="head"><div><h1>Frota</h1><p>Conferência a cada ${plural(confDias(),"dia")}, quilometragem, troca de óleo, revisão, lavagem e higienização de cada veículo.</p></div>
-    <div class="act"><a class="btn" href="#conferir">Conferir veículo</a><a class="btn" href="#lavar">Registrar lavagem</a>${isLog()?`<a class="btn pri" href="#veiculo-editar/novo">Cadastrar veículo</a>`:""}</div></div>${banner()}${avisoScript17()}`;
-  if(!vs.length){app.innerHTML=h+`<div class="empty"><h3>Nenhum veículo cadastrado</h3><p>Cadastre os veículos com o km inicial para o sistema calcular a troca de óleo e a revisão.</p>${isLog()?`<p><a class="btn pri" href="#veiculo-editar/novo">Cadastrar veículo</a></p>`:""}</div>`;return}
+  let h=`<div class="head"><div><h1>Veículos</h1><p>Conferência a cada ${plural(confDias(),"dia")}, quilometragem, troca de óleo, revisão, lavagem e higienização de cada veículo.</p></div>
+    <div class="act"><a class="btn" href="#conferir">Conferir veículo</a><a class="btn" href="#lavar">Registrar lavagem</a>${isFrota()?`<a class="btn pri" href="#veiculo-editar/novo">Cadastrar veículo</a>`:""}</div></div>${banner()}${avisoScript17()}`;
+  if(!vs.length){app.innerHTML=h+`<div class="empty"><h3>Nenhum veículo cadastrado</h3><p>Cadastre os veículos com o km inicial para o sistema calcular a troca de óleo e a revisão.</p>${isFrota()?`<p><a class="btn pri" href="#veiculo-editar/novo">Cadastrar veículo</a></p>`:""}</div>`;return}
   const pc=vs.map(prazoConf),po=vs.map(v=>prazoServ(v,"oleo")),pr=vs.map(v=>prazoServ(v,"revisao")),pl=vs.map(prazoLimpeza);const nL=pl.filter(p=>p.nivel!=="ok").length;
   const emDia=pc.filter(p=>p.nivel==="ok").length,atr=pc.filter(p=>p.nivel==="alto").length;
   const nO=po.filter(p=>p.nivel==="alto"||p.nivel==="medio").length,nR=pr.filter(p=>p.nivel==="alto"||p.nivel==="medio").length;
@@ -3148,11 +3157,11 @@ function renderFrota(){
       <p class="fr-sub">${esc([[v.marca,v.modelo].filter(Boolean).join(" "),v.ano,v.cor].filter(Boolean).join(" · ")||v.tipo||"")}${v.uso?` <span class="fr-uso">${esc(v.uso)}</span>`:""}</p>
       <div class="fr-st">${pillF("Conferência",pc[i])}${pillF("Óleo",po[i])}${pillF("Revisão",pr[i])}${pillF("Limpeza",pl[i])}</div>
       <div class="fr-ft"><span class="num">${km!=null?fKm(km):"Km não informado"}</span><span class="actions"><a class="btn sm${pc[i].nivel!=="ok"?" pri":""}" href="#conferir/${esc(v.id)}">Conferir</a><a class="btn sm${pl[i].nivel==="alto"?" pri":""}" href="#lavar/${esc(v.id)}">Lavagem</a><a class="btn sm ghost" href="#veiculo/${esc(v.id)}">Detalhes</a></span></div></article>`}).join("")}</div>`;
-  if(isLog()&&!frotaSemScript())h+=`<section class="card" style="margin-top:16px"><div class="card-h"><h2>Regra da conferência</h2></div><div class="card-b"><div class="filters">
+  if(isFrota()&&!frotaSemScript())h+=`<section class="card" style="margin-top:16px"><div class="card-h"><h2>Regra da conferência</h2></div><div class="card-b"><div class="filters">
     <div class="field"><label for="frDias">Conferir cada veículo a cada (dias)</label><input type="number" id="frDias" min="1" max="60" step="1" value="${esc(confDias())}"></div><button class="btn pri" id="frDiasOk" type="button">Salvar</button></div></div></section>`;
   app.innerHTML=h;
   const fd=$("#frDiasOk");if(fd)fd.onclick=async()=>{const n=Math.round(Number($("#frDias").value));if(!(n>=1&&n<=60)){toast("Use um número de 1 a 60 dias.");return}
-    try{if(!S.demo){const {error}=await sb.from("config").update({frota_conferencia_dias:n}).eq("id",1);if(error)throw error}S.frotaDias=n;toast("Conferência a cada "+plural(n,"dia"));renderFrota()}catch(e){toast("Não foi possível salvar. Rode o script 17 no Supabase.")}};
+    try{if(!S.demo){let {error}=await sb.rpc("definir_conferencia_dias",{dias:n});if(error&&/definir_conferencia_dias|schema cache|Could not find/i.test(error.message||""))({error}=await sb.from("config").update({frota_conferencia_dias:n}).eq("id",1));if(error)throw error}S.frotaDias=n;toast("Conferência a cada "+plural(n,"dia"));renderFrota()}catch(e){toast("Não foi possível salvar. Rode o script 17 no Supabase.")}};
 }
 
 /* ---------- detalhe do veículo ---------- */
@@ -3163,7 +3172,7 @@ function blocoServ(v,tipo){
   const os=S.manutencoes.find(m=>m.veiculoId===v.id&&m.categoria==="Veículos"&&MABERTOS.includes(m.status)&&String(m.titulo||"").startsWith(tipo==="oleo"?"Troca de óleo":"Revisão"));
   return `<div class="fr-sit ${p.nivel}"><h3>${nm}</h3><p class="fr-big">${esc(p.txt)}</p>${linhas.map(l=>`<p>${esc(l)}</p>`).join("")}
     ${os?`<p class="fr-os">${esc(codM(os))} aberta · ${esc(MST[os.status]||os.status)}</p>`:""}
-    ${isStaff()?`<div class="actions"><button class="btn sm${p.nivel==="alto"?" pri":""}" type="button" data-vserv="${k}">Registrar ${tipo==="oleo"?"troca":"revisão"}</button>${(p.nivel==="alto"||p.nivel==="medio")&&!os&&(isLog()||isMan())?`<button class="btn sm ghost" type="button" data-vos="${k}">Abrir OS</button>`:""}</div>`:""}</div>`;
+    ${isStaff()?`<div class="actions"><button class="btn sm${p.nivel==="alto"?" pri":""}" type="button" data-vserv="${k}">Registrar ${tipo==="oleo"?"troca":"revisão"}</button>${(p.nivel==="alto"||p.nivel==="medio")&&!os&&(isFrota()||isMan())?`<button class="btn sm ghost" type="button" data-vos="${k}">Abrir OS</button>`:""}</div>`:""}</div>`;
 }
 function blocoLimp(v){const l=prazoLimpeza(v),ln=(p,nm,a)=>`<p><b>${nm}:</b> ${esc(p.txt)}${p.ult?" · última "+esc(fDia(p.ult.feitoEm)):""} <small>(a cada ${esc(plural(a,"dia"))})</small></p>`;
   return `<div class="fr-sit ${l.nivel}"><h3>Lavagem e higienização</h3><p class="fr-big">${esc(l.a.txt)}</p>${ln(l.a,"Lavagem",lavDias(v))}${ln(l.b,"Higienização",higDias(v))}
@@ -3173,8 +3182,8 @@ function renderVeiculo(){
   if(!v){app.innerHTML=`<div class="empty"><h3>Veículo não encontrado</h3><p><a class="btn" href="#frota">Voltar para a frota</a></p></div>`;return}
   const c=prazoConf(v),km=kmVeic(v),cs=confsDe(v.id),ss=servsDe(v.id),ms=S.manutencoes.filter(m=>m.veiculoId===v.id).sort((a,b)=>T(b.criadoEm)-T(a.criadoEm));
   const fs=S.vServ&&S.vServ.id===v.id?S.vServ:null;
-  let h=`<p class="fr-back"><a href="#frota">← Frota</a></p><div class="head"><div><h1>${esc(v.nome)}${v.placa?` <span class="fr-pl big">${esc(v.placa)}</span>`:""}</h1><p>${esc([[v.marca,v.modelo].filter(Boolean).join(" "),v.ano,v.cor,v.uso].filter(Boolean).join(" · "))}</p></div>
-    <div class="act"><a class="btn pri" href="#conferir/${esc(v.id)}">Conferir agora</a>${isLog()?`<a class="btn" href="#veiculo-editar/${esc(v.id)}">Editar cadastro</a>`:""}</div></div>${banner()}${avisoScript17()}
+  let h=`<p class="fr-back"><a href="#frota">← Veículos</a></p><div class="head"><div><h1>${esc(v.nome)}${v.placa?` <span class="fr-pl big">${esc(v.placa)}</span>`:""}</h1><p>${esc([[v.marca,v.modelo].filter(Boolean).join(" "),v.ano,v.cor,v.uso].filter(Boolean).join(" · "))}</p></div>
+    <div class="act"><a class="btn pri" href="#conferir/${esc(v.id)}">Conferir agora</a>${isFrota()?`<a class="btn" href="#veiculo-editar/${esc(v.id)}">Editar cadastro</a>`:""}</div></div>${banner()}${avisoScript17()}
     <div class="fr-sits">
       <div class="fr-sit ${c.nivel}"><h3>Conferência semanal</h3><p class="fr-big">${esc(c.txt)}</p>${c.ult?`<p>Última: ${esc(fDH(c.ult.feitoEm))}${c.ult.feitoPorNome?" · "+esc(c.ult.feitoPorNome):""}</p><p>${c.ult.problemas?esc(plural(c.ult.problemas,"item ruim","itens ruins")):"Tudo OK"}${c.ult.km!=null?" · "+esc(fKm(c.ult.km)):""}</p>`:`<p>A cada ${esc(plural(c.n,"dia"))}</p>`}
         <div class="actions"><a class="btn sm${c.nivel!=="ok"?" pri":""}" href="#conferir/${esc(v.id)}">Conferir</a></div></div>
@@ -3193,7 +3202,7 @@ function renderVeiculo(){
   h+=`<div class="fr-cols"><section class="card"><div class="card-h"><h2>Dados do veículo</h2></div><div class="card-b"><dl class="dl">
       ${dado("Placa",v.placa)}${dado("Tipo",v.tipo)}${dado("Uso",v.uso)}${dado("Combustível",v.combustivel)}${dado("Marca",v.marca)}${dado("Modelo",v.modelo)}${dado("Cor",v.cor)}${dado("Ano",v.ano)}
       ${dado("RENAVAM",v.renavam)}${dado("Chassi",v.chassi)}${dado("Capacidade",v.capacidade)}${dado("Custo por km",nOuNull(v.custoKm)!=null?fBRL(v.custoKm):"Padrão")}</dl>
-      <div class="fr-doc">${v.documentoPath?`<button class="btn sm" type="button" id="vDoc">Ver documento</button><span>${esc(v.documentoNome||"Documento do veículo")}</span>`:`<span>Documento do veículo não anexado.</span>${isLog()?`<a class="btn sm ghost" href="#veiculo-editar/${esc(v.id)}">Anexar</a>`:""}`}</div></div></section>
+      <div class="fr-doc">${v.documentoPath?`<button class="btn sm" type="button" id="vDoc">Ver documento</button><span>${esc(v.documentoNome||"Documento do veículo")}</span>`:`<span>Documento do veículo não anexado.</span>${isFrota()?`<a class="btn sm ghost" href="#veiculo-editar/${esc(v.id)}">Anexar</a>`:""}`}</div></div></section>
     <section class="card"><div class="card-h"><h2>OS de manutenção</h2><span class="sub">${ms.length?plural(ms.length,"OS"):""}</span></div><div class="card-b">
       ${ms.length?`<ul class="fr-hist">${ms.slice(0,12).map(m=>`<li><span><b>${esc(codM(m))}</b> ${esc(m.titulo||"")}</span><span class="fr-hs">${esc(MST[m.status]||m.status)} · ${esc(fData(m.criadoEm))}</span></li>`).join("")}</ul>`:`<p class="fr-none">Nenhuma OS ligada a este veículo. Item ruim na conferência abre uma OS sozinho.</p>`}</div></section></div>
     <div class="fr-cols"><section class="card"><div class="card-h"><h2>Conferências</h2><span class="sub">${cs.length?plural(cs.length,"registro"):""}</span></div><div class="card-b">
@@ -3255,14 +3264,14 @@ const V_CAMPOS=[
   ["Revisão",[["revisaoIntervaloKm","Revisar a cada (km)","int","10000",1],["revisaoMeses","ou a cada (meses)","int","Opcional"],["revisaoUltimaKm","Km da última revisão","int","Vazio = conta do km inicial"],["revisaoUltimaEm","Data da última revisão","date",""]]],
   ["Lavagem e higienização",[["lavagemDias","Lavar a cada (dias)","int","7",1],["higienizacaoDias","Higienizar por dentro a cada (dias)","int","30",1]]]];
 function renderVeiculoEditar(){
-  if(!isLog()){app.innerHTML=`<div class="empty"><h3>Somente a coordenação da logística edita veículos.</h3><p><a class="btn" href="#frota">Voltar</a></p></div>`;return}
+  if(!isFrota()){app.innerHTML=`<div class="empty"><h3>Somente quem cuida da frota edita veículos.</h3><p><a class="btn" href="#frota">Voltar</a></p></div>`;return}
   const novo=S.routeArg==="novo",v0=novo?{tipo:"Utilitário",uso:"Logística"}:byId(S.veiculos,S.routeArg);const v=v0&&Object.assign({},v0,{oleoIntervaloKm:v0.oleoIntervaloKm||10000,revisaoIntervaloKm:v0.revisaoIntervaloKm||10000,lavagemDias:v0.lavagemDias||7,higienizacaoDias:v0.higienizacaoDias||30});
   if(!v){app.innerHTML=`<div class="empty"><h3>Veículo não encontrado</h3><p><a class="btn" href="#frota">Voltar</a></p></div>`;return}
   S.vDoc=null;
   const campo=([k,l,t,o,req])=>{const val=v[k]==null?"":v[k];const id="vf-"+k;
     return `<div class="field"><label for="${id}"${req?' class="req"':""}>${esc(l)}</label>${t==="sel"?`<select id="${id}"><option value="">Selecione…</option>${optsS(o,val)}</select>`
       :`<input id="${id}" type="${t==="date"?"date":t==="int"?"number":"text"}"${t==="int"?' inputmode="numeric" min="0" step="1"':t==="money"?' inputmode="decimal"':""}${k==="placa"||k==="chassi"?' autocapitalize="characters"':""} placeholder="${esc(o||"")}" value="${esc(t==="money"&&val!==""?String(val).replace(".",","):String(val).slice(0,t==="date"?10:999))}">`}</div>`};
-  app.innerHTML=`<p class="fr-back"><a href="${novo?"#frota":"#veiculo/"+esc(v.id)}">← ${novo?"Frota":esc(v.nome)}</a></p><div class="head"><div><h1>${novo?"Cadastrar veículo":"Editar "+esc(v.nome)}</h1><p>Com o km e a última troca, o sistema calcula sozinho a próxima troca de óleo e a próxima revisão.</p></div></div>${banner()}
+  app.innerHTML=`<p class="fr-back"><a href="${novo?"#frota":"#veiculo/"+esc(v.id)}">← ${novo?"Veículos":esc(v.nome)}</a></p><div class="head"><div><h1>${novo?"Cadastrar veículo":"Editar "+esc(v.nome)}</h1><p>Com o km e a última troca, o sistema calcula sozinho a próxima troca de óleo e a próxima revisão.</p></div></div>${banner()}
     <form id="vF" class="fr-ed" novalidate>${V_CAMPOS.map(([g,cs])=>`<section class="card"><div class="card-h"><h2>${esc(g)}</h2></div><div class="card-b"><div class="fr-g">${cs.filter(c=>!(novo&&c[0]==="kmAtual")).map(campo).join("")}</div></div></section>`).join("")}
     <section class="card"><div class="card-h"><h2>Documento do veículo</h2><span class="sub">PDF ou foto do CRLV, até 10 MB. Só a coordenação vê.</span></div><div class="card-b">
       <div class="fr-doc">${v.documentoPath?`<button class="btn sm" type="button" id="vDoc">Ver documento atual</button><span>${esc(v.documentoNome||"")}</span>`:"<span>Nenhum documento anexado.</span>"}</div>
@@ -3307,7 +3316,7 @@ async function enviarDocVeic(v,file){
 
 /* ---------- conferência semanal ---------- */
 function renderConferir(){
-  const voltar=S.role==="campo"?"#missoes":"#frota",vl=S.role==="campo"?"Minhas missões":"Frota";
+  const voltar=S.role==="campo"?"#missoes":"#frota",vl=S.role==="campo"?"Minhas missões":"Veículos";
   const bar=`<div class="ms-bar"><a class="ms-back" href="${voltar}">${ic("back","ic")}${vl}</a><span class="ms-cod">Conferência</span></div>`;
   const v=S.routeArg&&byId(S.veiculos,S.routeArg);
   if(!v){const vs=veicAtivos().slice().sort((a,b)=>{const pa=prazoConf(a),pb=prazoConf(b);return (pa.nivel==="ok")-(pb.nivel==="ok")||sortNome(a,b)});
@@ -3357,7 +3366,7 @@ async function registrarConf(v,km,itens){
 
 /* ---------- lavagem e higienização ---------- */
 function renderLavar(){
-  const voltar=S.role==="campo"?"#missoes":S.routeArg?"#veiculo/"+S.routeArg:"#frota",vl=S.role==="campo"?"Minhas missões":S.routeArg?"Veículo":"Frota";
+  const voltar=S.role==="campo"?"#missoes":S.routeArg?"#veiculo/"+S.routeArg:"#frota",vl=S.role==="campo"?"Minhas missões":S.routeArg?"Veículo":"Veículos";
   const bar=`<div class="ms-bar"><a class="ms-back" href="${esc(voltar)}">${ic("back","ic")}${vl}</a><span class="ms-cod">Lavagem</span></div>`;
   const v=S.routeArg&&byId(S.veiculos,S.routeArg);
   if(!v){const vs=veicAtivos().slice().sort((a,b)=>{const rk={alto:0,medio:1,ok:2};return rk[prazoLimpeza(a).nivel]-rk[prazoLimpeza(b).nivel]||sortNome(a,b)});
@@ -3440,6 +3449,100 @@ function loadDemoFrota(){
     {id:"l4",veiculoId:"v3",tipo:"lavagem",detalhe:"completa",feitoEm:dt(4),custo:180,oficina:"Estética automotiva Morumbi",obs:"Cera e limpeza do couro",fotos:[]},
     {id:"l5",veiculoId:"v4",tipo:"lavagem",detalhe:"externa",feitoEm:dt(6),custo:60,fotos:[]},{id:"l6",veiculoId:"v4",tipo:"lavagem",detalhe:"ozonio",feitoEm:dt(40),custo:150,fotos:[]}];
   S.veiculos.forEach(v=>{if(v.lavagemDias==null)v.lavagemDias=v.uso==="Particular do chefe"?3:7;if(v.higienizacaoDias==null)v.higienizacaoDias=30});
+}
+
+/* =====================================================================
+   ÁREA DA FROTA · painel, conferências, lavagens, serviços e custos
+   ===================================================================== */
+const F_PER=[["7","Últimos 7 dias"],["30","Últimos 30 dias"],["mes","Este mês"],["mesant","Mês anterior"],["90","Últimos 90 dias"],["ano","Este ano"]];
+const fPer=()=>S.fper||"30";
+const dtServ=x=>String(x.feitoEm||"").slice(0,10)+"T12:00:00";
+function noPer(iso){const [a,b]=periodRange(fPer());const t=T(iso);return t>=a.getTime()&&t<b.getTime()}
+const fVeicOk=id=>!S.fveic||id===S.fveic;
+const servPer=()=>(S.veiculo_servicos||[]).filter(x=>noPer(dtServ(x))&&fVeicOk(x.veiculoId));
+const confPer=()=>(S.veiculo_conferencias||[]).filter(x=>noPer(x.feitoEm)&&fVeicOk(x.veiculoId));
+const lblServ=x=>x.tipo==="lavagem"?LAV_LBL[x.detalhe]||"Lavagem":SERV_LBL[x.tipo]||x.tipo;
+const nomeVid=id=>nomeV(byId(S.veiculos,id));
+function filtrosFrota(extra){
+  const vs=S.veiculos.slice().sort(sortNome);
+  return `<div class="filters"><div class="field"><label for="ffPer">Período</label><select id="ffPer">${optsS(F_PER,fPer())}</select></div>
+    <div class="field"><label for="ffV">Veículo</label><select id="ffV"><option value="">Todos os veículos</option>${vs.map(v=>`<option value="${esc(v.id)}"${S.fveic===v.id?" selected":""}>${esc(nomeV(v))}${v.ativo===false?" (desativado)":""}</option>`).join("")}</select></div>${extra||""}</div>`;
+}
+function bindFiltrosFrota(fn){
+  const p=$("#ffPer");if(p)p.onchange=()=>{S.fper=p.value;fn()};
+  const v=$("#ffV");if(v)v.onchange=()=>{S.fveic=v.value||null;fn()};
+}
+const headFrota=(t,sub,acts)=>`<div class="head"><div><h1>${t}</h1><p>${sub}</p></div>${acts?`<div class="act">${acts}</div>`:""}</div>${banner()}${avisoScript17()}`;
+const btnsFrota=()=>isStaff()?`<a class="btn" href="#conferir">Conferir veículo</a><a class="btn" href="#lavar">Registrar lavagem</a>`:"";
+
+/* ---------- painel da frota ---------- */
+function renderFPainel(){
+  const vs=veicAtivos(),A=alertasFrota().filter(a=>fVeicOk(a.v.id)),alto=A.filter(a=>a.nivel==="alto").length;
+  const ss=servPer(),cs=confPer(),lav=ss.filter(x=>x.tipo==="lavagem");
+  const soma=l=>l.reduce((s,x)=>s+(Number(x.custo)||0),0),custo=soma(ss);
+  const rotas=S.os.filter(o=>o.veiculoId&&fVeicOk(o.veiculoId)&&o.status==="concluida"&&noPer(o.concluidoEm)&&o.kmFinal!=null&&o.kmInicial!=null&&Number(o.kmFinal)>=Number(o.kmInicial));
+  const km=rotas.reduce((s,o)=>s+(Number(o.kmFinal)-Number(o.kmInicial)),0);
+  const prob=cs.filter(c=>c.problemas>0).length;
+  const usos=USOS_VEIC.map(u=>[u,vs.filter(v=>v.uso===u).length]).filter(x=>x[1]).map(x=>x[1]+" "+x[0].toLowerCase()).join(" · ");
+  const osV=S.manutencoes.filter(m=>m.veiculoId&&fVeicOk(m.veiculoId)&&MABERTOS.includes(m.status)).sort((a,b)=>T(b.criadoEm)-T(a.criadoEm));
+  let h=headFrota("Painel da <em>frota</em>","Conferências, manutenção, limpeza e custos de cada veículo.",btnsFrota())+filtrosFrota();
+  h+=`<div class="kpis">${kpi("Veículos ativos",vs.length,"",usos||"Informe o uso no cadastro")}${kpi("Pendências agora",A.length,"",alto?plural(alto,"vencida")+" ou atrasada"+(alto>1?"s":""):A.length?"nenhuma vencida":"Tudo em dia",alto?"alert":A.length?"":"good")}
+    ${kpi("Conferências",cs.length,"",prob?plural(prob,"com item ruim","com item ruim"):cs.length?"sem item ruim":"nenhuma no período",prob?"alert":"")}${kpi("Lavagens",lav.length,"",lav.length?fBRL(soma(lav)):"nenhuma no período")}
+    ${kpi("Custo da frota",fBRL(custo),"",plural(ss.filter(x=>x.custo!=null).length,"lançamento")+" com valor","money-k")}${kpi("Km nas rotas",km.toLocaleString("pt-BR"),"km",plural(rotas.length,"rota concluída","rotas concluídas"))}</div>`;
+  h+=`<div class="grid2"><section class="card"><div class="card-h"><h2>Pendências</h2><span class="sub">${A.length?plural(A.length,"item","itens"):"nenhuma"}</span></div><div class="card-b">
+      ${A.length?`<div class="fr-als one">${A.map(a=>`<a class="fr-al ${a.nivel}" href="#veiculo/${esc(a.v.id)}"><b>${esc(nomeV(a.v))}</b><span>${esc(a.lbl)} · ${esc(a.txt)}</span></a>`).join("")}</div>`:`<p class="fr-none">Conferências, óleo, revisões e limpeza em dia.</p>`}</div></section>
+    <section class="card"><div class="card-h"><h2>OS de manutenção abertas</h2><span class="sub">${osV.length?plural(osV.length,"OS"):""}</span></div><div class="card-b">
+      ${osV.length?`<ul class="fr-hist">${osV.slice(0,12).map(m=>`<li><span><b>${esc(codM(m))}</b> ${esc(m.titulo||"")}</span><span class="fr-hs">${esc(MST[m.status]||m.status)} · ${esc(fData(m.criadoEm))}</span></li>`).join("")}</ul>`:`<p class="fr-none">Nenhuma OS aberta para os veículos.</p>`}</div></section></div>`;
+  const porV=groupCount(ss.filter(x=>x.custo!=null),x=>x.veiculoId).map(([id,l])=>({n:nomeVid(id),v:soma(l),lbl:fBRL(soma(l)),x:plural(l.length,"lançamento")})).sort((a,b)=>b.v-a.v).slice(0,10);
+  const tipos=[["oleo","Troca de óleo"],["revisao","Revisão"],["lavagem","Lavagem e higienização"],["outro","Outros serviços"]].map(([k,n])=>{const l=ss.filter(x=>x.tipo===k);return {n,v:soma(l),lbl:fBRL(soma(l)),x:plural(l.length,"lançamento")}}).filter(r=>r.v>0||r.x!=="0 lançamentos");
+  h+=`<div class="grid2"><section class="card"><div class="card-h"><h2>Custo por veículo</h2><span class="sub">no período</span></div><div class="card-b">${hbars(porV)}</div></section>
+    <section class="card"><div class="card-h"><h2>Custo por tipo</h2><span class="sub">${fBRL(custo)} no total</span></div><div class="card-b">${hbars(tipos.filter(r=>r.v>0))}</div></section></div>`;
+  const ult=[...cs.map(c=>({t:T(c.feitoEm),v:c.veiculoId,txt:"Conferência"+(c.problemas?" · "+plural(c.problemas,"item ruim","itens ruins"):" · tudo OK"),q:c.feitoPorNome,pb:c.problemas>0})),
+    ...ss.map(x=>({t:T(dtServ(x)),v:x.veiculoId,txt:lblServ(x)+(x.custo!=null?" · "+fBRL(x.custo):""),q:x.oficina}))].sort((a,b)=>b.t-a.t).slice(0,12);
+  h+=`<section class="card"><div class="card-h"><h2>Últimos registros</h2></div><div class="card-b">${ult.length?`<ul class="fr-hist">${ult.map(u=>`<li><span><b>${esc(fData(new Date(u.t).toISOString()))}</b> <a href="#veiculo/${esc(u.v)}">${esc(nomeVid(u.v))}</a>${u.q?" · "+esc(u.q):""}</span><span class="fr-hs${u.pb?" pb":""}">${esc(u.txt)}</span></li>`).join("")}</ul>`:`<p class="fr-none">Nada registrado no período.</p>`}</div></section>`;
+  app.innerHTML=h;bindFiltrosFrota(renderFPainel);
+}
+
+/* ---------- conferências ---------- */
+function renderFConf(){
+  const cs=confPer().filter(c=>!S.fprob||c.problemas>0).sort((a,b)=>T(b.feitoEm)-T(a.feitoEm));
+  const pend=veicAtivos().filter(v=>fVeicOk(v.id)).map(v=>[v,prazoConf(v)]).filter(([,p])=>p.nivel!=="ok");
+  let h=headFrota("Conferências",`Cada veículo é conferido a cada ${plural(confDias(),"dia")}. Item ruim vira OS de manutenção na hora.`,isStaff()?`<a class="btn pri" href="#conferir">Conferir veículo</a>`:"")
+    +filtrosFrota(`<label class="chk" style="align-self:end;margin-bottom:10px"><input type="checkbox" id="ffProb"${S.fprob?" checked":""}> Só com item ruim</label>`);
+  if(pend.length)h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Para conferir</h2><span class="sub">${plural(pend.length,"veículo")}</span></div><div class="card-b"><div class="fr-als">${pend.map(([v,p])=>`<a class="fr-al ${p.nivel}" href="#conferir/${esc(v.id)}"><b>${esc(nomeV(v))}</b><span>${esc(p.txt)}</span></a>`).join("")}</div></div></section>`;
+  h+=`<section class="card"><div class="card-h"><h2>Registros</h2><span class="sub">${plural(cs.length,"conferência")}</span></div><div class="card-b">${cs.length?`<ul class="fr-hist">${cs.map(c=>{const r=(c.itens||[]).filter(i=>i.ok===false),m=c.manutencaoId&&byId(S.manutencoes,c.manutencaoId);
+      return `<li><span><b>${esc(fDH(c.feitoEm))}</b> <a href="#veiculo/${esc(c.veiculoId)}">${esc(nomeVid(c.veiculoId))}</a>${c.feitoPorNome?" · "+esc(c.feitoPorNome):""}${c.km!=null?" · "+esc(fKm(c.km)):""}${r.length?`<br><small>${esc(r.map(i=>i.label+(i.obs?": "+i.obs:"")).join(" · "))}</small>`:""}</span><span class="fr-hs ${r.length?"pb":"okk"}">${r.length?esc(plural(r.length,"item ruim","itens ruins"))+(m?" → "+esc(codM(m)):c.manutencaoId?" → OS aberta":""):"Tudo OK"}</span></li>`}).join("")}</ul>`:`<p class="fr-none">Nenhuma conferência no período.</p>`}</div></section>`;
+  app.innerHTML=h;bindFiltrosFrota(renderFConf);const pb=$("#ffProb");if(pb)pb.onchange=()=>{S.fprob=pb.checked;renderFConf()};
+}
+
+/* ---------- lavagens ---------- */
+function renderFLav(){
+  const ls=servPer().filter(x=>x.tipo==="lavagem").sort((a,b)=>T(dtServ(b))-T(dtServ(a)));
+  const pend=veicAtivos().filter(v=>fVeicOk(v.id)).map(v=>[v,prazoLimpeza(v)]).filter(([,p])=>p.nivel!=="ok");
+  const soma=ls.reduce((s,x)=>s+(Number(x.custo)||0),0);
+  let h=headFrota("Lavagens e higienização","Prazo de cada veículo no cadastro: lavagem a cada 7 dias e higienização a cada 30, se não mudar.",isStaff()?`<a class="btn pri" href="#lavar">Registrar lavagem</a>`:"")+filtrosFrota();
+  h+=`<div class="kpis">${kpi("Lavagens no período",ls.length,"",fBRL(soma))}${LAV_TIPOS.map(([k,n])=>kpi(n,ls.filter(x=>x.detalhe===k).length,"",fBRL(ls.filter(x=>x.detalhe===k).reduce((s,x)=>s+(Number(x.custo)||0),0)))).join("")}${kpi("Pendentes agora",pend.length,"",pend.length?"atrasada, vencendo ou sem registro":"Todos limpos no prazo",pend.some(([,p])=>p.nivel==="alto")?"alert":"")}</div>`;
+  if(pend.length)h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Para lavar</h2><span class="sub">${plural(pend.length,"veículo")}</span></div><div class="card-b"><div class="fr-als">${pend.map(([v,p])=>`<a class="fr-al ${p.nivel}" href="#lavar/${esc(v.id)}"><b>${esc(nomeV(v))}</b><span>${esc(p.txt)}</span></a>`).join("")}</div></div></section>`;
+  h+=`<section class="card"><div class="card-h"><h2>Registros</h2><span class="sub">${plural(ls.length,"lavagem","lavagens")}</span></div><div class="card-b">${ls.length?`<ul class="fr-hist">${ls.map(x=>`<li><span><b>${esc(fDia(x.feitoEm))}</b> <a href="#veiculo/${esc(x.veiculoId)}">${esc(nomeVid(x.veiculoId))}</a> · ${esc(lblServ(x))}${x.oficina?" · "+esc(x.oficina):""}${x.obs?`<br><small>${esc(x.obs)}</small>`:""}${(x.fotos||[]).length?fotosM(x.fotos):""}</span><span class="fr-hs">${x.custo!=null?esc(fBRL(x.custo)):""}</span></li>`).join("")}</ul>`:`<p class="fr-none">Nenhuma lavagem no período.</p>`}</div></section>`;
+  app.innerHTML=h;bindFiltrosFrota(renderFLav);bindZoom(app);
+}
+
+/* ---------- serviços e custos ---------- */
+function renderFServ(){
+  const tp=S.ftipo||"";
+  const ss=servPer().filter(x=>!tp||x.tipo===tp).sort((a,b)=>T(dtServ(b))-T(dtServ(a)));
+  const soma=l=>l.reduce((s,x)=>s+(Number(x.custo)||0),0);
+  let h=headFrota("Serviços e custos","Troca de óleo, revisão, lavagem e outros serviços. Para lançar óleo ou revisão, abra o veículo.","")
+    +filtrosFrota(`<div class="field"><label for="ffT">Tipo</label><select id="ffT"><option value="">Todos</option>${optsS(Object.entries(SERV_LBL),tp)}</select></div>`);
+  h+=`<div class="kpis">${kpi("Total no período",fBRL(soma(ss)),"",plural(ss.length,"lançamento"),"money-k")}${[["oleo","Troca de óleo"],["revisao","Revisão"],["lavagem","Lavagem"],["outro","Outros"]].map(([k,n])=>kpi(n,fBRL(soma(ss.filter(x=>x.tipo===k))),"",plural(ss.filter(x=>x.tipo===k).length,"lançamento"),"money-k")).join("")}</div>`;
+  h+=`<section class="card"><div class="card-h"><h2>Lançamentos</h2><span class="sub">${plural(ss.length,"registro")}</span></div><div class="card-b">${ss.length?`<ul class="fr-hist">${ss.map(x=>`<li><span><b>${esc(fDia(x.feitoEm))}</b> <a href="#veiculo/${esc(x.veiculoId)}">${esc(nomeVid(x.veiculoId))}</a> · ${esc(lblServ(x))}${x.km!=null?" · "+esc(fKm(x.km)):""}${x.oficina?" · "+esc(x.oficina):""}${x.obs?`<br><small>${esc(x.obs)}</small>`:""}</span><span class="fr-hs">${x.custo!=null?esc(fBRL(x.custo)):"—"}</span></li>`).join("")}</ul>`:`<p class="fr-none">Nenhum lançamento no período.</p>`}
+    ${ss.length?`<div class="actions" style="margin-top:12px"><button class="btn sm" type="button" id="ffCsv">Exportar CSV</button></div>`:""}</div></section>`;
+  app.innerHTML=h;bindFiltrosFrota(renderFServ);
+  const t=$("#ffT");if(t)t.onchange=()=>{S.ftipo=t.value;renderFServ()};
+  const cv=$("#ffCsv");if(cv)cv.onclick=()=>{const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+    const linhas=[["Data","Veículo","Placa","Serviço","Km","Valor","Local / oficina","Observação"]].concat(ss.map(x=>{const v=byId(S.veiculos,x.veiculoId)||{};return [fDia(x.feitoEm),v.nome,v.placa,lblServ(x),x.km,x.custo!=null?String(x.custo).replace(".",","):"",x.oficina,x.obs]}));
+    const blob=new Blob(["﻿"+linhas.map(l=>l.map(q).join(";")).join("\r\n")],{type:"text/csv;charset=utf-8"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="frota-servicos-"+dayKey(new Date())+".csv";document.body.appendChild(a);a.click();a.remove()};
 }
 
 /* ---------- Demonstração da manutenção ---------- */
