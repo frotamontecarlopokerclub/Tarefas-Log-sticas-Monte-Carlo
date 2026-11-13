@@ -417,3 +417,6 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 
 ## Atualização 27 · Diagnóstico
 - Abra o endereço com ?diag=1 no fim (ou toque em "diagnóstico" na tela de login) para ver a versão, a sessão salva, o que carregou e os últimos erros. Tem o botão "Apagar login salvo e recarregar".
+
+## Atualização 28 · Diagnóstico passo a passo
+- Depois de abrir uma vez com ?diag=1, aparece o botão "Diagnóstico" em todas as telas, com cada passo da abertura e da abertura anterior. "Desligar diagnóstico" remove o botão.

@@ -878,3 +878,6 @@ a.btn{text-decoration:none}a.btn:not(.pri):not(.danger){color:var(--ink)}
 #diagBox .dg-a{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 #diagBox button{font:inherit;font-weight:700;border:1px solid #C7932D;background:#fff;border-radius:8px;padding:8px 12px;color:#140C0B}
 #diagBox p{margin:10px 0 0;color:#6b5a52;font-size:12px}
+:root{--versao-css:"28"}
+#diagBtn{position:fixed;left:10px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:9998;font:700 12px Montserrat,system-ui,sans-serif;background:#C7932D;color:#140C0B;border:0;border-radius:999px;padding:8px 12px;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+body.auth #diagBtn{bottom:16px}

@@ -89,14 +89,21 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=27;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=28;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
 
 const LOGS=[];const T0=Date.now();
-["warn","error"].forEach(k=>{const o=console[k].bind(console);console[k]=(...a)=>{try{LOGS.push(((Date.now()-T0)/1000).toFixed(1)+"s "+k+": "+a.map(x=>x&&x.message?x.message:typeof x==="object"?JSON.stringify(x).slice(0,160):String(x)).join(" ").slice(0,220));if(LOGS.length>30)LOGS.shift()}catch(e){}o(...a)}});
-window.addEventListener("error",e=>LOGS.push(((Date.now()-T0)/1000).toFixed(1)+"s erro: "+(e.message||"")+" @"+String(e.filename||"").split("/").pop()+":"+(e.lineno||"")));
+let LOGS_ANT=[];try{LOGS_ANT=JSON.parse(sessionStorage.getItem("mc-diag-log")||"[]")}catch(e){}
+function dlog(m){try{LOGS.push(((Date.now()-T0)/1000).toFixed(1)+"s "+m);if(LOGS.length>60)LOGS.shift();sessionStorage.setItem("mc-diag-log",JSON.stringify(LOGS))}catch(e){}}
+try{if(/[?&]diag\b/.test(location.search))localStorage.setItem("mc-diag","1")}catch(e){}
+const DIAG_ON=(()=>{try{return localStorage.getItem("mc-diag")==="1"}catch(e){return false}})();
+["warn","error"].forEach(k=>{const o=console[k].bind(console);console[k]=(...a)=>{try{dlog(k+": "+a.map(x=>x&&x.message?x.message:typeof x==="object"?JSON.stringify(x).slice(0,160):String(x)).join(" ").slice(0,220))}catch(e){}o(...a)}});
+window.addEventListener("error",e=>dlog("ERRO: "+(e.message||"")+" @"+String(e.filename||"").split("/").pop()+":"+(e.lineno||"")));
+window.addEventListener("pageshow",e=>dlog("pageshow persisted="+e.persisted));
+document.addEventListener("visibilitychange",()=>dlog("visível="+document.visibilityState));
+dlog("abriu "+location.pathname+location.search+location.hash);
 function diagInfo(){
   const sess=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(/^sb-.*auth-token/.test(k)){let exp="?";try{const j=JSON.parse(localStorage.getItem(k));const e=j&&(j.expires_at||(j.currentSession&&j.currentSession.expires_at));if(e)exp=new Date(e*1000).toLocaleString("pt-BR")+(e*1000<Date.now()?" (vencido)":"")}catch(x){}sess.push(k.replace(/^(sb-.{4}).*(-auth-token)$/,"$1…$2")+" · expira "+exp)}}}catch(e){sess.push("sem acesso ao armazenamento")}
   const css=getComputedStyle(document.documentElement).getPropertyValue("--versao-css").replace(/"/g,"").trim()||"antigo";
@@ -105,18 +112,20 @@ function diagInfo(){
     ["Tela",(document.body.className||"(sem classe)")+" · html: "+(document.documentElement.className||"-")+" · modo "+(S.authMode||"-")+" · rota "+(S.route||"-")],
     ["Sessão salva",sess.join(" | ")||"nenhuma"],["Usuário",S.uid?"conectado · papel "+(S.role||"-")+" · área "+(S.areaAcesso||"-")+" / "+(S.area||"-"):"não conectado"],
     ["Iniciando",S.starting?"sim":"não"],["Carregado",Object.keys(S.loaded||{}).filter(k=>S.loaded[k]).join(", ")||"nada"],["Faltando no banco",Object.keys(S.missing||{}).filter(k=>S.missing[k]).join(", ")||"nada"],
-    ["Tempo aberto",((Date.now()-T0)/1000).toFixed(0)+" s"],["Últimos avisos",LOGS.slice(-10).join("\n")||"nenhum"]];
+    ["Tempo aberto",((Date.now()-T0)/1000).toFixed(0)+" s"],["Passos desta abertura",LOGS.slice(-28).join("\n")||"nenhum"],["Abertura anterior",LOGS_ANT.slice(-16).join("\n")||"nenhuma"]];
 }
 function mostrarDiag(){
   let d=document.getElementById("diagBox");if(!d){d=document.createElement("div");d.id="diagBox";document.body.appendChild(d)}
   d.innerHTML=`<div class="dg-h"><b>Diagnóstico · Facilities MC</b><button type="button" id="dgX">Fechar</button></div><dl>${diagInfo().map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
-    <div class="dg-a"><button type="button" id="dgR">Recarregar</button><button type="button" id="dgL">Apagar login salvo e recarregar</button></div><p>Tire um print desta tela e mande para quem cuida do sistema.</p>`;
+    <div class="dg-a"><button type="button" id="dgR">Recarregar</button><button type="button" id="dgL">Apagar login salvo e recarregar</button><button type="button" id="dgOff">Desligar diagnóstico</button></div><p>Tire um print desta tela e mande para quem cuida do sistema.</p>`;
   document.getElementById("dgX").onclick=()=>{d.remove();clearInterval(S.dgT);S.dgT=null};
   document.getElementById("dgR").onclick=()=>location.reload();
+  document.getElementById("dgOff").onclick=()=>{try{localStorage.removeItem("mc-diag")}catch(e){}location.href=location.pathname};
   document.getElementById("dgL").onclick=async()=>{try{if(sb)await comTempo(sb.auth.signOut({scope:"local"}),5000)}catch(e){}try{Object.keys(localStorage).filter(k=>/^sb-/.test(k)).forEach(k=>localStorage.removeItem(k))}catch(e){}location.href=location.pathname};
   if(!S.dgT)S.dgT=setInterval(()=>{if(document.getElementById("diagBox"))mostrarDiag()},1500);
 }
-if(/[?&]diag\b/.test(location.search)) document.addEventListener("DOMContentLoaded",()=>setTimeout(mostrarDiag,50)),setTimeout(()=>{if(document.body)mostrarDiag()},300);
+function botaoDiag(){if(!DIAG_ON||document.getElementById("diagBtn"))return;const b=document.createElement("button");b.id="diagBtn";b.type="button";b.textContent="Diagnóstico";b.onclick=mostrarDiag;document.body.appendChild(b)}
+setTimeout(()=>{botaoDiag();if(/[?&]diag\b/.test(location.search))mostrarDiag()},300);
 async function boot(){
   try{ const ls=localStorage.getItem("mc-log-f"); if(ls) Object.assign(S.f,JSON.parse(ls)); }catch(e){}
   if(!CFG.supabaseUrl||!CFG.supabaseAnonKey||!window.supabase){
@@ -125,6 +134,7 @@ async function boot(){
     S.demo=true; S.role="log"; loadDemo(); buildNav(); route(); return; }
   sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey);
   sb.auth.onAuthStateChange((ev,ses)=>{
+    dlog("evento de login: "+ev+(ses?" (com sessão)":" (sem sessão)")+" · modo "+(S.authMode||"-")+" · papel "+(S.role||"-"));
     if(ev==="PASSWORD_RECOVERY"){ S.recovery=true; renderAuth("nova-senha"); return; }
     if(ev==="SIGNED_OUT"){ if(S.role||S.uid){ location.hash=""; location.reload(); } return; }
     // a sessão voltou sozinha (internet chegou depois): entra sem pedir a senha de novo
@@ -134,20 +144,21 @@ async function boot(){
   window.addEventListener("unhandledrejection",e=>{ if(!S.role||(!S.loaded.os&&S.route==="painel")) telaErro(e.reason); });
   let session=null,erro=null;
   try{ const r=await comTempo(sb.auth.getSession(),15000); session=r.data&&r.data.session; erro=r.error||null; }catch(e){ erro=e; }
+  dlog("getSession: "+(session?"com sessão":"sem sessão")+(erro?" · erro "+(erro.message||erro):""));
   if(S.recovery) return;
   if(/type=recovery/.test(location.hash)) return;
   if(!session){ if(erro&&(!navigator.onLine||/tempo|fetch|network/i.test(String(erro.message||erro)))) return telaSemConexao(); return renderAuth("entrar"); }
   await startSession(session);
 }
 const comTempo=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error("tempo esgotado")),ms))]);
-function modoApp(on){ document.body.classList.toggle("auth",!on); document.documentElement.classList.toggle("auth",!on); }
-function telaSemConexao(){
+function modoApp(on){ dlog("modoApp("+(on?"sistema":"login")+")"+(on?"":" ← "+String(new Error().stack||"").split("\n").slice(2,4).map(x=>x.trim().split(" ")[1]||x.trim()).join(" < "))); document.body.classList.toggle("auth",!on); document.documentElement.classList.toggle("auth",!on); }
+function telaSemConexao(){ dlog("telaSemConexao");
   modoApp(false); S.authMode="semrede";
   app.innerHTML=`<div class="auth-wrap"><section class="auth-card"><h1>Sem conexão</h1><p class="auth-p">O celular ainda não está conectado à internet. Assim que conectar, o sistema abre sozinho.</p><div class="auth-f"><button class="btn pri" type="button" id="aRetry">Tentar de novo</button></div><p class="auth-v">Versão ${VERSAO}</p></section></div>`;
   $("#aRetry").onclick=()=>location.reload();
   window.addEventListener("online",()=>location.reload(),{once:true});
 }
-function telaErro(e){
+function telaErro(e){ dlog("telaErro: "+String(e&&e.message||e).slice(0,120));
   console.error(e); S.starting=false;
   const msg=String((e&&(e.message||e.error_description||e.details))||e||"erro desconhecido").slice(0,240);
   modoApp(false); S.authMode="erro";
@@ -156,11 +167,13 @@ function telaErro(e){
   $("#aRetry").onclick=()=>location.reload(); $("#aOut").onclick=sair;
 }
 async function startSession(session){
+  dlog("startSession"+(S.starting?" (já iniciando, ignorado)":""));
   if(S.starting) return; S.starting=true;
   try{
   S.uid=session.user.id;
   let perfil=null;
   for(let i=0;i<3&&!perfil;i++){ const r=await comTempo(sb.from("perfis").select("*").eq("id",S.uid).maybeSingle(),15000); if(r.error){ if(i===2) throw r.error; } perfil=r.data; if(!perfil) await new Promise(res=>setTimeout(res,800)); }
+  dlog("perfil: "+(perfil?perfil.papel+" / "+(perfil.area_acesso||"-")+(perfil.trocar_senha?" / trocar senha":""):"não encontrado"));
   if(!perfil) return renderAuth("pendente");
   S.meName=perfil.nome||session.user.email; S.meuSetor=perfil.setor_id; S.meuTelefone=perfil.telefone||""; S.podeLocal=perfil.pode_cadastrar_local===true; S.areaAcesso=perfil.area_acesso||"ambas";
   if(!PAPEL_ROLE[perfil.papel]) return renderAuth(perfil.papel==="bloqueado"?"bloqueado":"pendente");
@@ -169,9 +182,11 @@ async function startSession(session){
   {const ap=areasPermitidas();if(ap.length&&!ap.includes(S.area))S.area=ap[0];}
   modoApp(true); document.body.classList.toggle("campo",S.role==="campo");
   buildNav(); if(!location.hash||location.hash.length<2) location.replace("#"+navCfg().home); route();
+  dlog("menu montado, rota "+location.hash+" · classe "+(document.body.className||"-"));
   let lento=false;
   await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes","manutencoes","equipamentos","prestadores","planos","veiculo_conferencias","veiculo_servicos"]
     .map(t=>comTempo(carregar(t),30000).catch(e=>{console.warn("carregar",t,e);lento=true})));
+  dlog("dados carregados"+(lento?" (lento)":"")+" · classe "+(document.body.className||"-"));
   buildNav(); render();
   if(lento) toast("A conexão está lenta: parte dos dados não carregou. Puxe a tela para baixo ou recarregue.");
   try{ if(isLog()) gerarRecorrentes(); if(isMan()) gerarPreventivas(); }catch(e){ console.warn(e); }
@@ -218,6 +233,7 @@ async function resolveNames(){ /* nomes vêm da tabela de perfis */ }
 
 /* ---------- Telas de acesso ---------- */
 function renderAuth(mode){
+  dlog("tela de acesso: "+mode);
   modoApp(false); S.role=null; S.authMode=mode;
   const err=`<p class="err" id="aErr" role="alert"></p>`;
   const card=(t,p,body)=>`<div class="auth-wrap"><section class="auth-card"><h1>${t}</h1>${p?`<p class="auth-p">${p}</p>`:""}${body}<p class="auth-v">Versão ${VERSAO} · <a href="?diag=1">diagnóstico</a></p></section></div>`;
@@ -406,6 +422,7 @@ function markNav(){const c=navCfg();$$("[data-r]").forEach(a=>a.setAttribute("ar
 const ROTAS_LOG=["painel","ordens","pedidos","agenda","relatorio","nova","solicitar","meus"];
 const ROTAS_FROTA=["f-painel","frota","veiculo","veiculo-editar","f-conf","f-lav","f-serv","conferir","lavar"];
 function route(){
+  dlog("route "+location.hash+(document.body.classList.contains("auth")?" (bloqueado: login)":"")+" · papel "+(S.role||"-"));
   const hh=(location.hash||"").slice(1);const [h0,arg]=hh.split("/");let h=h0||"";
   if(document.body.classList.contains("auth")) return;
   if(!S.role){S.route=h||"painel";render(true);return}
