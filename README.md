@@ -420,3 +420,7 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 
 ## Atualização 28 · Diagnóstico passo a passo
 - Depois de abrir uma vez com ?diag=1, aparece o botão "Diagnóstico" em todas as telas, com cada passo da abertura e da abertura anterior. "Desligar diagnóstico" remove o botão.
+
+## Atualização 29 · Correção da tela misturada no celular
+- Causa: ao mudar o tamanho da tela (o iPhone faz isso ao recarregar, rolar e abrir o teclado), o sistema redesenhava o painel mesmo sem ninguém conectado, por cima da tela de login.
+- Agora só redesenha quando a largura muda (girar o celular) e nunca sem login.

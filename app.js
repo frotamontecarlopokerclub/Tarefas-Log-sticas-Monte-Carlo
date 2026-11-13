@@ -89,7 +89,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=28;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=29;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -443,6 +443,7 @@ window.addEventListener("hashchange",()=>{ if(S.openId||S.mOpen)closeOS(); if(lo
 let formMounted=false;
 const wizardLog=()=>isLog()&&!S.editId&&!S.fromPedido&&!S.dupFrom&&!S.editRec&&!S.novaRec&&S.routeArg!=="completo";
 const wizardMan=()=>isMan()&&!S.mEditId&&!String(S.routeArg||"").startsWith("completo");
+function podeDesenhar(){return (S.demo||!!S.role)&&!document.body.classList.contains("auth")}
 function render(force){
   if(document.body.classList.contains("auth")) return;
   if(!S.role&&!S.demo){app.innerHTML=`<div class="empty"><h3>Conectando…</h3><p>Carregando o sistema de Facilities.</p></div>`;return}
@@ -497,6 +498,7 @@ function avg(a){a=a.filter(x=>isFinite(x)&&x>=0);return a.length?a.reduce((s,x)=
 function groupCount(list,keyFn){const m=new Map();list.forEach(o=>{const ks=[].concat(keyFn(o)).filter(Boolean);ks.forEach(k=>m.set(k,(m.get(k)||[]).concat([o])))});return [...m.entries()].sort((a,b)=>b[1].length-a[1].length)}
 
 function renderPainel(){
+  if(!podeDesenhar())return;
   const L=loading();
   const perOpts=[["hoje","Hoje"],["7","Últimos 7 dias"],["30","Últimos 30 dias"],["mes","Este mês"],["mesant","Mês anterior"],["90","Últimos 90 dias"],["ano","Este ano"]];
   const list=S.os.filter(inPainel);
@@ -2404,6 +2406,7 @@ function renderMEq(){
 /* ---------- PAINEL DA MANUTENÇÃO ---------- */
 function inMPainel(m){const [a,b]=periodRange(S.mf.periodo);const t=T(m.criadoEm);if(!(t>=a.getTime()&&t<b.getTime()))return false;if(S.mf.local&&m.localId!==S.mf.local)return false;if(S.mf.cat&&m.categoria!==S.mf.cat)return false;return true}
 function renderMPainel(){
+  if(!podeDesenhar())return;
   const perOpts=[["hoje","Hoje"],["7","Últimos 7 dias"],["30","Últimos 30 dias"],["mes","Este mês"],["mesant","Mês anterior"],["90","Últimos 90 dias"],["ano","Este ano"]];
   const list=S.manutencoes.filter(inMPainel);const val=list.filter(m=>m.status!=="cancelada");const conc=val.filter(m=>m.status==="concluida");
   const abertas=S.manutencoes.filter(m=>MABERTOS.includes(m.status));const novos=abertas.filter(m=>m.status==="aberto");const atr=abertas.filter(mAtrasada);
@@ -2577,6 +2580,7 @@ function exportCSVGestao(A){
   const csv="﻿"+rows.map(r=>r.map(q).join(";")).join("\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="facilities-custos-"+A.k+".csv";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 function renderGestao(){
+  if(!podeDesenhar())return;
   const now=new Date();const meses=[];for(let i=11;i>=0;i--)meses.push(mesKey(new Date(now.getFullYear(),now.getMonth()-i,1)));
   if(!S.gm||!meses.includes(S.gm))S.gm=meses[11];
   const k=S.gm;const [y,mo]=k.split("-");const A=dadosMes(k),B=dadosMes(mesKey(new Date(+y,+mo-2,1)));
@@ -3691,6 +3695,10 @@ function loadDemo(){
 }
 
 /* ---------- Início ---------- */
-let rz;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(S.route==="painel")renderPainel();if(S.route==="m-painel")renderMPainel();if(S.route==="gestao")renderGestao()},200)});
+let rz,rzW=window.innerWidth;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{
+  // só redesenha os gráficos quando a LARGURA muda (girar o celular); o iPhone muda a altura sozinho ao rolar, recarregar e abrir o teclado
+  if(window.innerWidth===rzW)return;rzW=window.innerWidth;
+  if(!podeDesenhar())return;
+  if(S.route==="painel")renderPainel();if(S.route==="m-painel")renderMPainel();if(S.route==="gestao")renderGestao()},200)});
 boot();
 })();
