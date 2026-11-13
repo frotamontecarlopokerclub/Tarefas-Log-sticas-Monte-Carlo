@@ -405,3 +405,6 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 
 ## Atualização 24 · Tipos de veículo
 - Tipos: Carro, Utilitário, Van, Caminhão 3/4, Caminhão toco, Moto, SUV, Caminhonete e Outro.
+
+## Atualização 25 · Ícone do app
+- Novo ícone para a tela do celular: emblema MC, FACILITIES e Logística · Frota · Manutenção (arquivos assets/icone-app-*.png).

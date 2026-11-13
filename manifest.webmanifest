@@ -1,7 +1,7 @@
 {
-  "name": "Facilities MC · Ordens de Serviço",
+  "name": "Facilities MC · Logística, Frota e Manutenção",
   "short_name": "Facilities MC",
-  "description": "Ordens de serviço de logística e manutenção do Grupo Monte Carlo.",
+  "description": "Ordens de serviço de logística, frota e manutenção do Grupo Monte Carlo.",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",
@@ -9,8 +9,26 @@
   "background_color": "#0F0706",
   "theme_color": "#250504",
   "icons": [
-    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "assets/icone-app-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icone-app-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icone-app-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icone-app-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
