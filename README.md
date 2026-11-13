@@ -408,3 +408,9 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 
 ## Atualização 25 · Ícone do app
 - Novo ícone para a tela do celular: emblema MC, FACILITIES e Logística · Frota · Manutenção (arquivos assets/icone-app-*.png).
+
+## Atualização 26 · Abertura mais confiável no celular
+- Se o celular abrir o app antes de a internet conectar, aparece "Sem conexão" e o sistema entra sozinho quando a conexão volta (antes caía no login).
+- Se o login voltar sozinho em segundo plano, a tela de login sai sozinha.
+- Carregamento com limite de tempo: se travar, aparece o aviso de conexão lenta ou a tela "Não foi possível abrir" com o detalhe do erro e o botão Recarregar.
+- Ao voltar de outro app, o iPhone não mostra mais uma tela antiga congelada.

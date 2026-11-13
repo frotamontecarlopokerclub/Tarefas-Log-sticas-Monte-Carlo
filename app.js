@@ -89,7 +89,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=25;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=26;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -101,32 +101,60 @@ async function boot(){
     if(publicado){ const app=$("#app"); app.innerHTML=`<div class="empty"><h3>Não foi possível conectar ao sistema</h3><p>${!window.supabase?"A biblioteca de login não carregou. Verifique a internet":"O arquivo de configuração não carregou"} e toque em recarregar.</p><p><button class="btn pri" type="button" onclick="location.reload()">Recarregar</button></p><p style="color:var(--faint);font-size:12px">Versão ${VERSAO}</p></div>`; return; }
     S.demo=true; S.role="log"; loadDemo(); buildNav(); route(); return; }
   sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey);
-  sb.auth.onAuthStateChange((ev)=>{
-    if(ev==="PASSWORD_RECOVERY"){ S.recovery=true; renderAuth("nova-senha"); }
-    if(ev==="SIGNED_OUT"){ location.hash=""; location.reload(); }
+  sb.auth.onAuthStateChange((ev,ses)=>{
+    if(ev==="PASSWORD_RECOVERY"){ S.recovery=true; renderAuth("nova-senha"); return; }
+    if(ev==="SIGNED_OUT"){ if(S.role||S.uid){ location.hash=""; location.reload(); } return; }
+    // a sessão voltou sozinha (internet chegou depois): entra sem pedir a senha de novo
+    if((ev==="SIGNED_IN"||ev==="TOKEN_REFRESHED")&&ses&&!S.role&&!S.starting&&!S.recovery&&(S.authMode==="entrar"||S.authMode==="semrede")) setTimeout(()=>startSession(ses),0);
   });
-  const {data:{session}}=await sb.auth.getSession();
+  window.addEventListener("pageshow",e=>{ if(e.persisted) location.reload(); });
+  window.addEventListener("unhandledrejection",e=>{ if(!S.role||(!S.loaded.os&&S.route==="painel")) telaErro(e.reason); });
+  let session=null,erro=null;
+  try{ const r=await comTempo(sb.auth.getSession(),15000); session=r.data&&r.data.session; erro=r.error||null; }catch(e){ erro=e; }
   if(S.recovery) return;
   if(/type=recovery/.test(location.hash)) return;
-  if(!session) return renderAuth("entrar");
+  if(!session){ if(erro&&(!navigator.onLine||/tempo|fetch|network/i.test(String(erro.message||erro)))) return telaSemConexao(); return renderAuth("entrar"); }
   await startSession(session);
 }
+const comTempo=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error("tempo esgotado")),ms))]);
+function modoApp(on){ document.body.classList.toggle("auth",!on); document.documentElement.classList.toggle("auth",!on); }
+function telaSemConexao(){
+  modoApp(false); S.authMode="semrede";
+  app.innerHTML=`<div class="auth-wrap"><section class="auth-card"><h1>Sem conexão</h1><p class="auth-p">O celular ainda não está conectado à internet. Assim que conectar, o sistema abre sozinho.</p><div class="auth-f"><button class="btn pri" type="button" id="aRetry">Tentar de novo</button></div><p class="auth-v">Versão ${VERSAO}</p></section></div>`;
+  $("#aRetry").onclick=()=>location.reload();
+  window.addEventListener("online",()=>location.reload(),{once:true});
+}
+function telaErro(e){
+  console.error(e); S.starting=false;
+  const msg=String((e&&(e.message||e.error_description||e.details))||e||"erro desconhecido").slice(0,240);
+  modoApp(false); S.authMode="erro";
+  app.innerHTML=`<div class="auth-wrap"><section class="auth-card"><h1>Não foi possível abrir</h1><p class="auth-p">${/tempo|fetch|network|Failed/i.test(msg)?"A conexão está lenta ou caiu no meio do carregamento.":"Aconteceu um erro ao abrir o sistema."} Toque em recarregar. Se continuar, mande um print desta tela para a coordenação.</p>
+    <p class="auth-p" style="font-size:12px;word-break:break-word"><b>Detalhe:</b> ${esc(msg)}</p><div class="auth-f"><button class="btn pri" type="button" id="aRetry">Recarregar</button><button class="btn" type="button" id="aOut">Sair e entrar de novo</button></div><p class="auth-v">Versão ${VERSAO}</p></section></div>`;
+  $("#aRetry").onclick=()=>location.reload(); $("#aOut").onclick=sair;
+}
 async function startSession(session){
+  if(S.starting) return; S.starting=true;
+  try{
   S.uid=session.user.id;
   let perfil=null;
-  for(let i=0;i<3&&!perfil;i++){ const r=await sb.from("perfis").select("*").eq("id",S.uid).maybeSingle(); perfil=r.data; if(!perfil) await new Promise(r=>setTimeout(r,600)); }
+  for(let i=0;i<3&&!perfil;i++){ const r=await comTempo(sb.from("perfis").select("*").eq("id",S.uid).maybeSingle(),15000); if(r.error){ if(i===2) throw r.error; } perfil=r.data; if(!perfil) await new Promise(res=>setTimeout(res,800)); }
   if(!perfil) return renderAuth("pendente");
   S.meName=perfil.nome||session.user.email; S.meuSetor=perfil.setor_id; S.meuTelefone=perfil.telefone||""; S.podeLocal=perfil.pode_cadastrar_local===true; S.areaAcesso=perfil.area_acesso||"ambas";
   if(!PAPEL_ROLE[perfil.papel]) return renderAuth(perfil.papel==="bloqueado"?"bloqueado":"pendente");
   if(perfil.trocar_senha) return renderAuth("trocar");
-  S.role=PAPEL_ROLE[perfil.papel];
+  S.role=PAPEL_ROLE[perfil.papel]; S.authMode=null;
   {const ap=areasPermitidas();if(ap.length&&!ap.includes(S.area))S.area=ap[0];}
-  document.body.classList.remove("auth"); document.body.classList.toggle("campo",S.role==="campo");
+  modoApp(true); document.body.classList.toggle("campo",S.role==="campo");
   buildNav(); if(!location.hash||location.hash.length<2) location.replace("#"+navCfg().home); route();
-  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes","manutencoes","equipamentos","prestadores","planos","veiculo_conferencias","veiculo_servicos"].map(carregar));
+  let lento=false;
+  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes","manutencoes","equipamentos","prestadores","planos","veiculo_conferencias","veiculo_servicos"]
+    .map(t=>comTempo(carregar(t),30000).catch(e=>{console.warn("carregar",t,e);lento=true})));
   buildNav(); render();
-  if(isLog()) gerarRecorrentes(); if(isMan()) gerarPreventivas();
+  if(lento) toast("A conexão está lenta: parte dos dados não carregou. Puxe a tela para baixo ou recarregue.");
+  try{ if(isLog()) gerarRecorrentes(); if(isMan()) gerarPreventivas(); }catch(e){ console.warn(e); }
   assinarTempoReal();
+  }catch(e){ telaErro(e); }
+  finally{ S.starting=false; }
 }
 async function carregar(t){
   let q=sb.from(t).select("*");
@@ -167,7 +195,7 @@ async function resolveNames(){ /* nomes vêm da tabela de perfis */ }
 
 /* ---------- Telas de acesso ---------- */
 function renderAuth(mode){
-  document.body.classList.add("auth"); S.role=null;
+  modoApp(false); S.role=null; S.authMode=mode;
   const err=`<p class="err" id="aErr" role="alert"></p>`;
   const card=(t,p,body)=>`<div class="auth-wrap"><section class="auth-card"><h1>${t}</h1>${p?`<p class="auth-p">${p}</p>`:""}${body}<p class="auth-v">Versão ${VERSAO}</p></section></div>`;
   let h="";
