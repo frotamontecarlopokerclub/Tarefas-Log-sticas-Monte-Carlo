@@ -414,3 +414,6 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 - Se o login voltar sozinho em segundo plano, a tela de login sai sozinha.
 - Carregamento com limite de tempo: se travar, aparece o aviso de conexão lenta ou a tela "Não foi possível abrir" com o detalhe do erro e o botão Recarregar.
 - Ao voltar de outro app, o iPhone não mostra mais uma tela antiga congelada.
+
+## Atualização 27 · Diagnóstico
+- Abra o endereço com ?diag=1 no fim (ou toque em "diagnóstico" na tela de login) para ver a versão, a sessão salva, o que carregou e os últimos erros. Tem o botão "Apagar login salvo e recarregar".

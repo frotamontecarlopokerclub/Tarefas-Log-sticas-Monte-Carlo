@@ -89,11 +89,34 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=26;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=27;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
 
+const LOGS=[];const T0=Date.now();
+["warn","error"].forEach(k=>{const o=console[k].bind(console);console[k]=(...a)=>{try{LOGS.push(((Date.now()-T0)/1000).toFixed(1)+"s "+k+": "+a.map(x=>x&&x.message?x.message:typeof x==="object"?JSON.stringify(x).slice(0,160):String(x)).join(" ").slice(0,220));if(LOGS.length>30)LOGS.shift()}catch(e){}o(...a)}});
+window.addEventListener("error",e=>LOGS.push(((Date.now()-T0)/1000).toFixed(1)+"s erro: "+(e.message||"")+" @"+String(e.filename||"").split("/").pop()+":"+(e.lineno||"")));
+function diagInfo(){
+  const sess=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(/^sb-.*auth-token/.test(k)){let exp="?";try{const j=JSON.parse(localStorage.getItem(k));const e=j&&(j.expires_at||(j.currentSession&&j.currentSession.expires_at));if(e)exp=new Date(e*1000).toLocaleString("pt-BR")+(e*1000<Date.now()?" (vencido)":"")}catch(x){}sess.push(k.replace(/^(sb-.{4}).*(-auth-token)$/,"$1…$2")+" · expira "+exp)}}}catch(e){sess.push("sem acesso ao armazenamento")}
+  const css=getComputedStyle(document.documentElement).getPropertyValue("--versao-css").replace(/"/g,"").trim()||"antigo";
+  return [["Versão do app",VERSAO+" · estilo "+css],["Endereço",location.href.replace(/access_token=[^&]+/,"access_token=…")],["Scripts",[...document.scripts].map(x=>(x.src||"inline").split("/").pop()).join(", ")],
+    ["Aberto como",(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone?"app na tela de início":"navegador"],["Internet",navigator.onLine?"conectado":"sem conexão"],
+    ["Tela",(document.body.className||"(sem classe)")+" · html: "+(document.documentElement.className||"-")+" · modo "+(S.authMode||"-")+" · rota "+(S.route||"-")],
+    ["Sessão salva",sess.join(" | ")||"nenhuma"],["Usuário",S.uid?"conectado · papel "+(S.role||"-")+" · área "+(S.areaAcesso||"-")+" / "+(S.area||"-"):"não conectado"],
+    ["Iniciando",S.starting?"sim":"não"],["Carregado",Object.keys(S.loaded||{}).filter(k=>S.loaded[k]).join(", ")||"nada"],["Faltando no banco",Object.keys(S.missing||{}).filter(k=>S.missing[k]).join(", ")||"nada"],
+    ["Tempo aberto",((Date.now()-T0)/1000).toFixed(0)+" s"],["Últimos avisos",LOGS.slice(-10).join("\n")||"nenhum"]];
+}
+function mostrarDiag(){
+  let d=document.getElementById("diagBox");if(!d){d=document.createElement("div");d.id="diagBox";document.body.appendChild(d)}
+  d.innerHTML=`<div class="dg-h"><b>Diagnóstico · Facilities MC</b><button type="button" id="dgX">Fechar</button></div><dl>${diagInfo().map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+    <div class="dg-a"><button type="button" id="dgR">Recarregar</button><button type="button" id="dgL">Apagar login salvo e recarregar</button></div><p>Tire um print desta tela e mande para quem cuida do sistema.</p>`;
+  document.getElementById("dgX").onclick=()=>{d.remove();clearInterval(S.dgT);S.dgT=null};
+  document.getElementById("dgR").onclick=()=>location.reload();
+  document.getElementById("dgL").onclick=async()=>{try{if(sb)await comTempo(sb.auth.signOut({scope:"local"}),5000)}catch(e){}try{Object.keys(localStorage).filter(k=>/^sb-/.test(k)).forEach(k=>localStorage.removeItem(k))}catch(e){}location.href=location.pathname};
+  if(!S.dgT)S.dgT=setInterval(()=>{if(document.getElementById("diagBox"))mostrarDiag()},1500);
+}
+if(/[?&]diag\b/.test(location.search)) document.addEventListener("DOMContentLoaded",()=>setTimeout(mostrarDiag,50)),setTimeout(()=>{if(document.body)mostrarDiag()},300);
 async function boot(){
   try{ const ls=localStorage.getItem("mc-log-f"); if(ls) Object.assign(S.f,JSON.parse(ls)); }catch(e){}
   if(!CFG.supabaseUrl||!CFG.supabaseAnonKey||!window.supabase){
@@ -197,7 +220,7 @@ async function resolveNames(){ /* nomes vêm da tabela de perfis */ }
 function renderAuth(mode){
   modoApp(false); S.role=null; S.authMode=mode;
   const err=`<p class="err" id="aErr" role="alert"></p>`;
-  const card=(t,p,body)=>`<div class="auth-wrap"><section class="auth-card"><h1>${t}</h1>${p?`<p class="auth-p">${p}</p>`:""}${body}<p class="auth-v">Versão ${VERSAO}</p></section></div>`;
+  const card=(t,p,body)=>`<div class="auth-wrap"><section class="auth-card"><h1>${t}</h1>${p?`<p class="auth-p">${p}</p>`:""}${body}<p class="auth-v">Versão ${VERSAO} · <a href="?diag=1">diagnóstico</a></p></section></div>`;
   let h="";
   if(mode==="entrar") h=card("Entrar","Ordens de serviço de logística e manutenção do Grupo.",`<form id="aF" class="auth-f" novalidate>
       <div class="field"><label for="aEm">Usuário ou e-mail</label><input type="text" id="aEm" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required></div>

@@ -868,3 +868,13 @@ a.btn{text-decoration:none}a.btn:not(.pri):not(.danger){color:var(--ink)}
 @media (max-width:420px){.area-sw.tres button{padding:6px 8px;font-size:12px}}
 .fr-hist a,.fr-al a{color:var(--ink);font-weight:700;text-decoration:none}
 .fr-hist a:hover{text-decoration:underline}
+
+/* ---------- Diagnóstico (versão 27) ---------- */
+:root{--versao-css:"27"}
+#diagBox{position:fixed;inset:10px;z-index:9999;background:#fff;color:#140C0B;border:2px solid #C7932D;border-radius:14px;padding:14px;overflow:auto;font:13px/1.4 Montserrat,system-ui,sans-serif;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+#diagBox .dg-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+#diagBox dl{margin:0;display:grid;grid-template-columns:110px 1fr;gap:6px 10px}
+#diagBox dt{font-weight:700;color:#6b5a52}#diagBox dd{margin:0;white-space:pre-wrap;word-break:break-word}
+#diagBox .dg-a{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#diagBox button{font:inherit;font-weight:700;border:1px solid #C7932D;background:#fff;border-radius:8px;padding:8px 12px;color:#140C0B}
+#diagBox p{margin:10px 0 0;color:#6b5a52;font-size:12px}
