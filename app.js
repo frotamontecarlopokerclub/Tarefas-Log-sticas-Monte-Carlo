@@ -90,7 +90,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=35;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=36;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -2982,26 +2982,16 @@ function bindChips(attr,arr){$$(`[data-${attr}]`).forEach(b=>b.onclick=()=>{cons
 
 /* ---------- passos da logística ---------- */
 const PASSOS_LOG=[
-  {q:"O que vai ser feito?",auto:true,html:d=>`<div class="wz-tiles">${TIPOS.map(t=>`<button type="button" class="wz-tile${d.tipo===t?" on":""}" data-tp="${esc(t)}"><b>${esc(t)}</b><small>${esc(TIPO_INFO[t]||"")}</small></button>`).join("")}</div>`,
-    bind:d=>$$("[data-tp]").forEach(b=>b.onclick=()=>{d.tipo=b.dataset.tp;wzIr(1)}),valid:d=>d.tipo?null:"Escolha uma opção."},
-  {q:"De onde sai?",hint:"Onde a equipe vai buscar. Se tiver mais de uma retirada, adicione na ordem do caminho.",html:d=>paradasWz(d.ret,"r","Retirada"),bind:d=>bindParadasWz(d.ret,"r"),read:d=>lerParadasWz(d.ret,"r"),valid:d=>d.ret.every(p=>p.localId)?null:"Escolha o local de cada retirada."},
-  {q:"Para onde vai?",hint:"Onde a equipe vai entregar.",html:d=>paradasWz(d.ent,"e","Entrega"),bind:d=>bindParadasWz(d.ent,"e"),read:d=>lerParadasWz(d.ent,"e"),valid:d=>d.ent.every(p=>p.localId)?null:"Escolha o local de cada entrega."},
-  {q:"O que vai ser levado?",html:d=>`<div class="wz-itens">${d.itens.map((it,i)=>`<div class="wz-item"><input type="text" id="wi-d-${i}" class="wz-in" placeholder="Ex.: fardos de água" value="${esc(it.desc)}" aria-label="Item ${i+1}"><input type="number" id="wi-q-${i}" class="wz-in num" min="0" step="any" placeholder="Qtd" value="${esc(it.qtd)}" aria-label="Quantidade"><select id="wi-u-${i}" class="wz-in" aria-label="Unidade">${optsS(UNIDADES,it.un||"un")}</select>${d.itens.length>1?`<button type="button" class="ms-x" data-wirm="${i}" aria-label="Remover">×</button>`:""}</div>`).join("")}</div><button type="button" class="btn" id="wiAdd">+ Outro item</button>`,
-    bind:d=>{$("#wiAdd").onclick=()=>{lerItensWz(d);d.itens.push({desc:"",qtd:"",un:"un"});wzRender();const l=$$(".wz-item input[type=text]");l[l.length-1].focus()};$$("[data-wirm]").forEach(b=>b.onclick=()=>{lerItensWz(d);d.itens.splice(+b.dataset.wirm,1);wzRender()});const f=$("#wi-d-0");if(f&&!f.value)f.focus()},
-    read:d=>lerItensWz(d),valid:d=>d.itens.some(i=>i.desc.trim())?null:"Escreva pelo menos um item."},
-  {q:"Quem pediu?",hint:"A pessoa recebe o aviso de conclusão no WhatsApp.",html:d=>`<div class="fg1">
-      <div class="field"><label for="wzSol">Nome</label><input type="text" id="wzSol" class="wz-in" list="dlWz" autocomplete="off" value="${esc(d.solicitante)}" placeholder="Comece a digitar"><datalist id="dlWz">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}"></option>`).join("")}</datalist><span class="hint" id="wzSolH">${acharContato(d.solicitante)?"Contato cadastrado":""}</span></div>
-      <div class="field"><label for="wzTel">WhatsApp</label><input type="tel" id="wzTel" class="wz-in" inputmode="tel" value="${esc(d.tel)}" placeholder="(11) 99999-9999"></div>
-      <div class="field"><label for="wzSet">Setor</label><select id="wzSet" class="wz-in">${optsSetores(d.setorId,"Selecione…")}</select>${qaHTML("setor","wzSetQ")}</div></div>`,
-    bind:d=>{const s=$("#wzSol");s.focus();s.addEventListener("input",()=>{const c=acharContato(s.value);if(c){$("#wzTel").value=c.telefone||"";if(c.setorId)$("#wzSet").value=c.setorId;$("#wzSolH").textContent="Contato cadastrado"}else $("#wzSolH").innerHTML=s.value.trim()?"<b>Solicitante novo:</b> fica cadastrado com este WhatsApp e setor ao criar a OS.":""});
-      bindQA(app,{wzSetQ:row=>{d.setorId=row.id;$("#wzSet").innerHTML=optsSetores(row.id,"Selecione…")}})},
-    read:d=>{d.solicitante=$("#wzSol").value.trim();d.tel=$("#wzTel").value.trim();d.setorId=$("#wzSet").value},
-    valid:d=>!d.solicitante?"Escreva o nome de quem pediu.":!d.tel?"Informe o WhatsApp de quem pediu.":!foneValido(d.tel)?"WhatsApp com DDD, por exemplo (11) 99999-9999.":!d.setorId?"Escolha o setor.":null},
-  {q:"Quando?",html:d=>quandoHTML(d,false),bind:d=>bindQuando(d),read:d=>lerQuando(d),valid:d=>d.quandoK?(d.quando||d.quandoK==="sem"?null:"Escolha o dia e a hora."):"Escolha quando."},
-  {q:"Quem vai?",hint:"Com equipe e veículo, a OS já aparece no celular de quem foi escalado.",html:d=>{const eq=ativos(S.equipe).filter(p=>(p.area||"logistica")!=="manutencao");
-      return `<span class="lbl">Equipe</span>${chipsEquipe(eq,d.equipeIds,"weq")}${qaHTML("equipe","wzEqQ",{area:"logistica",funcao:"Motorista"})}<span class="lbl" style="margin-top:16px;display:block">Veículo</span><div class="wz-tiles col2">${ativos(S.veiculos).map(v=>`<button type="button" class="wz-tile sm${d.veiculoId===v.id?" on":""}" data-wv="${esc(v.id)}"><b>${esc(v.nome)}</b><small>${esc(v.placa||"")}</small></button>`).join("")}<button type="button" class="wz-tile sm${d.veiculoId===""&&d.veicOk?" on":""}" data-wv=""><b>Sem veículo</b><small>A pé ou a definir</small></button></div>${qaHTML("veiculo","wzVeQ")}`},
-    bind:d=>{bindChips("weq",d.equipeIds);$$("[data-wv]").forEach(b=>b.onclick=()=>{d.veiculoId=b.dataset.wv;d.veicOk=true;$$("[data-wv]").forEach(x=>x.classList.toggle("on",x===b))});
-      bindQA(app,{wzEqQ:row=>{if(!d.equipeIds.includes(row.id))d.equipeIds.push(row.id);wzRender()},wzVeQ:row=>{d.veiculoId=row.id;d.veicOk=true;wzRender()}})},valid:()=>null},
+  {q:"De onde sai?",hint:"Onde a equipe vai buscar.",html:d=>paradasWz(d.ret,"r","Retirada"),bind:d=>bindParadasWz(d.ret,"r"),read:d=>lerParadasWz(d.ret,"r"),valid:d=>d.ret.every(p=>p.localId)?null:"Escolha o local."},
+  {q:"Para onde vai?",hint:"Onde a equipe vai entregar.",html:d=>paradasWz(d.ent,"e","Entrega"),bind:d=>bindParadasWz(d.ent,"e"),read:d=>lerParadasWz(d.ent,"e"),valid:d=>d.ent.every(p=>p.localId)?null:"Escolha o local."},
+  {q:"O que vai ser levado?",hint:"Escreva do seu jeito. Um item por linha, se quiser.",html:d=>`<textarea id="wzOque" class="wz-in" rows="4" placeholder="Ex.: 20 cadeiras dobráveis e 5 fardos de água">${esc(d.oQue||"")}</textarea>
+      <div class="field" style="margin-top:14px"><label for="wzSol">Quem pediu <i class="opc">opcional</i></label><input type="text" id="wzSol" class="wz-in" list="dlWz" autocomplete="off" value="${esc(d.solicitante)}" placeholder="Comece a digitar o nome"><datalist id="dlWz">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}"></option>`).join("")}</datalist><span class="hint" id="wzSolH">${acharContato(d.solicitante)?"Contato cadastrado: setor e WhatsApp entram sozinhos":""}</span></div>`,
+    bind:d=>{const t=$("#wzOque");if(t&&!t.value)t.focus();const s2=$("#wzSol");s2.addEventListener("input",()=>{$("#wzSolH").textContent=acharContato(s2.value)?"Contato cadastrado: setor e WhatsApp entram sozinhos":""})},
+    read:d=>{d.oQue=$("#wzOque").value.trim();d.solicitante=$("#wzSol").value.trim()},valid:d=>d.oQue?null:"Escreva o que vai ser levado."},
+  {q:"Quando e quem vai?",hint:"Com equipe e veículo, a OS já aparece no celular de quem foi escalado. Pode deixar para depois.",html:d=>{const eq=ativos(S.equipe).filter(p=>(p.area||"logistica")!=="manutencao");
+      return quandoHTML(d,false)+`<span class="lbl" style="margin-top:18px;display:block">Equipe <i class="opc">opcional</i></span>${chipsEquipe(eq,d.equipeIds,"weq")}<span class="lbl" style="margin-top:16px;display:block">Veículo <i class="opc">opcional</i></span><div class="wz-tiles col2">${ativos(S.veiculos).map(v=>`<button type="button" class="wz-tile sm${d.veiculoId===v.id?" on":""}" data-wv="${esc(v.id)}"><b>${esc(v.nome)}</b><small>${esc(v.placa||"")}</small></button>`).join("")}</div>`},
+    bind:d=>{bindQuando(d);bindChips("weq",d.equipeIds);$$("[data-wv]").forEach(b=>b.onclick=()=>{d.veiculoId=d.veiculoId===b.dataset.wv?"":b.dataset.wv;d.veicOk=true;$$("[data-wv]").forEach(x=>x.classList.toggle("on",x.dataset.wv===d.veiculoId))})},
+    read:d=>{lerQuando(d);if(!d.quandoK){d.quandoK="sem";d.quando=null}},valid:d=>d.quando||d.quandoK==="sem"?null:"Escolha o dia e a hora."},
 ];
 function paradasWz(arr,k,nome){return arr.map((p,i)=>`<div class="wz-par"><span class="lbl">${nome}${arr.length>1?" "+(i+1):""}</span>${pickerHTML("wz"+k+i,p.localId,nome+" "+(i+1))}
   <input type="text" class="wz-in" id="wz${k}d${i}" list="dlwz${k}${i}" placeholder="Observação (opcional): andar, sala, doca…" value="${esc(p.detalhe||"")}" style="margin-top:8px"><datalist id="dlwz${k}${i}">${subsetoresOpts(p.localId)}</datalist>
@@ -3017,51 +3007,41 @@ function lerItensWz(d){d.itens=d.itens.map((_,i)=>({desc:($("#wi-d-"+i)||{}).val
 const PASSOS_MAN=[
   {q:"O que precisa ser feito?",hint:"Descreva o problema e, se puder, mande uma foto.",html:d=>`<textarea id="wzDesc" class="wz-in" rows="4" placeholder="Ex.: ar-condicionado do salão pingando em cima da mesa 4">${esc(d.descricao)}</textarea><div style="margin-top:12px">${fotoCtl("w",d.fotos,false,"Foto do problema")}</div>`,
     bind:d=>{const t=$("#wzDesc");if(!t.value)t.focus();bindFotosWz(d)},read:d=>{d.descricao=$("#wzDesc").value.trim()},valid:d=>d.descricao?null:"Descreva o problema."},
-  {q:"Que tipo de serviço?",auto:true,html:d=>`<div class="wz-tiles col2">${MCATS.map(c=>`<button type="button" class="wz-tile sm${d.categoria===c?" on":""}" data-ct2="${esc(c)}"><b>${esc(c)}</b></button>`).join("")}<button type="button" class="wz-tile sm${d.categoria===""&&d.catOk?" on":""}" data-ct2=""><b>Não sei</b></button></div>`,
-    bind:d=>$$("[data-ct2]").forEach(b=>b.onclick=()=>{d.categoria=b.dataset.ct2;d.catOk=true;wzIr(1)}),valid:d=>d.catOk||d.categoria?null:"Escolha uma opção."},
   {q:"Onde?",html:d=>`<div class="fg1"><div class="field"><label for="wzL-q">Local</label>${pickerHTML("wzL",d.localId,"Local")}</div>
-      <div class="field"><label for="wzEq">Equipamento <i class="opc">opcional</i></label><select id="wzEq" class="wz-in">${optsEquip(d.localId,d.equipamentoId)}</select></div>
-      <div class="field"><label for="wzDet">Observação do local <i class="opc">opcional</i></label><input type="text" id="wzDet" class="wz-in" list="dlObsW" value="${esc(d.localDetalhe)}" placeholder="Ex.: 3º andar, mesa de Omaha 5"><datalist id="dlObsW">${subsetoresOpts()}</datalist></div>
-      <div class="field"><label for="wzSetM">Setor <i class="opc">opcional</i></label><select id="wzSetM" class="wz-in">${optsSetores(d.setorId,"Selecione…")}</select>${qaHTML("setor","wzSetMQ",d.localId?{localId:d.localId}:null)}</div></div>`,
-    bind:d=>{bindPicker("wzL",id=>{d.localId=id;$("#wzEq").innerHTML=optsEquip(id,"");const qb=$('[data-qactx="wzSetMQ"]');const l=byId(S.locais,id);if(qb)qb.dataset.qax=JSON.stringify(l&&l.tipo!=="Fornecedor"?{localId:id}:{})});$("#wzEq").onchange=e=>{const q=byId(S.equipamentos,e.target.value);if(q){if(q.setorId&&!$("#wzSetM").value)$("#wzSetM").value=q.setorId;if(q.categoria&&!d.categoria)d.categoria=q.categoria}};
-      bindQA(app,{wzSetMQ:row=>{PASSOS_MAN[2].read(d);d.setorId=row.id;wzRender()}})},
-    read:d=>{d.localId=$("#wzL").value;d.equipamentoId=$("#wzEq").value;d.localDetalhe=$("#wzDet").value.trim();d.setorId=$("#wzSetM").value},valid:d=>d.localId?null:"Escolha o local."},
-  {q:"Quem pediu?",hint:"Opcional. Com WhatsApp, a pessoa pode receber o aviso quando o serviço terminar.",html:d=>`<div class="fg1">
-      <div class="field"><label for="wzSolM">Nome <i class="opc">opcional</i></label><input type="text" id="wzSolM" class="wz-in" list="dlWzM" autocomplete="off" value="${esc(d.solicitante)}" placeholder="Comece a digitar"><datalist id="dlWzM">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}"></option>`).join("")}</datalist><span class="hint" id="wzSolMH">${acharContato(d.solicitante)?"Contato cadastrado":""}</span></div>
-      <div class="field"><label for="wzTelM">WhatsApp <i class="opc">opcional</i></label><input type="tel" id="wzTelM" class="wz-in" inputmode="tel" value="${esc(d.tel)}" placeholder="(11) 99999-9999"></div></div>`,
-    bind:d=>{const s2=$("#wzSolM");s2.addEventListener("input",()=>{const c=acharContato(s2.value);if(c){$("#wzTelM").value=c.telefone||"";$("#wzSolMH").textContent="Contato cadastrado"}else $("#wzSolMH").innerHTML=s2.value.trim()?"<b>Solicitante novo:</b> fica cadastrado ao criar a OS, se tiver WhatsApp.":""})},
-    read:d=>{d.solicitante=$("#wzSolM").value.trim();d.tel=$("#wzTelM").value.trim()},
-    valid:d=>d.tel&&!foneValido(d.tel)?"WhatsApp com DDD, por exemplo (11) 99999-9999.":d.tel&&!d.solicitante?"Escreva o nome de quem pediu.":null},
-  {q:"Qual a urgência?",auto:true,html:d=>`<div class="wz-tiles">${MPRIO_SOL.map(([k,l])=>{const [t,s]=l.split(" · ");return `<button type="button" class="wz-tile prio-${k}${d.prioridade===k?" on":""}" data-pr="${k}"><b>${esc(t)}</b><small>${esc(s||"")} · prazo ${esc(fDur(slaH(k)*3600000))}</small></button>`}).join("")}</div>`,
-    bind:d=>$$("[data-pr]").forEach(b=>b.onclick=()=>{d.prioridade=b.dataset.pr;wzIr(1)}),valid:d=>d.prioridade?null:"Escolha a urgência."},
-  {q:"Quem vai fazer?",hint:"Quem for escalado da equipe interna recebe a OS no celular.",html:d=>`<div class="wz-tiles col3">${[["interno","Equipe interna"],["terceiro","Prestador"],["depois","Decidir depois"]].map(([k,l])=>`<button type="button" class="wz-tile sm${d.exec===k?" on":""}" data-ex="${k}"><b>${l}</b></button>`).join("")}</div>
-      <div id="wzExI"${d.exec==="interno"?"":" hidden"} style="margin-top:14px">${chipsEquipe(equipeMan(d.equipeIds),d.equipeIds,"wmq")}${qaHTML("equipe","wzTecQ",{area:"manutencao",funcao:"Manutenção geral"})}</div>
-      <div id="wzExT"${d.exec==="terceiro"?"":" hidden"} style="margin-top:14px"><select id="wzPr" class="wz-in">${optsPrest(d.prestadorId)}</select>${qaHTML("prestador","wzPreQ")}</div>`,
-    bind:d=>{$$("[data-ex]").forEach(b=>b.onclick=()=>{d.exec=b.dataset.ex;$$("[data-ex]").forEach(x=>x.classList.toggle("on",x===b));$("#wzExI").hidden=d.exec!=="interno";$("#wzExT").hidden=d.exec!=="terceiro"});bindChips("wmq",d.equipeIds);$("#wzPr").onchange=e=>{d.prestadorId=e.target.value};
-      bindQA(app,{wzTecQ:row=>{d.exec="interno";if(!d.equipeIds.includes(row.id))d.equipeIds.push(row.id);wzRender()},wzPreQ:row=>{d.exec="terceiro";d.prestadorId=row.id;wzRender()}})},
-    valid:d=>!d.exec?"Escolha quem vai fazer.":d.exec==="interno"&&!d.equipeIds.length?"Escolha ao menos um técnico, ou toque em Decidir depois.":d.exec==="terceiro"&&!d.prestadorId?"Escolha o prestador, ou toque em Decidir depois.":null},
-  {q:"Quando?",html:d=>quandoHTML(d,true),bind:d=>bindQuando(d),read:d=>lerQuando(d),valid:d=>d.quandoK?(d.quando||d.quandoK==="sem"?null:"Escolha o dia e a hora."):"Escolha quando."},
+      <div class="field"><label for="wzDet">Onde exatamente <i class="opc">opcional</i></label><input type="text" id="wzDet" class="wz-in" list="dlObsW" value="${esc(d.localDetalhe)}" placeholder="Ex.: 3º andar, mesa de Omaha 5"><datalist id="dlObsW">${subsetoresOpts()}</datalist></div></div>`,
+    bind:d=>{bindPicker("wzL",id=>{d.localId=id})},
+    read:d=>{d.localId=$("#wzL").value;d.localDetalhe=$("#wzDet").value.trim()},valid:d=>d.localId?null:"Escolha o local."},
+  {q:"Quem faz e quando?",html:d=>`<span class="lbl">Urgência</span><div class="wz-tiles col2">${MPRIO_SOL.map(([k,l])=>`<button type="button" class="wz-tile sm prio-${k}${d.prioridade===k?" on":""}" data-pr="${k}"><b>${esc(l.split(" · ")[0])}</b><small>${esc(l.split(" · ")[1]||"")}</small></button>`).join("")}</div>
+      <span class="lbl" style="margin-top:16px;display:block">Quem faz</span><div class="wz-tiles col3">${[["interno","Equipe interna"],["terceiro","Prestador"],["depois","Decidir depois"]].map(([k,l])=>`<button type="button" class="wz-tile sm${d.exec===k?" on":""}" data-ex="${k}"><b>${l}</b></button>`).join("")}</div>
+      <div id="wzExI"${d.exec==="interno"?"":" hidden"} style="margin-top:12px">${chipsEquipe(equipeMan(d.equipeIds),d.equipeIds,"wmq")}</div>
+      <div id="wzExT"${d.exec==="terceiro"?"":" hidden"} style="margin-top:12px"><select id="wzPr" class="wz-in">${optsPrest(d.prestadorId)}</select></div>
+      <span class="lbl" style="margin-top:16px;display:block">Quando</span>${quandoHTML(d,true)}`,
+    bind:d=>{$$("[data-pr]").forEach(b=>b.onclick=()=>{d.prioridade=b.dataset.pr;$$("[data-pr]").forEach(x=>x.classList.toggle("on",x===b))});
+      $$("[data-ex]").forEach(b=>b.onclick=()=>{d.exec=b.dataset.ex;$$("[data-ex]").forEach(x=>x.classList.toggle("on",x===b));$("#wzExI").hidden=d.exec!=="interno";$("#wzExT").hidden=d.exec!=="terceiro"});
+      bindChips("wmq",d.equipeIds);$("#wzPr").onchange=e=>{d.prestadorId=e.target.value};bindQuando(d)},
+    read:d=>lerQuando(d),
+    valid:d=>!d.exec?"Escolha quem faz.":d.exec==="interno"&&!d.equipeIds.length?"Escolha ao menos um técnico, ou toque em Decidir depois.":d.exec==="terceiro"&&!d.prestadorId?"Escolha o prestador, ou toque em Decidir depois.":!d.quandoK&&d.exec!=="depois"?"Escolha quando.":d.quandoK&&d.quandoK!=="sem"&&!d.quando?"Escolha o dia e a hora.":null},
 ];
 function bindFotosWz(d){$$("[data-msrm]").forEach(b=>b.onclick=()=>{PASSOS_MAN[0].read(d);d.fotos.splice(+b.dataset.msrm,1);wzRender()});
   $$("[data-msup]").forEach(up=>up.onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;PASSOS_MAN[0].read(d);up.parentElement.querySelector("span").textContent="Enviando…";d.busy=true;const r=await uploadFiles(fs,$("#wzErr"));d.busy=false;d.fotos.push(...r);wzRender()});bindZoom(app)}
 
 /* ---------- resumo ---------- */
 function resumoWz(){const d=W.d;const L=[];const linha=(i,t,v)=>L.push(`<div class="wz-res"><span><small>${esc(t)}</small><b>${v}</b></span><button type="button" class="ms-link" data-wzgo="${i}">Alterar</button></div>`);
-  if(W.kind==="log"){linha(0,"Serviço",esc(d.tipo));linha(1,"Sai de",d.ret.map(p=>esc(nomeLocal(p.localId))+(p.detalhe?" · "+esc(p.detalhe):"")).join("<br>"));linha(2,"Vai para",d.ent.map(p=>esc(nomeLocal(p.localId))+(p.detalhe?" · "+esc(p.detalhe):"")).join("<br>"));
-    linha(3,"Itens",d.itens.filter(i=>i.desc.trim()).map(i=>esc([i.qtd,i.qtd?i.un:"",i.desc].filter(Boolean).join(" "))).join("<br>"));linha(4,"Quem pediu",esc(d.solicitante)+" · "+esc(fFone(d.tel))+"<br>"+esc(nomeSetor(d.setorId)));
-    linha(5,"Quando",esc(d.quando?quandoTxt(d.quando):"Sem data"));linha(6,"Quem vai",esc(d.equipeIds.length?nomeEquipe(d.equipeIds):"A definir")+" · "+esc(d.veiculoId?nomeVeic(d.veiculoId):"sem veículo"));
+  if(W.kind==="log"){linha(0,"Sai de",d.ret.map(p=>esc(nomeLocal(p.localId))+(p.detalhe?" · "+esc(p.detalhe):"")).join("<br>"));linha(1,"Vai para",d.ent.map(p=>esc(nomeLocal(p.localId))+(p.detalhe?" · "+esc(p.detalhe):"")).join("<br>"));
+    linha(2,"O que vai",esc(d.oQue||"").replace(/\n/g,"<br>")+(d.solicitante?"<br><small>pedido por "+esc(d.solicitante)+"</small>":""));
+    linha(3,"Quando e quem vai",esc(d.quando?quandoTxt(d.quando):"Sem data")+"<br>"+esc(d.equipeIds.length?nomeEquipe(d.equipeIds):"Equipe a definir")+" · "+esc(d.veiculoId?nomeVeic(d.veiculoId):"sem veículo"));
     const pronta=d.quando&&d.equipeIds.length&&d.veiculoId;L.push(`<p class="wz-note">${pronta?"A OS entra como <b>agendada</b> e aparece no celular de "+esc(nomeEquipe(d.equipeIds))+".":"A OS fica <b>registrada</b>. Para agendar, defina data, equipe e veículo."}</p>`)}
-  else{linha(0,"Problema",esc(d.descricao)+(d.fotos.length?` <small>· ${d.fotos.length} foto${d.fotos.length>1?"s":""}</small>`:""));linha(1,"Tipo",esc(d.categoria||"Não informado"));
-    linha(2,"Onde",esc(nomeLocal(d.localId))+(d.localDetalhe?" · "+esc(d.localDetalhe):"")+(d.setorId?"<br>"+esc(nomeSetor(d.setorId)):"")+(d.equipamentoId?"<br>"+esc(nomeEquip(d.equipamentoId)):""));linha(3,"Quem pediu",d.solicitante?esc(d.solicitante)+(d.tel?" · "+esc(fFone(d.tel)):""):"Não informado");linha(4,"Urgência",esc((MPRIOS.find(p=>p[0]===d.prioridade)||[,""])[1]));
-    linha(5,"Quem faz",esc(d.exec==="interno"?nomeEquipe(d.equipeIds):d.exec==="terceiro"?nomePrest(d.prestadorId):"A definir na triagem"));linha(6,"Quando",esc(d.quando?quandoTxt(d.quando):"Sem data"));
+  else{linha(0,"Problema",esc(d.descricao)+(d.fotos.length?` <small>· ${d.fotos.length} foto${d.fotos.length>1?"s":""}</small>`:""));
+    linha(1,"Onde",esc(nomeLocal(d.localId))+(d.localDetalhe?" · "+esc(d.localDetalhe):""));
+    linha(2,"Quem faz e quando",esc((MPRIOS.find(p=>p[0]===d.prioridade)||[,""])[1])+"<br>"+esc(d.exec==="interno"?nomeEquipe(d.equipeIds):d.exec==="terceiro"?nomePrest(d.prestadorId):"A definir na triagem")+" · "+esc(d.quando?quandoTxt(d.quando):"Sem data"));
     L.push(`<p class="wz-note">${d.exec==="depois"?"A OS fica como <b>chamado aberto</b>, esperando a triagem.":d.exec==="interno"?"A OS entra como <b>programada</b> e aparece no celular de "+esc(nomeEquipe(d.equipeIds))+".":"A OS entra como <b>programada</b> com o prestador."}</p>`)}
   return L.join("")}
 
 /* ---------- motor do assistente ---------- */
 function novoWz(kind){
-  if(kind==="log") return {kind,i:0,d:{tipo:"",ret:[{localId:"",detalhe:""}],ent:[{localId:"",detalhe:""}],itens:[{desc:"",qtd:"",un:"un"}],solicitante:"",tel:"",setorId:"",quandoK:"",quando:null,equipeIds:[],veiculoId:"",veicOk:false}};
+  if(kind==="log") return {kind,i:0,d:{tipo:"Remanejamento",oQue:"",ret:[{localId:"",detalhe:""}],ent:[{localId:"",detalhe:""}],itens:[{desc:"",qtd:"",un:"un"}],solicitante:"",tel:"",setorId:"",quandoK:"",quando:null,equipeIds:[],veiculoId:"",veicOk:false}};
   const eq=S.routeArg?byId(S.equipamentos,S.routeArg):null;
-  return {kind,i:0,d:{solicitante:"",tel:"",descricao:"",fotos:[],categoria:eq&&eq.categoria||"",catOk:!!(eq&&eq.categoria),localId:eq?eq.localId||"":"",equipamentoId:eq?eq.id:"",localDetalhe:"",setorId:eq?eq.setorId||"":"",prioridade:"",exec:"",equipeIds:[],prestadorId:"",quandoK:"",quando:null}};
+  return {kind,i:0,d:{solicitante:"",tel:"",descricao:"",fotos:[],categoria:eq&&eq.categoria||"",catOk:!!(eq&&eq.categoria),localId:eq?eq.localId||"":"",equipamentoId:eq?eq.id:"",localDetalhe:"",setorId:eq?eq.setorId||"":"",prioridade:"normal",exec:"",equipeIds:[],prestadorId:"",quandoK:"",quando:null}};
 }
 function wzPassos(){return W.kind==="log"?PASSOS_LOG:PASSOS_MAN}
 function renderWizard(kind){
@@ -3079,7 +3059,7 @@ function wzRender(){
     <p class="err" id="wzErr" role="alert"></p>
     <div class="wz-foot${!fim&&p.auto?" solo":""}">${i>0?`<button type="button" class="btn wz-b" id="wzVolta">Voltar</button>`:`<a class="btn wz-b ghost" href="#${W.kind==="log"?"painel":"m-ordens"}">Cancelar</a>`}
       ${fim?`<button type="button" class="btn pri wz-b" id="wzCria">Criar OS</button>`:p.auto?"":`<button type="button" class="btn pri wz-b" id="wzSegue">Continuar</button>`}</div>
-    <p class="wz-full"><a href="#${W.kind==="log"?"nova":"m-nova"}/completo${W.kind==="man"&&S.routeArg?"-"+esc(S.routeArg):""}">Prefere o formulário completo?</a></p></div>`;
+    <p class="wz-full"><a href="#${W.kind==="log"?"nova":"m-nova"}/completo${W.kind==="man"&&S.routeArg?"-"+esc(S.routeArg):""}">Mais detalhes (formulário completo)</a></p></div>`;
   window.scrollTo(0,0);
   if(!fim&&p.bind)p.bind(W.d);
   $$("[data-wzgo]").forEach(b=>b.onclick=()=>{W.i=+b.dataset.wzgo;wzRender()});
@@ -3094,7 +3074,9 @@ async function wzCriar(){
   try{
     if(W.kind==="log"){
       const ps=limparParadas(d.ret.map(p=>novaParada("retirada",p.localId,p.detalhe)).concat(d.ent.map(p=>novaParada("entrega",p.localId,p.detalhe))));
-      let contatoId=null;try{contatoId=await salvarContato(d.solicitante,d.tel,d.setorId,null)}catch(e){}
+      d.itens=String(d.oQue||"").split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>({desc:x,qtd:"",un:""}));
+      {const c=d.solicitante?acharContato(d.solicitante):null;if(c){d.tel=d.tel||c.telefone||"";d.setorId=d.setorId||c.setorId||""}}
+      let contatoId=null;if(d.solicitante&&d.tel){try{contatoId=await salvarContato(d.solicitante,d.tel,d.setorId||null,null)}catch(e){}}
       const pronta=!!(d.quando&&d.equipeIds.length&&d.veiculoId);const st=pronta?"agendada":"registrada";
       const doc={tipo:d.tipo,prioridade:"normal",setorId:d.setorId,solicitante:d.solicitante,solicitanteTelefone:d.tel,contatoId,canal:"WhatsApp",solicitadoEm:now,
         paradas:ps,origemId:ps[0].localId,origemDetalhe:ps[0].detalhe||"",destinoId:ps[ps.length-1].localId,destinoDetalhe:ps[ps.length-1].detalhe||"",
@@ -3799,21 +3781,26 @@ function renderVeicCampo(){
 /* ---------- ditado por voz ---------- */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let micAtivo=null;
 const micBtn=id=>SR?`<button type="button" class="mic" data-mic="${id}" aria-label="Falar em vez de escrever">${ic("mic","ic")}<span>Falar</span></button>`:"";
-function pararMic(){if(micAtivo){try{micAtivo.stop()}catch(e){}micAtivo=null}}
+function pararMic(){if(micAtivo){const r=micAtivo;micAtivo=null;try{r.abort()}catch(e){}try{r.onend&&r.onend()}catch(e){}}}
 function bindMic(){}
 function iniciarMic(b){
   if(micAtivo){const era=micAtivo.__btn===b;pararMic();if(era)return}
-  const el=document.getElementById(b.dataset.mic);if(!el)return;
-  const rec=new SR();rec.lang="pt-BR";rec.interimResults=true;rec.continuous=true;rec.maxAlternatives=1;rec.__btn=b;
-  const base=el.value.trim()?el.value.trim()+" ":"";let fin="";const lbl=b.querySelector("span");
-  rec.onresult=e=>{let tmp="";for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)fin+=t.trim()+" ";else tmp+=t}
-    let v=(base+fin+tmp).replace(/\s+/g," ").trimStart();v=v.charAt(0).toUpperCase()+v.slice(1);
-    if(el.maxLength>0)v=v.slice(0,el.maxLength);el.value=v;el.dispatchEvent(new Event("input",{bubbles:true}))};
-  rec.onerror=e=>{toast(e.error==="not-allowed"||e.error==="service-not-allowed"?"Libere o microfone para este site nas configurações do navegador.":e.error==="no-speech"?"Não ouvi nada. Toque em Falar e fale de novo.":e.error==="network"?"O ditado precisa de internet.":e.error==="aborted"?"":"Não foi possível usar o microfone.")};
-  rec.onend=()=>{b.classList.remove("on");if(lbl&&!b.classList.contains("ico"))lbl.textContent="Falar";if(micAtivo===rec)micAtivo=null;
-    if(document.body.contains(el)){el.value=el.value.trim();el.dispatchEvent(new Event("change",{bubbles:true}))}};
-  try{rec.start();micAtivo=rec;b.classList.add("on");if(lbl&&!b.classList.contains("ico"))lbl.textContent="Ouvindo… toque para parar";else toast("Ouvindo… fale agora. Toque no microfone de novo para parar.");el.focus({preventScroll:true});if(navigator.vibrate)navigator.vibrate(30)}
-  catch(e){micAtivo=null;toast("Não foi possível usar o microfone.")}
+  const fid=b.dataset.mic,campo=()=>document.getElementById(fid);if(!campo())return;
+  let rec;try{rec=new SR()}catch(e){toast("Este navegador não tem ditado. Use o microfone do teclado do celular.");return}
+  // frase única: para sozinho quando a pessoa termina de falar (não trava no Android nem no iPhone)
+  rec.lang="pt-BR";rec.interimResults=false;rec.continuous=false;rec.maxAlternatives=1;rec.__btn=b;
+  const lbl=b.classList.contains("ico")?null:b.querySelector("span");let terminou=false,limite=null;
+  const fim=()=>{if(terminou)return;terminou=true;clearTimeout(limite);b.classList.remove("on");if(lbl)lbl.textContent="Falar";if(micAtivo===rec)micAtivo=null};
+  rec.onresult=e=>{const r=e.results&&e.results[e.results.length-1];const t=r&&r[0]?String(r[0].transcript||"").trim():"";if(!t)return;
+    const el=campo();if(!el)return;let v=(el.value.trim()?el.value.trim()+" ":"")+t;v=v.replace(/\s+/g," ");v=v.charAt(0).toUpperCase()+v.slice(1);
+    if(el.maxLength>0)v=v.slice(0,el.maxLength);el.value=v;
+    el.dispatchEvent(new Event("input",{bubbles:true}));el.dispatchEvent(new Event("change",{bubbles:true}))};
+  rec.onerror=e=>{fim();const m={"not-allowed":"Libere o microfone para este site nas configurações do navegador.","service-not-allowed":"Libere o microfone para este site nas configurações do navegador.",
+    "no-speech":"Não ouvi nada. Toque no microfone e fale logo em seguida.","network":"O ditado precisa de internet.","audio-capture":"Nenhum microfone encontrado."}[e.error];if(m)toast(m)};
+  rec.onend=fim;
+  limite=setTimeout(()=>{try{rec.abort()}catch(x){}fim()},20000);
+  try{rec.start();micAtivo=rec;b.classList.add("on");if(lbl)lbl.textContent="Ouvindo… pode falar";else toast("Ouvindo… pode falar.");if(navigator.vibrate)navigator.vibrate(30)}
+  catch(e){fim();toast("Não foi possível usar o microfone. Tente de novo.")}
 }
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-mic]");if(!b||!SR)return;e.preventDefault();iniciarMic(b)});
 window.addEventListener("hashchange",pararMic);
@@ -3839,7 +3826,7 @@ function colocarMics(root){
     // nos formulários: ícone dentro do campo, sem mexer no layout
     const cs=getComputedStyle(el),w=document.createElement("span");w.className="micw"+(el.tagName==="TEXTAREA"?" ta":"");
     w.style.flex=cs.flex;w.style.gridColumn=cs.gridColumn;w.style.gridArea=el.style.gridArea||"";if(el.style.width)w.style.width=el.style.width;
-    el.parentNode.insertBefore(w,el);w.appendChild(el);b.className="mic ico";b.innerHTML=ic("mic","ic")+"<span class=\"sr\">Falar</span>";w.appendChild(b);
+    const foco=document.activeElement===el,ss=foco?el.selectionStart:0,se=foco?el.selectionEnd:0;el.parentNode.insertBefore(w,el);w.appendChild(el);if(foco){el.focus({preventScroll:true});try{el.setSelectionRange(ss,se)}catch(x){}}b.className="mic ico";b.innerHTML=ic("mic","ic")+"<span class=\"sr\">Falar</span>";w.appendChild(b);
   });
 }
 if(SR){let micRaf=0;new MutationObserver(()=>{if(micRaf)return;micRaf=requestAnimationFrame(()=>{micRaf=0;colocarMics(document.body)})}).observe(document.documentElement,{childList:true,subtree:true});}
