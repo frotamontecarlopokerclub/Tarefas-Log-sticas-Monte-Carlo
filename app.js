@@ -90,7 +90,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=32;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=33;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -2726,7 +2726,7 @@ function pendenciasHTML(areas,titulo){
 /* =====================================================================
    MINHAS MISSÕES · equipe de campo
    ===================================================================== */
-const ICON={alert:'<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.01"/>',frota:'<path d="M3 13l2-6h14l2 6v5h-2.5M3 13v5h2.5M3 13h18"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/>',van:'<path d="M2 7h11v9H2zM13 10h4l3 3v3h-7z"/><circle cx="6" cy="17" r="2"/><circle cx="16" cy="17" r="2"/>',
+const ICON={mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>',alert:'<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.01"/>',frota:'<path d="M3 13l2-6h14l2 6v5h-2.5M3 13v5h2.5M3 13h18"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/>',van:'<path d="M2 7h11v9H2zM13 10h4l3 3v3h-7z"/><circle cx="6" cy="17" r="2"/><circle cx="16" cy="17" r="2"/>',
   tool:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
   cam:'<path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/>',gal:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
   pin:'<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',ok:'<path d="M5 12l5 5L20 7"/>',back:'<path d="M15 5l-7 7 7 7"/>',
@@ -3796,8 +3796,28 @@ function renderVeicCampo(){
   $("#vcAt").onclick=()=>{S.emUso=null;renderVeicCampo()};
 }
 
+/* ---------- ditado por voz ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let micAtivo=null;
+const micBtn=id=>SR?`<button type="button" class="mic" data-mic="${id}" aria-label="Falar em vez de escrever">${ic("mic","ic")}<span>Falar</span></button>`:"";
+function pararMic(){if(micAtivo){try{micAtivo.stop()}catch(e){}micAtivo=null}}
+function bindMic(){$$("[data-mic]").forEach(b=>b.onclick=()=>{
+  if(micAtivo){pararMic();return}
+  const el=$("#"+b.dataset.mic);if(!el)return;
+  const rec=new SR();rec.lang="pt-BR";rec.interimResults=true;rec.continuous=true;rec.maxAlternatives=1;
+  const base=el.value.trim()?el.value.trim()+" ":"";let fin="";
+  rec.onresult=e=>{let tmp="";for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)fin+=t.trim()+" ";else tmp+=t}
+    let v=(base+fin+tmp).replace(/\s+/g," ").trimStart();v=v.charAt(0).toUpperCase()+v.slice(1);
+    if(el.maxLength>0)v=v.slice(0,el.maxLength);el.value=v;el.dispatchEvent(new Event("input",{bubbles:true}))};
+  rec.onerror=e=>{toast(e.error==="not-allowed"||e.error==="service-not-allowed"?"Libere o microfone para este site nas configurações do navegador.":e.error==="no-speech"?"Não ouvi nada. Toque em Falar e fale de novo.":e.error==="network"?"O ditado precisa de internet.":"Não foi possível usar o microfone.")};
+  rec.onend=()=>{b.classList.remove("on");b.lastChild.textContent="Falar";if(micAtivo===rec)micAtivo=null;el.value=el.value.trim()};
+  try{rec.start();micAtivo=rec;b.classList.add("on");b.lastChild.textContent="Ouvindo… toque para parar";el.focus({preventScroll:true});if(navigator.vibrate)navigator.vibrate(30)}
+  catch(e){micAtivo=null;toast("Não foi possível usar o microfone.")}
+})}
+const dicaMic=()=>SR?`<p class="mic-dica">${ic("mic","ic sm")}<span>Não quer escrever? Toque em <b>Falar</b> e diga o que aconteceu.</span></p>`:`<p class="mic-dica">${ic("mic","ic sm")}<span>Não quer escrever? Toque no <b>microfone do teclado</b> do celular e fale.</span></p>`;
+
 /* ---------- celular: registrar emergência ---------- */
 function renderEmergencia(){
+  pararMic();
   const voltar=S.role==="campo"?"#missoes":"#"+navCfg().home;
   const bar=`<div class="ms-bar"><a class="ms-back" href="${esc(voltar)}">${ic("back","ic")}${S.role==="campo"?"Minhas missões":"Voltar"}</a><span class="ms-cod">Emergência</span></div>`;
   const areas=emgAreas();
@@ -3813,17 +3833,17 @@ function renderEmergencia(){
   const lsel=(id,lista,val)=>`<select class="ms-in" id="${id}"><option value="">Escolha…</option>${lista.map(l=>`<option value="${esc(l.id)}"${val===l.id?" selected":""}>${esc(l.nome)}${l.tipo==="Fornecedor"?" (fornecedor)":""}</option>`).join("")}</select>`;
   let campos="";
   if(A.area==="log")campos=`<div class="ms-box"><label class="ms-lbl" for="emO">De onde</label>${lsel("emO",locs,A.origemId)}<label class="ms-lbl" for="emD" style="margin-top:10px">Para onde</label>${lsel("emD",locs,A.destinoId)}</div>
-      <div class="ms-box"><label class="ms-lbl" for="emQ">O que foi levado</label><textarea class="ms-in" id="emQ" rows="2" placeholder="Ex.: 10 sacos de gelo">${esc(A.oQue||"")}</textarea></div>
+      <div class="ms-box"><label class="ms-lbl" for="emQ">O que foi levado</label><textarea class="ms-in" id="emQ" rows="2" placeholder="Ex.: 10 sacos de gelo">${esc(A.oQue||"")}</textarea>${micBtn("emQ")}</div>
       <div class="ms-box"><label class="ms-lbl" for="emV">Veículo usado</label>${vsel("emV",false)}</div>`;
   else if(A.area==="man"){const sets=A.localId?S.setores.filter(x=>x.localId===A.localId&&x.ativo!==false).sort(sortNome):[];
     campos=`<div class="ms-box"><label class="ms-lbl" for="emL">Onde</label>${lsel("emL",unid,A.localId)}${sets.length?`<label class="ms-lbl" for="emS" style="margin-top:10px">Setor <i>opcional</i></label><select class="ms-in" id="emS"><option value="">—</option>${sets.map(x=>`<option value="${esc(x.id)}"${A.setorId===x.id?" selected":""}>${esc(x.nome)}</option>`).join("")}</select>`:""}</div>
-      <div class="ms-box"><label class="ms-lbl" for="emT">O que aconteceu</label><input class="ms-in" id="emT" type="text" maxlength="160" placeholder="Ex.: Cano estourado na cozinha" value="${esc(A.titulo||"")}"><label class="ms-lbl" for="emX" style="margin-top:10px">Detalhes <i>opcional</i></label><textarea class="ms-in" id="emX" rows="2">${esc(A.descricao||"")}</textarea></div>`}
+      <div class="ms-box"><label class="ms-lbl" for="emT">O que aconteceu</label><input class="ms-in" id="emT" type="text" maxlength="160" placeholder="Ex.: Cano estourado na cozinha" value="${esc(A.titulo||"")}">${micBtn("emT")}<label class="ms-lbl" for="emX" style="margin-top:10px">Detalhes <i>opcional</i></label><textarea class="ms-in" id="emX" rows="2">${esc(A.descricao||"")}</textarea>${micBtn("emX")}</div>`}
   else if(A.area==="frota")campos=`<div class="ms-box"><label class="ms-lbl" for="emV">Veículo</label>${vsel("emV",true)}</div>
-      <div class="ms-box"><label class="ms-lbl" for="emT">O que aconteceu</label><input class="ms-in" id="emT" type="text" maxlength="160" placeholder="Ex.: Pneu furou na rota" value="${esc(A.titulo||"")}"><label class="ms-lbl" for="emX" style="margin-top:10px">Detalhes <i>opcional</i></label><textarea class="ms-in" id="emX" rows="2">${esc(A.descricao||"")}</textarea></div>`;
-  app.innerHTML=`<div class="fr-cf">${bar}<h1 class="ms-h">Demanda emergencial</h1><p class="ms-sub">Use só para o que não pode esperar a coordenação programar. Toda emergência é avaliada depois.</p>
+      <div class="ms-box"><label class="ms-lbl" for="emT">O que aconteceu</label><input class="ms-in" id="emT" type="text" maxlength="160" placeholder="Ex.: Pneu furou na rota" value="${esc(A.titulo||"")}">${micBtn("emT")}<label class="ms-lbl" for="emX" style="margin-top:10px">Detalhes <i>opcional</i></label><textarea class="ms-in" id="emX" rows="2">${esc(A.descricao||"")}</textarea>${micBtn("emX")}</div>`;
+  app.innerHTML=`<div class="fr-cf">${bar}<h1 class="ms-h">Demanda emergencial</h1><p class="ms-sub">Use só para o que não pode esperar a coordenação programar. Toda emergência é avaliada depois.</p>${dicaMic()}
     ${areas.length>1?`<div class="ms-box"><span class="ms-lbl">De qual área?</span><div class="fr-opts">${areas.map(a=>`<button type="button" class="fr-opt${A.area===a?" on":""}" data-ema="${a}"><b>${EMG_AREA_LBL[a]}</b><small>${{log:"Levar ou buscar algo",man:"Conserto na estrutura",frota:"Problema com veículo"}[a]}</small></button>`).join("")}</div></div>`:""}
-    ${A.area?campos+`<div class="ms-box"><label class="ms-lbl" for="emP">Quem pediu</label><input class="ms-in" id="emP" type="text" maxlength="120" placeholder="Nome e setor de quem pediu" value="${esc(A.pedidoPor||"")}"></div>
-      <div class="ms-box"><label class="ms-lbl" for="emM">Por que é emergência?</label><textarea class="ms-in" id="emM" rows="3" placeholder="O que acontecia se esperasse? Ex.: evento começando sem gelo no bar">${esc(A.motivo||"")}</textarea></div>
+    ${A.area?campos+`<div class="ms-box"><label class="ms-lbl" for="emP">Quem pediu</label><input class="ms-in" id="emP" type="text" maxlength="120" placeholder="Nome e setor de quem pediu" value="${esc(A.pedidoPor||"")}">${micBtn("emP")}</div>
+      <div class="ms-box"><label class="ms-lbl" for="emM">Por que é emergência?</label><textarea class="ms-in" id="emM" rows="3" placeholder="O que acontecia se esperasse? Ex.: evento começando sem gelo no bar">${esc(A.motivo||"")}</textarea>${micBtn("emM")}</div>
       <div class="ms-box"><span class="ms-lbl">Situação</span><div class="fr-opts"><button type="button" class="fr-opt${!A.jaFeito?" on":""}" data-emf="0"><b>Vou fazer agora</b><small>Fica em andamento no seu nome</small></button><button type="button" class="fr-opt${A.jaFeito?" on":""}" data-emf="1"><b>Já fiz</b><small>Registra como concluída</small></button></div></div>
       <p class="err" id="emErr" role="alert"></p><button class="ms-cta" id="emOk" type="button"${A.busy?" disabled":""}>${A.busy?"Registrando…":"Registrar emergência"}</button>`:""}</div>`;
   const val=id=>{const e=$("#"+id);return e?e.value.trim():""};
@@ -3833,9 +3853,10 @@ function renderEmergencia(){
     A.pedidoPor=val("emP");A.motivo=val("emM")};
   $$("[data-ema]").forEach(b=>b.onclick=()=>{guarda();A.area=b.dataset.ema;renderEmergencia()});
   $$("[data-emf]").forEach(b=>b.onclick=()=>{guarda();A.jaFeito=b.dataset.emf==="1";renderEmergencia()});
+  bindMic();
   const ls=$("#emL");if(ls)ls.onchange=()=>{guarda();A.setorId="";renderEmergencia()};
   if(!S.emUso)carregarEmUso().then(()=>{if(S.route==="emergencia"&&!A.busy){guarda();renderEmergencia()}});
-  const okb=$("#emOk");if(okb)okb.onclick=async()=>{guarda();const er=$("#emErr");er.textContent="";
+  const okb=$("#emOk");if(okb)okb.onclick=async()=>{pararMic();guarda();const er=$("#emErr");er.textContent="";
     const falta=A.area==="log"?(!A.origemId?"Escolha de onde.":!A.destinoId?"Escolha para onde.":A.origemId===A.destinoId?"Origem e destino são o mesmo lugar.":!A.oQue?"Diga o que foi levado.":"")
       :A.area==="man"?(!A.localId?"Escolha onde.":!A.titulo?"Diga o que aconteceu.":""):(!A.veiculoId?"Escolha o veículo.":!A.titulo?"Diga o que aconteceu.":"");
     if(falta){er.textContent=falta;return}

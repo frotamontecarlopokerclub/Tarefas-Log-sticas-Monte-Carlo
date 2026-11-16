@@ -443,3 +443,6 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 - Celular da equipe: a tela inicial mostra só as missões, com um menu "Demanda emergencial" e "Veículos" (disponíveis e em uso; sem o carro particular do chefe).
 - Quem executa registra a emergência (logística, manutenção ou frota, conforme o acesso): quem pediu, por que é emergência, "vou fazer agora" ou "já fiz". A OS nasce no nome dela, ciente.
 - Painéis da logística, manutenção e frota: quadro de emergências (quantidade, % das OS, fora do horário, quem pediu, quem registrou) e avaliação: emergência de verdade / dava para programar / não era emergência.
+
+## Atualização 33 · Falar em vez de escrever
+- Na demanda emergencial, cada campo de texto tem o botão "Falar": a pessoa fala e o texto aparece escrito (soma ao que já estava). Onde o navegador não tem esse recurso, aparece a dica de usar o microfone do teclado do celular.
