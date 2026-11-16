@@ -430,3 +430,10 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 - Nova página "OS da frota" na área Frota: lista, nova OS, triagem, agendamento, equipe/terceiro, custos e conclusão (a mesma gaveta da manutenção).
 - A área Manutenção (infraestrutura) não mostra mais OS de veículo; a equipe "Só manutenção" não vê nem altera essas OS.
 - Conferência com item ruim e alertas de óleo/revisão abrem OS da frota.
+
+## Atualização 31 · Equipe = funcionários com login · "Estou ciente"
+- Rode `supabase/21_equipe_ciencia.sql` (depois do 20).
+- Ao liberar alguém como Equipe de campo, não precisa escolher a pessoa: o sistema usa a ficha dele, uma ficha sem login com o mesmo nome, ou cria a ficha sozinho (com a função escolhida).
+- Na OS, a equipe é escolhida entre todos os funcionários; quem ainda não tem login aparece marcado "sem acesso ao app".
+- No celular, a OS nova aparece como "Nova · confirme". A pessoa toca em "Estou ciente da missão" e só então aparece o botão para iniciar (o banco também exige).
+- Na OS, a coordenação vê quem já está ciente e quem falta. Quem sai da escala perde a ciência.

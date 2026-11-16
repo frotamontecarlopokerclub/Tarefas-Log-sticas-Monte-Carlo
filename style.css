@@ -884,3 +884,15 @@ body.auth #diagBtn{bottom:16px}
 :root{--versao-css:"29"}
 :root{--versao-css:"30"}
 .fr-lk{cursor:pointer}.fr-lk:hover b{text-decoration:underline}
+
+/* ---------- Ciência da missão (versão 31) ---------- */
+:root{--versao-css:"31"}
+.semapp{display:block;font-size:10.5px;font-weight:700;color:var(--s-late);opacity:.85}
+.chip[aria-pressed="true"] .semapp,.wz-chip.on .semapp{color:inherit}
+.ci-l{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:6px}
+.ci-l li{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;font-size:13px;padding:6px 8px;border-radius:8px;background:var(--warn-surface)}
+.ci-l li.ok{background:var(--ok-surface)}.ci-l li.ok .ic{color:var(--s-ok)}.ci-l li.pend .ic{color:var(--s-wait)}
+.ci-l small{color:var(--mute);font-weight:600;text-align:right}
+.ms-card.new{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.ms-st.new{background:var(--accent);color:var(--on-accent)}
+.ci-q{display:flex;align-items:center;gap:10px;font-size:15px}
