@@ -90,7 +90,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=33;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=34;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -3800,19 +3800,49 @@ function renderVeicCampo(){
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let micAtivo=null;
 const micBtn=id=>SR?`<button type="button" class="mic" data-mic="${id}" aria-label="Falar em vez de escrever">${ic("mic","ic")}<span>Falar</span></button>`:"";
 function pararMic(){if(micAtivo){try{micAtivo.stop()}catch(e){}micAtivo=null}}
-function bindMic(){$$("[data-mic]").forEach(b=>b.onclick=()=>{
-  if(micAtivo){pararMic();return}
-  const el=$("#"+b.dataset.mic);if(!el)return;
-  const rec=new SR();rec.lang="pt-BR";rec.interimResults=true;rec.continuous=true;rec.maxAlternatives=1;
-  const base=el.value.trim()?el.value.trim()+" ":"";let fin="";
+function bindMic(){}
+function iniciarMic(b){
+  if(micAtivo){const era=micAtivo.__btn===b;pararMic();if(era)return}
+  const el=document.getElementById(b.dataset.mic);if(!el)return;
+  const rec=new SR();rec.lang="pt-BR";rec.interimResults=true;rec.continuous=true;rec.maxAlternatives=1;rec.__btn=b;
+  const base=el.value.trim()?el.value.trim()+" ":"";let fin="";const lbl=b.querySelector("span");
   rec.onresult=e=>{let tmp="";for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)fin+=t.trim()+" ";else tmp+=t}
     let v=(base+fin+tmp).replace(/\s+/g," ").trimStart();v=v.charAt(0).toUpperCase()+v.slice(1);
     if(el.maxLength>0)v=v.slice(0,el.maxLength);el.value=v;el.dispatchEvent(new Event("input",{bubbles:true}))};
-  rec.onerror=e=>{toast(e.error==="not-allowed"||e.error==="service-not-allowed"?"Libere o microfone para este site nas configurações do navegador.":e.error==="no-speech"?"Não ouvi nada. Toque em Falar e fale de novo.":e.error==="network"?"O ditado precisa de internet.":"Não foi possível usar o microfone.")};
-  rec.onend=()=>{b.classList.remove("on");b.lastChild.textContent="Falar";if(micAtivo===rec)micAtivo=null;el.value=el.value.trim()};
-  try{rec.start();micAtivo=rec;b.classList.add("on");b.lastChild.textContent="Ouvindo… toque para parar";el.focus({preventScroll:true});if(navigator.vibrate)navigator.vibrate(30)}
+  rec.onerror=e=>{toast(e.error==="not-allowed"||e.error==="service-not-allowed"?"Libere o microfone para este site nas configurações do navegador.":e.error==="no-speech"?"Não ouvi nada. Toque em Falar e fale de novo.":e.error==="network"?"O ditado precisa de internet.":e.error==="aborted"?"":"Não foi possível usar o microfone.")};
+  rec.onend=()=>{b.classList.remove("on");if(lbl&&!b.classList.contains("ico"))lbl.textContent="Falar";if(micAtivo===rec)micAtivo=null;
+    if(document.body.contains(el)){el.value=el.value.trim();el.dispatchEvent(new Event("change",{bubbles:true}))}};
+  try{rec.start();micAtivo=rec;b.classList.add("on");if(lbl&&!b.classList.contains("ico"))lbl.textContent="Ouvindo… toque para parar";else toast("Ouvindo… fale agora. Toque no microfone de novo para parar.");el.focus({preventScroll:true});if(navigator.vibrate)navigator.vibrate(30)}
   catch(e){micAtivo=null;toast("Não foi possível usar o microfone.")}
-})}
+}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-mic]");if(!b||!SR)return;e.preventDefault();iniciarMic(b)});
+window.addEventListener("hashchange",pararMic);
+// microfone automático em todos os campos de texto do sistema
+let micSeq=0;
+const MIC_FORA=/placa|chassi|renavam|telefone|fone|whats|cpf|cnpj|cep|e-?mail|senha|^pw|password|^km|km$|custo|valor|pre[cç]o|sigla|c[oó]digo|busca|buscar|pesquis|login|usuario|^aem|^apw/i;
+function micCabe(el){
+  if(el.dataset.micOk||el.disabled||el.readOnly||el.type==="hidden")return false;
+  if(el.tagName==="INPUT"&&!["text",""].includes(el.type))return false;
+  if(["numeric","decimal","tel","email"].includes(el.inputMode))return false;
+  if(el.closest(".auth-card,#diagBox,.filters,.lc-hd,[data-nomic]"))return false;
+  const n=(el.id||"")+" "+(el.name||"")+" "+(el.placeholder||"")+" "+(el.getAttribute("aria-label")||"");
+  if(MIC_FORA.test(n))return false;
+  const nx=el.nextElementSibling;if(nx&&nx.classList&&nx.classList.contains("mic"))return false;
+  return true;
+}
+function colocarMics(root){
+  if(!SR)return;
+  (root||document).querySelectorAll("textarea,input").forEach(el=>{
+    if(!micCabe(el))return;el.dataset.micOk="1";if(!el.id)el.id="micf-"+(++micSeq);
+    const b=document.createElement("button");b.type="button";b.dataset.mic=el.id;b.setAttribute("aria-label","Falar em vez de escrever");b.title="Falar em vez de escrever";
+    if(el.classList.contains("ms-in")){b.className="mic";b.innerHTML=ic("mic","ic")+"<span>Falar</span>";el.insertAdjacentElement("afterend",b);return}
+    // nos formulários: ícone dentro do campo, sem mexer no layout
+    const cs=getComputedStyle(el),w=document.createElement("span");w.className="micw"+(el.tagName==="TEXTAREA"?" ta":"");
+    w.style.flex=cs.flex;w.style.gridColumn=cs.gridColumn;w.style.gridArea=el.style.gridArea||"";if(el.style.width)w.style.width=el.style.width;
+    el.parentNode.insertBefore(w,el);w.appendChild(el);b.className="mic ico";b.innerHTML=ic("mic","ic")+"<span class=\"sr\">Falar</span>";w.appendChild(b);
+  });
+}
+if(SR){let micRaf=0;new MutationObserver(()=>{if(micRaf)return;micRaf=requestAnimationFrame(()=>{micRaf=0;colocarMics(document.body)})}).observe(document.documentElement,{childList:true,subtree:true});}
 const dicaMic=()=>SR?`<p class="mic-dica">${ic("mic","ic sm")}<span>Não quer escrever? Toque em <b>Falar</b> e diga o que aconteceu.</span></p>`:`<p class="mic-dica">${ic("mic","ic sm")}<span>Não quer escrever? Toque no <b>microfone do teclado</b> do celular e fale.</span></p>`;
 
 /* ---------- celular: registrar emergência ---------- */

@@ -446,3 +446,6 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 
 ## Atualização 33 · Falar em vez de escrever
 - Na demanda emergencial, cada campo de texto tem o botão "Falar": a pessoa fala e o texto aparece escrito (soma ao que já estava). Onde o navegador não tem esse recurso, aparece a dica de usar o microfone do teclado do celular.
+
+## Atualização 34 · Microfone em todo o sistema
+- Todo campo de texto (Logística, Manutenção e Frota) tem o microfone: nos formulários, um ícone dentro do campo; nas telas do celular da equipe, o botão "Falar". Ficam sem microfone: placa, chassi, RENAVAM, telefone, e-mail, senha, números, valores e buscas.
