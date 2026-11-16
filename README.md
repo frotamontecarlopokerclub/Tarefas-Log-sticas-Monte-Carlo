@@ -424,3 +424,9 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 ## Atualização 29 · Correção da tela misturada no celular
 - Causa: ao mudar o tamanho da tela (o iPhone faz isso ao recarregar, rolar e abrir o teclado), o sistema redesenhava o painel mesmo sem ninguém conectado, por cima da tela de login.
 - Agora só redesenha quando a largura muda (girar o celular) e nunca sem login.
+
+## Atualização 30 · OS de veículo só na Frota
+- Rode `supabase/20_os_da_frota.sql` (depois do 19).
+- Nova página "OS da frota" na área Frota: lista, nova OS, triagem, agendamento, equipe/terceiro, custos e conclusão (a mesma gaveta da manutenção).
+- A área Manutenção (infraestrutura) não mostra mais OS de veículo; a equipe "Só manutenção" não vê nem altera essas OS.
+- Conferência com item ruim e alertas de óleo/revisão abrem OS da frota.
