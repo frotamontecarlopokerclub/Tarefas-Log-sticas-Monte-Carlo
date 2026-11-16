@@ -437,3 +437,9 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 - Na OS, a equipe é escolhida entre todos os funcionários; quem ainda não tem login aparece marcado "sem acesso ao app".
 - No celular, a OS nova aparece como "Nova · confirme". A pessoa toca em "Estou ciente da missão" e só então aparece o botão para iniciar (o banco também exige).
 - Na OS, a coordenação vê quem já está ciente e quem falta. Quem sai da escala perde a ciência.
+
+## Atualização 32 · Demandas emergenciais
+- Rode `supabase/22_emergencias.sql` (depois do 21).
+- Celular da equipe: a tela inicial mostra só as missões, com um menu "Demanda emergencial" e "Veículos" (disponíveis e em uso; sem o carro particular do chefe).
+- Quem executa registra a emergência (logística, manutenção ou frota, conforme o acesso): quem pediu, por que é emergência, "vou fazer agora" ou "já fiz". A OS nasce no nome dela, ciente.
+- Painéis da logística, manutenção e frota: quadro de emergências (quantidade, % das OS, fora do horário, quem pediu, quem registrou) e avaliação: emergência de verdade / dava para programar / não era emergência.

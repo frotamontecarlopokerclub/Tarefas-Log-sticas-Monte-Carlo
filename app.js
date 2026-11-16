@@ -90,7 +90,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=31;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=32;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -370,7 +370,7 @@ function areasPermitidas(){if(S.role==="campo")return [];if(S.role==="sol")retur
 function isAdmin(){return S.role==="log"&&S.areaAcesso==="ambas"}
 function areaFixa(){if(S.role!=="log")return null;const a=areasPermitidas();return a.length===1?a[0]:null}
 const LABELS={painel:"Painel",ordens:"Ordens",pedidos:"Pedidos",agenda:"Agenda",relatorio:"Relatório",cadastros:"Cadastros",nova:"Nova OS",solicitar:"Novo pedido",meus:"Meus pedidos",
-  gestao:"Gestão",missoes:"Minhas missões",missao:"Missão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Veículos",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem","f-painel":"Painel","f-os":"OS da frota","f-conf":"Conferências","f-lav":"Lavagens","f-serv":"Serviços e custos"};
+  gestao:"Gestão",missoes:"Minhas missões",missao:"Missão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Veículos",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem",veiculos:"Veículos",emergencia:"Emergência","f-painel":"Painel","f-os":"OS da frota","f-conf":"Conferências","f-lav":"Lavagens","f-serv":"Serviços e custos"};
 const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   agenda:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',pedidos:'<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
   relatorio:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 17v-4M12 17V8M16 17v-6"/>',cadastros:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
@@ -433,14 +433,14 @@ function route(){
   let bloq=false;{const ap=areasPermitidas();if(novaArea&&ap.length&&!ap.includes(novaArea)){novaArea=null;h="";bloq=true}}
   if(novaArea&&novaArea!==S.area){S.area=novaArea;try{localStorage.setItem("mc-area",S.area)}catch(e){}buildNav()}
   if(h==="m-chamado"&&isMan())h="m-nova";
-  const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],S.role==="campo"?["missao","conferir","lavar"]:["m-eq"].concat(S.role==="log"||S.role==="ver"?["veiculo"]:[],S.role==="log"?["veiculo-editar","conferir","lavar"]:[]));
+  const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],S.role==="campo"?["missao","conferir","lavar","veiculos","emergencia"]:["m-eq"].concat(S.role==="log"||S.role==="ver"?["veiculo"]:[],S.role==="log"?["veiculo-editar","conferir","lavar","emergencia"]:[]));
   S.route=ok.includes(h)?h:c.home; S.routeArg=ok.includes(h)?(arg||null):null;
   if(bloq){try{history.replaceState(null,"","#"+S.route)}catch(e){}}
   $("#sheetL").innerHTML="";
   markNav();
   render(true); window.scrollTo(0,0);
 }
-window.addEventListener("hashchange",()=>{ if(S.openId||S.mOpen)closeOS(); if(location.hash!=="#nova"){S.editId=null;S.fromPedido=null;S.dupFrom=null;S.editRec=null;S.novaRec=false} if(location.hash!=="#m-nova")S.mEditId=null; S.eqEdit=null;S.editEq=null;S.planEdit=null;S.planDel=null;S.vServ=null;if(!location.hash.startsWith("#conferir"))S.cf=null;if(!location.hash.startsWith("#lavar"))S.lv=null; route(); });
+window.addEventListener("hashchange",()=>{ if(S.openId||S.mOpen)closeOS(); if(location.hash!=="#nova"){S.editId=null;S.fromPedido=null;S.dupFrom=null;S.editRec=null;S.novaRec=false} if(location.hash!=="#m-nova")S.mEditId=null; S.eqEdit=null;S.editEq=null;S.planEdit=null;S.planDel=null;S.vServ=null;if(!location.hash.startsWith("#conferir"))S.cf=null;if(!location.hash.startsWith("#lavar"))S.lv=null;if(!location.hash.startsWith("#emergencia"))S.emg=null;if(location.hash.startsWith("#veiculos"))S.emUso=null; route(); });
 
 /* ---------- Render principal ---------- */
 let formMounted=false;
@@ -453,10 +453,10 @@ function render(force){
   if(S.route==="nova"||S.route==="solicitar"){ if(force||!formMounted){ S.route==="nova"?(wizardLog()?renderWizard("log"):renderForm()):renderSolicitar(); formMounted=true; } else (S.route==="nova"?refreshFormOptions:refreshPedOptions)(); }
   else if(S.route==="m-nova"||S.route==="m-chamado"){ if(force||!formMounted){ S.route==="m-nova"?(wizardMan()?renderWizard("man"):renderMNova()):renderMChamado(); formMounted=true; } else refreshPickers(); }
   else if(S.route==="missao"){ if(force||!formMounted){ renderMissao(); formMounted=true; } }
-  else if(S.route==="conferir"||S.route==="veiculo-editar"||S.route==="lavar"){ if(force||!formMounted){ ({conferir:renderConferir,lavar:renderLavar}[S.route]||renderVeiculoEditar)(); formMounted=true; } }
+  else if(S.route==="conferir"||S.route==="veiculo-editar"||S.route==="lavar"||S.route==="emergencia"){ if(force||!formMounted){ ({conferir:renderConferir,lavar:renderLavar,emergencia:renderEmergencia}[S.route]||renderVeiculoEditar)(); formMounted=true; } }
   else { formMounted=false;
     const fn={painel:renderPainel,ordens:renderOrdens,agenda:renderAgenda,cadastros:renderCadastros,pedidos:renderPedidos,meus:renderMeus,relatorio:renderRelatorio,
-      gestao:renderGestao,missoes:renderMissoes,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo,"f-painel":renderFPainel,"f-os":renderFOs,"f-conf":renderFConf,"f-lav":renderFLav,"f-serv":renderFServ}[S.route]||renderPainel;
+      gestao:renderGestao,missoes:renderMissoes,veiculos:renderVeicCampo,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo,"f-painel":renderFPainel,"f-os":renderFOs,"f-conf":renderFConf,"f-lav":renderFLav,"f-serv":renderFServ}[S.route]||renderPainel;
     // preserva foco em campos de busca
     const ae=document.activeElement, aid=ae&&ae.id, pos=ae&&ae.selectionStart;
     if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq)||(S.route==="veiculo"&&S.vServ))) { /* não redesenha durante edição */ }
@@ -516,7 +516,7 @@ function renderPainel(){
   const canc=list.filter(o=>o.status==="cancelada").length;
 
   let h=`<div class="head"><div><h1>Painel da <em>logística</em></h1><p>Demanda, prazos e tempos de atendimento das movimentações entre as unidades do Grupo.</p></div>
-  <div class="act"><button class="btn" id="exp" type="button">Exportar CSV</button></div></div>${banner()}
+  <div class="act"><button class="btn" id="exp" type="button">Exportar CSV</button></div></div>${banner()}${emgPainelHTML("log")}
   <div class="filters">
     <div class="field"><label for="fPer">Período</label><select id="fPer">${optsS(perOpts,S.f.periodo)}</select></div>
     <div class="field"><label for="fSet">Setor solicitante</label><select id="fSet">${optsSetores(S.f.setor,"Todos os setores")}</select></div>
@@ -964,7 +964,7 @@ function renderDrawer(){
     <div class="dr-h"><div class="row1"><div><h2 id="drT" class="num">${codigo(o)}</h2><p>${esc(o.tipo||"")}${o.prioridade&&o.prioridade!=="normal"?" · Prioridade "+(o.prioridade==="urgente"?"urgente":"alta"):""}</p></div><button class="cl" id="drX" aria-label="Fechar">×</button></div>
       <span class="stl"><span class="st ${o.status}">${ST[o.status]}</span></span>${late?` <span class="stl"><span class="late">Atrasada</span></span>`:lateC?` <span class="stl"><span class="late">Concluída com atraso</span></span>`:""}</div>
     <div class="dr-b">
-      ${!A?`<div class="actions">${acts}${copyBtn}${extraActs}</div>`:""}${S.copyOpen&&!A?copyPanel(o):""}${panel}
+      ${!A?`<div class="actions">${acts}${copyBtn}${extraActs}</div>`:""}${S.copyOpen&&!A?copyPanel(o):""}${panel}${emgBoxDrawer("log",o)}
       <section class="card card-b" style="padding-top:16px">${stopsHTML(o,isLog()&&!A)}${o.recorrenciaId?`<p class="hint" style="margin:10px 0 0">Gerada pela rota fixa ${esc((byId(S.recorrencias,o.recorrenciaId)||{}).nome||"")}</p>`:""}</section>
       <section class="card card-b" style="padding-top:16px"><dl class="dl">
         <div><dt>Início agendado</dt><dd class="num">${fDH(o.agendadoPara)}</dd></div>
@@ -2084,7 +2084,7 @@ function renderMDrawer(){
     <div class="dr-h"><div class="row1"><div><h2 id="drT" class="num">${codM(m)}</h2><p>${m.tipo==="preventiva"?"Preventiva":"Corretiva"}${m.categoria?" · "+esc(m.categoria):""}${m.prioridade&&m.prioridade!=="normal"?" · Prioridade "+esc(((MPRIOS.find(p=>p[0]===m.prioridade)||[,""])[1]).toLowerCase()):""}</p></div><button class="cl" id="drX" aria-label="Fechar">×</button></div>
       <span class="stl"><span class="st ${m.status}">${MST[m.status]}</span></span>${late?` <span class="stl"><span class="late">Atrasada</span></span>`:lateC?` <span class="stl"><span class="late">Concluída com atraso</span></span>`:""}</div>
     <div class="dr-b">
-      ${!A&&acts?`<div class="actions">${acts}</div>`:""}${panel}
+      ${!A&&acts?`<div class="actions">${acts}</div>`:""}${panel}${emgBoxDrawer("man",m)}
       <section class="card card-b" style="padding-top:16px"><h3 style="font-size:17px;margin:0 0 6px">${esc(tituloM(m))}</h3>
         ${m.descricao&&m.descricao!==tituloM(m)?`<p style="margin:0 0 8px;white-space:pre-line">${esc(m.descricao)}</p>`:""}
         ${(m.fotosAbertura||[]).length?fotosM(m.fotosAbertura):""}
@@ -2417,7 +2417,7 @@ function renderMPainel(){
   const cp=conc.filter(m=>isFinite(prazoM(m)));const np=cp.filter(m=>!mConclAtraso(m)).length;const pct=cp.length?Math.round(np/cp.length*100):null;
   const ta=avg(val.map(tAtend)),ts=avg(conc.map(tSolucao));const custo=val.reduce((s,m)=>s+custoTotal(m),0);
   const prev=val.filter(m=>m.tipo==="preventiva");const prevPct=val.length?Math.round(prev.length/val.length*100):0;
-  let h=`<div class="head"><div><h1>Painel da <em>manutenção</em></h1><p>Chamados, prazos, tempo de solução e custos da infraestrutura das unidades.</p></div><div class="act"><button class="btn" id="mExp" type="button">Exportar CSV</button></div></div>${banner()}${avisoSQL()}
+  let h=`<div class="head"><div><h1>Painel da <em>manutenção</em></h1><p>Chamados, prazos, tempo de solução e custos da infraestrutura das unidades.</p></div><div class="act"><button class="btn" id="mExp" type="button">Exportar CSV</button></div></div>${banner()}${avisoSQL()}${emgPainelHTML("man")}
   <div class="filters"><div class="field"><label for="mfPer">Período</label><select id="mfPer">${optsS(perOpts,S.mf.periodo)}</select></div>
     <div class="field"><label for="mfLoc">Local</label><select id="mfLoc">${opts(ativos(S.locais).filter(l=>l.tipo!=="Fornecedor"),S.mf.local,"Todos")}</select></div>
     <div class="field"><label for="mfCat">Categoria</label><select id="mfCat"><option value="">Todas</option>${optsS(MCATS,S.mf.cat)}</select></div></div>
@@ -2726,7 +2726,7 @@ function pendenciasHTML(areas,titulo){
 /* =====================================================================
    MINHAS MISSÕES · equipe de campo
    ===================================================================== */
-const ICON={van:'<path d="M2 7h11v9H2zM13 10h4l3 3v3h-7z"/><circle cx="6" cy="17" r="2"/><circle cx="16" cy="17" r="2"/>',
+const ICON={alert:'<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.01"/>',frota:'<path d="M3 13l2-6h14l2 6v5h-2.5M3 13v5h2.5M3 13h18"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/>',van:'<path d="M2 7h11v9H2zM13 10h4l3 3v3h-7z"/><circle cx="6" cy="17" r="2"/><circle cx="16" cy="17" r="2"/>',
   tool:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
   cam:'<path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/>',gal:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
   pin:'<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',ok:'<path d="M5 12l5 5L20 7"/>',back:'<path d="M15 5l-7 7 7 7"/>',
@@ -2757,7 +2757,7 @@ function quandoTxt(iso){if(!iso)return "Sem horário";const d=new Date(iso),h=da
 function msCard(x){const e=estadoMs(x);const late=x.k==="log"?atrasada(x.o):mAtrasada(x.o);
   return `<button class="ms-card ${e.cls}" type="button" data-ms="${x.k}_${esc(x.o.id)}">
     <span class="ms-top"><span class="ms-kind ${x.k}">${ic(x.k==="log"?"van":"tool")}${x.k==="log"?"Logística":"Manutenção"}</span><span class="ms-when${late?" late":""}">${ic("clock","ic sm")}${esc(quandoTxt(x.quando))}${late?" · atrasada":""}</span></span>
-    <span class="ms-t">${esc(tituloMs(x))}</span><span class="ms-s">${esc(subMs(x))}</span>
+    ${x.o.emergencial?`<span class="ms-emg">Emergência</span>`:""}<span class="ms-t">${esc(tituloMs(x))}</span><span class="ms-s">${esc(subMs(x))}</span>
     <span class="ms-foot"><span class="ms-st ${e.cls}">${esc(e.txt)}</span><span class="ms-go">${esc(e.acao)} ›</span></span></button>`}
 function renderMissoes(){
   S.ms=null;const id=meuEquipeId();
@@ -2766,12 +2766,11 @@ function renderMissoes(){
   if(!id){app.innerHTML=h+`<div class="ms-empty">${ic("clock","ic xl")}<h2>Sua conta ainda não está ligada à equipe</h2><p>Avise a coordenação de Facilities para concluir a liberação do seu acesso.</p></div>${sairHTML()}`;bindSairMs();return}
   const L=minhasMissoes();const agora=L.filter(x=>x.ativo),hoje=L.filter(x=>!x.ativo&&x.quando&&dayKey(x.quando)<=dayKey(new Date())),dep=L.filter(x=>!x.ativo&&(!x.quando||dayKey(x.quando)>dayKey(new Date())));
   const F=feitasHoje();
+  h+=menuCampoHTML();
   if(!L.length) h+=`<div class="ms-empty">${ic("ok","ic xl")}<h2>Nenhuma missão para você agora</h2><p>Quando a coordenação escalar você, a missão aparece aqui na hora.</p></div>`;
-  h+=frotaCampoHTML(true);
   if(agora.length) h+=`<h2 class="ms-sec">Em andamento</h2>${agora.map(msCard).join("")}`;
   if(hoje.length) h+=`<h2 class="ms-sec">Para hoje</h2>${hoje.map(msCard).join("")}`;
   if(dep.length) h+=`<h2 class="ms-sec">Próximos dias</h2>${dep.map(msCard).join("")}`;
-  h+=frotaCampoHTML(false);
   if(F.length) h+=`<h2 class="ms-sec">Feitas hoje · ${F.length}</h2>${F.map(x=>`<div class="ms-done">${ic("ok","ic sm")}<span><b>${esc(x.k==="log"?codigo(x.o):codM(x.o))}</b> ${esc(tituloMs(x))}</span><span class="num">${fHora(x.o.concluidoEm)}</span></div>`).join("")}`;
   app.innerHTML=h+sairHTML();
   $$("[data-ms]").forEach(b=>b.onclick=()=>{location.hash="#missao/"+b.dataset.ms});bindSairMs();
@@ -3598,7 +3597,7 @@ function renderFPainel(){
   const prob=cs.filter(c=>c.problemas>0).length;
   const usos=USOS_VEIC.map(u=>[u,vs.filter(v=>v.uso===u).length]).filter(x=>x[1]).map(x=>x[1]+" "+x[0].toLowerCase()).join(" · ");
   const osV=S.manutencoes.filter(m=>m.veiculoId&&fVeicOk(m.veiculoId)&&MABERTOS.includes(m.status)).sort((a,b)=>T(b.criadoEm)-T(a.criadoEm));
-  let h=headFrota("Painel da <em>frota</em>","Conferências, manutenção, limpeza e custos de cada veículo.",btnsFrota())+filtrosFrota();
+  let h=headFrota("Painel da <em>frota</em>","Conferências, manutenção, limpeza e custos de cada veículo.",btnsFrota())+filtrosFrota()+emgPainelHTML("frota");
   h+=`<div class="kpis">${kpi("Veículos ativos",vs.length,"",usos||"Informe o uso no cadastro")}${kpi("Pendências agora",A.length,"",alto?plural(alto,"vencida")+" ou atrasada"+(alto>1?"s":""):A.length?"nenhuma vencida":"Tudo em dia",alto?"alert":A.length?"":"good")}
     ${kpi("Conferências",cs.length,"",prob?plural(prob,"com item ruim","com item ruim"):cs.length?"sem item ruim":"nenhuma no período",prob?"alert":"")}${kpi("Lavagens",lav.length,"",lav.length?fBRL(soma(lav)):"nenhuma no período")}
     ${kpi("Custo da frota",fBRL(custo),"",plural(ss.filter(x=>x.custo!=null).length,"lançamento")+" com valor","money-k")}${kpi("Km nas rotas",km.toLocaleString("pt-BR"),"km",plural(rotas.length,"rota concluída","rotas concluídas"))}</div>`;
@@ -3701,6 +3700,190 @@ function renderFOs(){
       catch(x){console.error(x);b.disabled=false;b.textContent=F.id?"Salvar":"Abrir OS";er.textContent=/row-level|permission/i.test(x.message||"")?"Seu acesso não permite. Rode o script 20 no Supabase.":"Não foi possível abrir a OS."+(x.message?" ("+x.message+")":"")}};}
 }
 
+/* =====================================================================
+   DEMANDAS EMERGENCIAIS · registro pelo celular, indicadores e avaliação
+   ===================================================================== */
+const EMG_AV=[["procedente","Emergência de verdade"],["programavel","Dava para programar"],["nao_era","Não era emergência"]];
+const EMG_AV_LBL=Object.fromEntries(EMG_AV);
+const EMG_PER=[["30","Últimos 30 dias"],["mes","Este mês"],["mesant","Mês anterior"],["90","Últimos 90 dias"],["ano","Este ano"]];
+const EMG_AREA_LBL={log:"Logística",man:"Manutenção",frota:"Frota"};
+function emgAreas(){
+  if(S.role==="campo")return {ambas:["log","man","frota"],logistica:["log","frota"],manutencao:["man"]}[S.areaAcesso]||["log","man","frota"];
+  if(S.role==="log")return [isLog()?"log":null,isMan()?"man":null,isFrota()?"frota":null].filter(Boolean);
+  return [];
+}
+const emgLista=a=>a==="log"?S.os.filter(o=>o.emergencial):a==="man"?manInfra().filter(m=>m.emergencial):osFrota().filter(m=>m.emergencial);
+const emgTodasArea=a=>a==="log"?S.os:a==="man"?manInfra():osFrota();
+const emgK=a=>a==="log"?"log":"man";
+const emgCod=(a,o)=>a==="log"?codigo(o):codM(o);
+const emgTit=(a,o)=>a==="log"?(nomeLocal(o.origemId)+" → "+nomeLocal(o.destinoId)+((o.itens||[])[0]&&o.itens[0].desc?" · "+o.itens[0].desc:"")):tituloM(o);
+const podeAvaliar=a=>a==="log"?isLog():a==="man"?isMan():isFrota();
+
+/* ---------- quadro do painel ---------- */
+function emgPainelHTML(a){
+  if(!(isStaff()||S.role==="ver"))return "";
+  const per=S.emPer||"30",[ini,fim]=periodRange(per),noP=o=>{const t=T(o.criadoEm);return t>=ini.getTime()&&t<fim.getTime()};
+  const L=emgLista(a).filter(noP).sort((x,y)=>T(y.criadoEm)-T(x.criadoEm)),tot=emgTodasArea(a).filter(noP).length;
+  const E=o=>o.emergencia||{},fora=L.filter(o=>E(o).fora_horario).length,pend=L.filter(o=>!E(o).avaliacao);
+  const pct=(n,d)=>d?Math.round(n*100/d)+"%":"—";
+  const top=(f)=>groupCount(L,o=>(f(o)||"Não informado").trim()).map(([n,l])=>({n,v:l.length,lbl:String(l.length)})).sort((x,y)=>y.v-x.v).slice(0,5);
+  const av=EMG_AV.map(([k,n])=>({n,v:L.filter(o=>E(o).avaliacao===k).length,lbl:String(L.filter(o=>E(o).avaliacao===k).length)})).filter(r=>r.v);
+  const lista=L.slice().sort((x,y)=>(!!E(x).avaliacao)-(!!E(y).avaliacao)||T(y.criadoEm)-T(x.criadoEm)).slice(0,8);
+  const pode=podeAvaliar(a);
+  return `<section class="card emg-pn"><div class="card-h"><h2>Demandas emergenciais</h2><select class="emg-per" data-emgper aria-label="Período das emergências">${optsS(EMG_PER,per)}</select></div><div class="card-b">
+    <div class="kpis emg-k">${kpi("Emergências",L.length,"",tot?pct(L.length,tot)+" das OS da área":"nenhuma OS no período",L.length&&tot&&L.length/tot>.15?"alert":"")}
+      ${kpi("Fora do horário",fora,"",L.length?pct(fora,L.length)+" · antes das 7h, depois das 19h ou fim de semana":"—")}
+      ${kpi("Aguardando avaliação",pend.length,"",pend.length?"avalie abaixo":"tudo avaliado",pend.length?"alert":"good")}
+      ${kpi("Dava para programar",L.filter(o=>["programavel","nao_era"].includes(E(o).avaliacao)).length,"",L.some(o=>E(o).avaliacao)?pct(L.filter(o=>["programavel","nao_era"].includes(E(o).avaliacao)).length,L.filter(o=>E(o).avaliacao).length)+" das avaliadas":"sem avaliação ainda")}</div>
+    ${L.length?`<div class="grid3 emg-g"><div><h3 class="emg-t">Quem mais pediu</h3>${hbars(top(o=>E(o).pedido_por))}</div><div><h3 class="emg-t">Quem registrou</h3>${hbars(top(o=>E(o).registrado_por))}</div><div><h3 class="emg-t">Avaliação</h3>${av.length?hbars(av):`<p class="fr-none">Nenhuma avaliada ainda.</p>`}</div></div>
+    <ul class="emg-l">${lista.map(o=>{const e=E(o);return `<li class="${e.avaliacao?"av-"+e.avaliacao:"pend"}"><div class="emg-h"><button type="button" class="lnk" data-emgopen="${emgK(a)}:${esc(o.id)}"><b>${esc(emgCod(a,o))}</b></button> ${esc(emgTit(a,o))}<span class="emg-q">${esc(fDH(o.criadoEm))}${e.fora_horario?" · fora do horário":""}</span></div>
+        <p class="emg-m"><b>Motivo:</b> ${esc(e.motivo||"—")} <span>· pediu: ${esc(e.pedido_por||"—")} · registrou: ${esc(e.registrado_por||"—")}</span></p>
+        ${e.avaliacao?`<p class="emg-r"><b>${esc(EMG_AV_LBL[e.avaliacao])}</b>${e.avaliado_por?" · "+esc(e.avaliado_por):""}${e.avaliacao_obs?" · "+esc(e.avaliacao_obs):""}${pode?` <button type="button" class="lnk" data-emgre="${emgK(a)}:${esc(o.id)}">mudar</button>`:""}</p>`
+          :pode?`<div class="emg-b">${EMG_AV.map(([k,n])=>`<button type="button" class="btn sm" data-emgav="${emgK(a)}:${esc(o.id)}:${k}">${esc(n)}</button>`).join("")}</div>`:`<p class="emg-r">Aguardando avaliação da coordenação.</p>`}</li>`}).join("")}</ul>
+    ${L.length>8?`<p class="hint">Mostrando 8 de ${L.length}. As que faltam avaliar aparecem primeiro.</p>`:""}`:`<p class="fr-none">Nenhuma demanda emergencial no período.</p>`}</div></section>`;
+}
+async function avaliarEmg(k,id,res){
+  const o=k==="log"?byId(S.os,id):byId(S.manutencoes,id);if(!o)return;
+  const obs=res==="procedente"?null:(prompt("Comentário (opcional): por que dava para programar?")||null);
+  try{
+    if(S.demo){o.emergencia=Object.assign({},o.emergencia,{avaliacao:res,avaliacao_obs:obs,avaliado_por:S.meName||"Coordenação",avaliado_em:nowISO()})}
+    else{const {error}=await sb.rpc("avaliar_emergencia",{p_tipo:k,p_id:id,p_resultado:res,p_obs:obs});if(error)throw error;await carregar(k==="log"?"os":"manutencoes")}
+    toast("Avaliação registrada: "+EMG_AV_LBL[res]);render(true);
+  }catch(e){console.error(e);toast(/avaliar_emergencia|schema cache|Could not find/i.test(e.message||"")?"Rode o script 22 no Supabase.":"Não foi possível avaliar: "+(e.message||""))}
+}
+document.addEventListener("click",e=>{
+  const t=e.target.closest&&e.target.closest("[data-emgav],[data-emgopen],[data-emgre]");if(!t)return;
+  if(t.dataset.emgav){const [k,id,r]=t.dataset.emgav.split(":");avaliarEmg(k,id,r);return}
+  if(t.dataset.emgre){const [k,id]=t.dataset.emgre.split(":");const o=k==="log"?byId(S.os,id):byId(S.manutencoes,id);if(o){o.emergencia=Object.assign({},o.emergencia,{avaliacao:null});render(true)}return}
+  if(t.dataset.emgopen){const [k,id]=t.dataset.emgopen.split(":");k==="log"?openOS(id):openM(id)}
+});
+document.addEventListener("change",e=>{if(e.target&&e.target.matches&&e.target.matches("[data-emgper]")){S.emPer=e.target.value;render(true)}});
+function emgBoxDrawer(k,o){
+  if(!o||!o.emergencial)return "";const e=o.emergencia||{},a=k==="log"?"log":(o.veiculoId?"frota":"man"),pode=podeAvaliar(a);
+  return `<section class="card card-b emg-box"><p class="emg-tag">Demanda emergencial${e.fora_horario?" · fora do horário":""}</p>
+    <p><b>Motivo:</b> ${esc(e.motivo||"—")}</p><p><b>Quem pediu:</b> ${esc(e.pedido_por||"—")} · <b>Registrou:</b> ${esc(e.registrado_por||"—")}${e.registrado_em?" em "+esc(fDH(e.registrado_em)):""}${e.ja_feito?" · registrada depois de feita":""}</p>
+    ${e.avaliacao?`<p class="emg-r"><b>${esc(EMG_AV_LBL[e.avaliacao])}</b>${e.avaliado_por?" · "+esc(e.avaliado_por):""}${e.avaliacao_obs?" · "+esc(e.avaliacao_obs):""}</p>`
+      :pode?`<div class="emg-b">${EMG_AV.map(([kk,n])=>`<button type="button" class="btn sm" data-emgav="${k}:${esc(o.id)}:${kk}">${esc(n)}</button>`).join("")}</div>`:""}</section>`;
+}
+
+/* ---------- celular: menu da equipe ---------- */
+function menuCampoHTML(){
+  const vs=veicCampo(),pc=vs.filter(v=>prazoConf(v).nivel!=="ok").length,pl=vs.filter(v=>prazoLimpeza(v).nivel!=="ok").length;
+  const sub=[pc?plural(pc,"para conferir"):"",pl?plural(pl,"para lavar"):""].filter(Boolean).join(" · ")||"Ver os disponíveis";
+  return `<div class="ms-menu"><a class="ms-mbtn emg" href="#emergencia">${ic("alert","ic lg")}<span><b>Demanda emergencial</b><small>Registrar o que surgiu fora do programado</small></span></a>
+    ${vs.length?`<a class="ms-mbtn" href="#veiculos">${ic("frota","ic lg")}<span><b>Veículos</b><small>${esc(sub)}</small></span>${pc||pl?`<i class="bdg">${pc+pl}</i>`:""}</a>`:""}</div>`;
+}
+const veicCampo=()=>(typeof veicAtivos==="function"?veicAtivos():S.veiculos.filter(v=>v.ativo!==false)).filter(v=>v.uso!=="Particular do chefe");
+async function carregarEmUso(){
+  if(S.demo){const m={};S.os.filter(o=>o.status==="em_rota"&&o.veiculoId).forEach(o=>m[o.veiculoId]={motivo:"rota",desde:o.iniciadoEm||o.agendadoPara});
+    S.manutencoes.filter(x=>x.veiculoId&&["em_execucao","aguardando"].includes(x.status)).forEach(x=>m[x.veiculoId]={motivo:"manutencao",desde:x.iniciadoEm||x.criadoEm});S.emUso=m;return}
+  try{const {data,error}=await sb.rpc("veiculos_em_uso");if(error)throw error;const m={};(data||[]).forEach(r=>{if(!m[r.veiculo_id]||r.motivo==="manutencao")m[r.veiculo_id]={motivo:r.motivo,desde:r.desde}});S.emUso=m}
+  catch(e){console.warn("veiculos_em_uso",e);S.emUso=S.emUso||{}}
+}
+function renderVeicCampo(){
+  const bar=`<div class="ms-bar"><a class="ms-back" href="#missoes">${ic("back","ic")}Minhas missões</a><span class="ms-cod">Veículos</span></div>`;
+  if(!S.emUso){app.innerHTML=`<div class="fr-cf">${bar}<p class="ms-sub">Carregando…</p></div>`;carregarEmUso().then(()=>{if(S.route==="veiculos")renderVeicCampo()});return}
+  const U=S.emUso,vs=veicCampo().sort(sortNome),disp=vs.filter(v=>!U[v.id]),uso=vs.filter(v=>U[v.id]);
+  const card=v=>{const u=U[v.id],c=prazoConf(v),l=prazoLimpeza(v);
+    return `<div class="vc ${u?"uso":""}"><div class="vc-h"><b>${esc(v.nome)}</b>${v.placa?`<span class="fr-pl">${esc(v.placa)}</span>`:""}</div>
+      <p class="vc-s">${esc([[v.marca,v.modelo].filter(Boolean).join(" "),v.tipo].filter(Boolean).join(" · "))}${u?` · <b class="${u.motivo==="manutencao"?"late":"run"}">${u.motivo==="manutencao"?"em manutenção":"em rota"}${u.desde?" desde "+esc(fHora(u.desde)):""}</b>`:" · <b class=\"okc\">disponível</b>"}</p>
+      <div class="fr-st">${pillF("Conferência",c)}${pillF("Limpeza",l)}</div>
+      <div class="vc-a"><a class="btn sm${c.nivel!=="ok"?" pri":""}" href="#conferir/${esc(v.id)}">Conferir</a><a class="btn sm" href="#lavar/${esc(v.id)}">Lavagem</a>${u?"":`<button class="btn sm ghost" type="button" data-vcemg="${esc(v.id)}">Usar em emergência</button>`}</div></div>`};
+  app.innerHTML=`<div class="fr-cf">${bar}<h1 class="ms-h">Veículos</h1><p class="ms-sub">${plural(disp.length,"disponível","disponíveis")} agora${uso.length?" · "+plural(uso.length,"em uso"):""}</p>
+    ${disp.length?`<h2 class="ms-sec">Disponíveis</h2>${disp.map(card).join("")}`:""}${uso.length?`<h2 class="ms-sec">Em uso</h2>${uso.map(card).join("")}`:""}
+    <button class="btn ghost" type="button" id="vcAt" style="width:100%;justify-content:center;margin-top:12px">Atualizar</button></div>`;
+  $$("[data-vcemg]").forEach(b=>b.onclick=()=>{S.emg={area:"log",veiculoId:b.dataset.vcemg};location.hash="#emergencia"});
+  $("#vcAt").onclick=()=>{S.emUso=null;renderVeicCampo()};
+}
+
+/* ---------- celular: registrar emergência ---------- */
+function renderEmergencia(){
+  const voltar=S.role==="campo"?"#missoes":"#"+navCfg().home;
+  const bar=`<div class="ms-bar"><a class="ms-back" href="${esc(voltar)}">${ic("back","ic")}${S.role==="campo"?"Minhas missões":"Voltar"}</a><span class="ms-cod">Emergência</span></div>`;
+  const areas=emgAreas();
+  if(!areas.length){app.innerHTML=`<div class="fr-cf">${bar}<div class="ms-empty"><h2>Seu acesso não permite registrar emergência</h2></div></div>`;return}
+  if(!S.emg)S.emg={};const A=S.emg;if(!A.area||!areas.includes(A.area))A.area=areas.length===1?areas[0]:A.area&&areas.includes(A.area)?A.area:null;
+  if(A.fim){const f=A.fim;app.innerHTML=`<div class="ms-fim">${ic("ok","ic xl")}<h1>Emergência registrada</h1><p><b>${esc(f.cod)}</b> · ${esc(EMG_AREA_LBL[f.area])}</p>
+      <div class="ms-box" style="text-align:left">A coordenação vai ver no painel e avaliar. ${f.feito?"Ela já ficou como concluída.":"Ela já está em andamento no seu nome: conclua pela missão, como sempre."}</div>
+      ${!f.feito&&S.role==="campo"?`<a class="ms-cta" href="#missao/${f.k}_${esc(f.id)}">Abrir a missão</a>`:""}<a class="ms-cta${!f.feito&&S.role==="campo"?" sec":""}" href="${esc(voltar)}" style="margin-top:10px">Voltar</a></div>`;
+    $$(".ms-cta").forEach(x=>x.addEventListener("click",()=>{S.emg=null}));return}
+  const locs=S.locais.filter(l=>l.ativo!==false).slice().sort((x,y)=>{const ix=ORDEM_SIGLA.indexOf(x.sigla),iy=ORDEM_SIGLA.indexOf(y.sigla);return ((x.tipo==="Fornecedor")-(y.tipo==="Fornecedor"))||(ix<0?99:ix)-(iy<0?99:iy)||sortNome(x,y)});
+  const unid=locs.filter(l=>l.tipo!=="Fornecedor"),U=S.emUso||{};
+  const vsel=(id,req)=>`<select class="ms-in" id="${id}"><option value="">${req?"Escolha o veículo…":"Sem veículo"}</option>${veicCampo().concat(S.role==="log"?[]:[]).sort((x,y)=>(!!U[x.id])-(!!U[y.id])||sortNome(x,y)).map(v=>`<option value="${esc(v.id)}"${A.veiculoId===v.id?" selected":""}>${esc(nomeV(v))}${U[v.id]?" (em uso)":""}</option>`).join("")}</select>`;
+  const lsel=(id,lista,val)=>`<select class="ms-in" id="${id}"><option value="">Escolha…</option>${lista.map(l=>`<option value="${esc(l.id)}"${val===l.id?" selected":""}>${esc(l.nome)}${l.tipo==="Fornecedor"?" (fornecedor)":""}</option>`).join("")}</select>`;
+  let campos="";
+  if(A.area==="log")campos=`<div class="ms-box"><label class="ms-lbl" for="emO">De onde</label>${lsel("emO",locs,A.origemId)}<label class="ms-lbl" for="emD" style="margin-top:10px">Para onde</label>${lsel("emD",locs,A.destinoId)}</div>
+      <div class="ms-box"><label class="ms-lbl" for="emQ">O que foi levado</label><textarea class="ms-in" id="emQ" rows="2" placeholder="Ex.: 10 sacos de gelo">${esc(A.oQue||"")}</textarea></div>
+      <div class="ms-box"><label class="ms-lbl" for="emV">Veículo usado</label>${vsel("emV",false)}</div>`;
+  else if(A.area==="man"){const sets=A.localId?S.setores.filter(x=>x.localId===A.localId&&x.ativo!==false).sort(sortNome):[];
+    campos=`<div class="ms-box"><label class="ms-lbl" for="emL">Onde</label>${lsel("emL",unid,A.localId)}${sets.length?`<label class="ms-lbl" for="emS" style="margin-top:10px">Setor <i>opcional</i></label><select class="ms-in" id="emS"><option value="">—</option>${sets.map(x=>`<option value="${esc(x.id)}"${A.setorId===x.id?" selected":""}>${esc(x.nome)}</option>`).join("")}</select>`:""}</div>
+      <div class="ms-box"><label class="ms-lbl" for="emT">O que aconteceu</label><input class="ms-in" id="emT" type="text" maxlength="160" placeholder="Ex.: Cano estourado na cozinha" value="${esc(A.titulo||"")}"><label class="ms-lbl" for="emX" style="margin-top:10px">Detalhes <i>opcional</i></label><textarea class="ms-in" id="emX" rows="2">${esc(A.descricao||"")}</textarea></div>`}
+  else if(A.area==="frota")campos=`<div class="ms-box"><label class="ms-lbl" for="emV">Veículo</label>${vsel("emV",true)}</div>
+      <div class="ms-box"><label class="ms-lbl" for="emT">O que aconteceu</label><input class="ms-in" id="emT" type="text" maxlength="160" placeholder="Ex.: Pneu furou na rota" value="${esc(A.titulo||"")}"><label class="ms-lbl" for="emX" style="margin-top:10px">Detalhes <i>opcional</i></label><textarea class="ms-in" id="emX" rows="2">${esc(A.descricao||"")}</textarea></div>`;
+  app.innerHTML=`<div class="fr-cf">${bar}<h1 class="ms-h">Demanda emergencial</h1><p class="ms-sub">Use só para o que não pode esperar a coordenação programar. Toda emergência é avaliada depois.</p>
+    ${areas.length>1?`<div class="ms-box"><span class="ms-lbl">De qual área?</span><div class="fr-opts">${areas.map(a=>`<button type="button" class="fr-opt${A.area===a?" on":""}" data-ema="${a}"><b>${EMG_AREA_LBL[a]}</b><small>${{log:"Levar ou buscar algo",man:"Conserto na estrutura",frota:"Problema com veículo"}[a]}</small></button>`).join("")}</div></div>`:""}
+    ${A.area?campos+`<div class="ms-box"><label class="ms-lbl" for="emP">Quem pediu</label><input class="ms-in" id="emP" type="text" maxlength="120" placeholder="Nome e setor de quem pediu" value="${esc(A.pedidoPor||"")}"></div>
+      <div class="ms-box"><label class="ms-lbl" for="emM">Por que é emergência?</label><textarea class="ms-in" id="emM" rows="3" placeholder="O que acontecia se esperasse? Ex.: evento começando sem gelo no bar">${esc(A.motivo||"")}</textarea></div>
+      <div class="ms-box"><span class="ms-lbl">Situação</span><div class="fr-opts"><button type="button" class="fr-opt${!A.jaFeito?" on":""}" data-emf="0"><b>Vou fazer agora</b><small>Fica em andamento no seu nome</small></button><button type="button" class="fr-opt${A.jaFeito?" on":""}" data-emf="1"><b>Já fiz</b><small>Registra como concluída</small></button></div></div>
+      <p class="err" id="emErr" role="alert"></p><button class="ms-cta" id="emOk" type="button"${A.busy?" disabled":""}>${A.busy?"Registrando…":"Registrar emergência"}</button>`:""}</div>`;
+  const val=id=>{const e=$("#"+id);return e?e.value.trim():""};
+  const guarda=()=>{if(!A.area)return;if(A.area==="log"){A.origemId=val("emO");A.destinoId=val("emD");A.oQue=val("emQ");A.veiculoId=val("emV")}
+    if(A.area==="man"){A.localId=val("emL");A.setorId=val("emS");A.titulo=val("emT");A.descricao=val("emX")}
+    if(A.area==="frota"){A.veiculoId=val("emV");A.titulo=val("emT");A.descricao=val("emX")}
+    A.pedidoPor=val("emP");A.motivo=val("emM")};
+  $$("[data-ema]").forEach(b=>b.onclick=()=>{guarda();A.area=b.dataset.ema;renderEmergencia()});
+  $$("[data-emf]").forEach(b=>b.onclick=()=>{guarda();A.jaFeito=b.dataset.emf==="1";renderEmergencia()});
+  const ls=$("#emL");if(ls)ls.onchange=()=>{guarda();A.setorId="";renderEmergencia()};
+  if(!S.emUso)carregarEmUso().then(()=>{if(S.route==="emergencia"&&!A.busy){guarda();renderEmergencia()}});
+  const okb=$("#emOk");if(okb)okb.onclick=async()=>{guarda();const er=$("#emErr");er.textContent="";
+    const falta=A.area==="log"?(!A.origemId?"Escolha de onde.":!A.destinoId?"Escolha para onde.":A.origemId===A.destinoId?"Origem e destino são o mesmo lugar.":!A.oQue?"Diga o que foi levado.":"")
+      :A.area==="man"?(!A.localId?"Escolha onde.":!A.titulo?"Diga o que aconteceu.":""):(!A.veiculoId?"Escolha o veículo.":!A.titulo?"Diga o que aconteceu.":"");
+    if(falta){er.textContent=falta;return}
+    if(!A.pedidoPor){er.textContent="Diga quem pediu.";$("#emP").focus();return}
+    if(A.motivo.length<10){er.textContent="Explique por que é emergência (pelo menos uma frase).";$("#emM").focus();return}
+    A.busy=true;okb.disabled=true;okb.textContent="Registrando…";
+    const p={motivo:A.motivo,pedido_por:A.pedidoPor,ja_feito:!!A.jaFeito,origem_id:A.origemId||null,destino_id:A.destinoId||null,o_que:A.oQue||null,veiculo_id:A.veiculoId||null,local_id:A.localId||null,setor_id:A.setorId||null,titulo:A.titulo||null,descricao:A.descricao||null};
+    try{const r=await criarEmergencia(A.area,p);A.busy=false;A.fim={area:A.area,k:r.tipo,id:r.id,feito:!!A.jaFeito,cod:(r.tipo==="log"?"OS-":"MAN-")+String(r.numero).padStart(4,"0")};S.emUso=null;renderEmergencia();window.scrollTo(0,0)}
+    catch(e){console.error(e);A.busy=false;const b=$("#emOk");if(b){b.disabled=false;b.textContent="Registrar emergência"}
+      er.textContent=/criar_emergencia|schema cache|Could not find/i.test(e.message||"")?"Falta rodar o script 22 no Supabase.":/Failed to fetch|NetworkError|network/i.test(e.message||"")?"Sem internet. Confira a conexão e toque de novo.":(e.message||"Não foi possível registrar.")}};
+}
+async function criarEmergencia(area,p){
+  if(!S.demo){const {data,error}=await sb.rpc("criar_emergencia",{p_area:area,p});if(error)throw error;
+    await carregar(data.tipo==="log"?"os":"manutencoes");buildNav();return data}
+  const eq=meuEquipeId(),agora=nowISO(),h=new Date().getHours(),d=new Date().getDay();
+  const em={motivo:p.motivo,pedido_por:p.pedido_por,registrado_por:S.meName||"Equipe",registrado_em:agora,ja_feito:p.ja_feito,fora_horario:d===0||d===6||h<7||h>=19};
+  const ci=eq?{[eq]:agora}:{},eqs=eq?[eq]:[],id=novoId();
+  if(area==="log"){const n=Math.max(0,...S.os.map(o=>Number(o.numero)||0))+1,st=p.ja_feito?"feita":"pendente";
+    S.os.unshift({id,numero:n,status:p.ja_feito?"concluida":"em_rota",tipo:"Emergencial",prioridade:"urgente",solicitante:p.pedido_por,origemId:p.origem_id,destinoId:p.destino_id,itens:[{desc:p.o_que,qtd:"",un:""}],
+      paradas:[{id:"p0",tipo:"retirada",localId:p.origem_id,detalhe:"",status:st},{id:"p1",tipo:"entrega",localId:p.destino_id,detalhe:"",status:st}],agendadoPara:agora,iniciadoEm:agora,concluidoEm:p.ja_feito?agora:null,
+      equipeIds:eqs,veiculoId:p.veiculo_id,observacoes:"EMERGÊNCIA: "+p.motivo,cientes:ci,emergencial:true,emergencia:em,historico:[],criadoEm:agora});return {tipo:"log",id,numero:n}}
+  const n=Math.max(0,...S.manutencoes.map(m=>Number(m.numero)||0))+1,v=area==="frota"?byId(S.veiculos,p.veiculo_id):null;
+  S.manutencoes.unshift({id,numero:n,status:p.ja_feito?"concluida":"em_execucao",tipo:"corretiva",categoria:area==="frota"?"Veículos":null,prioridade:"urgente",titulo:p.titulo,descricao:p.descricao,localId:area==="man"?p.local_id:null,setorId:area==="man"?p.setor_id:null,
+    localDetalhe:v?"Veículo "+nomeV(v):null,veiculoId:v?v.id:null,solicitante:p.pedido_por,executor:"interno",equipeIds:eqs,agendadoPara:agora,iniciadoEm:agora,concluidoEm:p.ja_feito?agora:null,cientes:ci,emergencial:true,emergencia:em,
+    historico:[{s:p.ja_feito?"concluida":"em_execucao",em:agora,nota:"Emergência registrada"}],custos:[],fotosAbertura:[],fotosAntes:[],fotosDepois:[],criadoEm:agora});
+  return {tipo:"man",id,numero:n};
+}
+
+/* ---------- demonstração ---------- */
+function loadDemoEmg(){
+  const ag=Date.now(),H=36e5;
+  const base=S.os.find(o=>o.status==="concluida")||S.os[0];
+  const mk=(i,dias,hora,fora,av,motivo,pedido,reg,orig,dest,oq)=>{const t=new Date(ag-dias*24*H);t.setHours(hora,10,0,0);const iso=t.toISOString();
+    return Object.assign(JSON.parse(JSON.stringify(base)),{id:"emg"+i,numero:900+i,status:"concluida",tipo:"Emergencial",prioridade:"urgente",origemId:orig,destinoId:dest,itens:[{desc:oq,qtd:"",un:""}],paradas:[],agendadoPara:iso,iniciadoEm:iso,concluidoEm:new Date(t.getTime()+H).toISOString(),criadoEm:iso,
+      emergencial:true,emergencia:{motivo,pedido_por:pedido,registrado_por:reg,registrado_em:iso,fora_horario:fora,avaliacao:av,avaliado_por:av?"Coordenação":null}})};
+  S.os.push(mk(1,2,22,true,null,"Acabou o gelo no meio do evento","Bar do M.G. · Rafael","Motorista A","cd1","mg","Gelo, 10 sacos"),
+    mk(2,5,15,false,"programavel","Faltou toalha para o jantar","Eventos · Juliana","Motorista B","cd2","mc","Toalhas de mesa"),
+    mk(3,9,6,true,"procedente","Vazou a câmara fria, carne estragando","Cozinha · Chef Paulo","Motorista A","dr","cd1","Carnes para a câmara do CD"),
+    mk(4,12,20,true,"nao_era","Pediram urgente, mas era para o dia seguinte","Eventos · Juliana","Motorista B","cd1","mg","Cadeiras dobráveis"));
+  const mb=S.manutencoes.find(m=>m.status==="concluida"&&!m.veiculoId)||S.manutencoes[0];
+  const mm=(i,dias,hora,fora,av,motivo,pedido,reg,tit,veic)=>{const t=new Date(ag-dias*24*H);t.setHours(hora,0,0,0);const iso=t.toISOString();
+    return Object.assign(JSON.parse(JSON.stringify(mb)),{id:"emm"+i,numero:950+i,status:"concluida",prioridade:"urgente",tipo:"corretiva",titulo:tit,criadoEm:iso,iniciadoEm:iso,concluidoEm:new Date(t.getTime()+2*H).toISOString(),
+      veiculoId:veic||null,categoria:veic?"Veículos":mb.categoria,localDetalhe:veic?"Veículo":mb.localDetalhe,emergencial:true,emergencia:{motivo,pedido_por:pedido,registrado_por:reg,registrado_em:iso,fora_horario:fora,avaliacao:av,avaliado_por:av?"Coordenação":null}})};
+  S.manutencoes.push(mm(1,1,23,true,null,"Cano estourado alagando a cozinha","Cozinha · Chef Paulo","Técnico Refrigeração","Cano estourado na cozinha"),
+    mm(2,6,10,false,"programavel","Lâmpada queimada na recepção","Recepção · Marina","Técnico Refrigeração","Trocar lâmpada da recepção"),
+    mm(3,3,21,true,null,"Pneu furou no meio da rota","Motorista A","Motorista A","Trocar pneu furado","v1"));
+}
+
 /* ---------- Demonstração da manutenção ---------- */
 function loadDemoMan(){
   const now=Date.now();let seed=11;const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};const pick=a=>a[Math.floor(rnd()*a.length)];
@@ -3774,7 +3957,7 @@ function loadDemo(){
   S.solicitantes=[{id:"c1",nome:"Laura Souza",telefone:"(11) 99999-8888",setorId:"s4",ativo:true},{id:"c2",nome:"Marcos Lima",telefone:"(11) 98888-7777",setorId:"s1",ativo:true}];
   S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
     modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];
-  loadDemoMan(); loadDemoFrota();
+  loadDemoMan(); loadDemoFrota(); loadDemoEmg();
   S.relatorios=[{id:pm.getFullYear()+"-"+pad(pm.getMonth()+1),geradoEm:new Date(now-12*86400000).toISOString(),resumo:"Exemplo de fechamento. O volume cresceu puxado por Eventos e Bar, e a rota CD → Mirage concentrou a maior parte das transferências. O tempo de resposta caiu, mas um terço das OS concluídas passou da previsão de término, quase todas em retiradas de fornecedor.",destaques:["Rever a previsão de término das retiradas em fornecedor, que costumam levar mais de 2 h.","Concentrar as entregas CD → Mirage em uma rota fixa pela manhã."]}];
 }
 
