@@ -449,3 +449,7 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 
 ## Atualização 34 · Microfone em todo o sistema
 - Todo campo de texto (Logística, Manutenção e Frota) tem o microfone: nos formulários, um ícone dentro do campo; nas telas do celular da equipe, o botão "Falar". Ficam sem microfone: placa, chassi, RENAVAM, telefone, e-mail, senha, números, valores e buscas.
+
+## Atualização 35 · Correção dos erros do console
+- Ícones do app agora ficam na raiz do site (icone-*.png), junto do app.js.
+- Rode `supabase/23_completar_banco.sql`: cria o que faltava (solicitantes, telefone dos usuários, aviso por WhatsApp) e mostra a conferência de tudo o que o sistema usa.
