@@ -947,4 +947,21 @@ body.auth #diagBtn{bottom:16px}
 .mic.ico.on{background:var(--danger-surface);box-shadow:none;animation:micPulse 1.2s ease-in-out infinite}
 .mic.ico .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 :root{--versao-css:"34"}
-:root{--versao-css:"36"}
+:root{--versao-css:"37"}
+
+/* ---------- Controle de Eficiência (v37) ---------- */
+.ef-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 16px;border-bottom:1px solid var(--line)}
+.ef-tabs button{appearance:none;border:0;background:none;padding:10px 14px;font:inherit;font-weight:600;color:var(--mute);border-bottom:3px solid transparent;margin-bottom:-1px;cursor:pointer;border-radius:6px 6px 0 0}
+.ef-tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent,#83582B)}
+.ef-tabs button:hover{background:var(--hover)}
+.ef-rks{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:0 0 16px}
+.ef-rk{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--card,#fff);display:flex;flex-direction:column;gap:2px;border-left:5px solid var(--line)}
+.ef-rk.ok{border-left-color:var(--s-ok,#2e7d4f)}.ef-rk.alert{border-left-color:var(--s-late,#b3261e)}
+.ef-rk-t{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
+.ef-rk b{font-size:16px;overflow-wrap:anywhere}.ef-rk span:last-child{color:var(--mute);font-size:13px}
+.ef-comp{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:0 0 16px}
+.ef-comp div{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px}
+.ef-como p{margin:0 0 8px;color:var(--mute)}.ef-como b{color:var(--ink)}
+table.t small.ok,table.t span.ok{color:var(--s-ok,#2e7d4f);font-weight:700}table.t small.late,table.t span.late{color:var(--s-late,#b3261e);font-weight:700}
+.ef-sal input{width:100%;min-width:90px;max-width:150px}
+@media (max-width:640px){.ef-rks{grid-template-columns:1fr 1fr}.ef-rk{padding:10px}.ef-rk b{font-size:14px}.ef-tabs button{padding:9px 10px;font-size:14px}}

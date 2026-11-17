@@ -453,3 +453,14 @@ O andar, a sala ou a mesa vão no campo **Observação** da OS.
 ## Atualização 35 · Correção dos erros do console
 - Ícones do app agora ficam na raiz do site (icone-*.png), junto do app.js.
 - Rode `supabase/23_completar_banco.sql`: cria o que faltava (solicitantes, telefone dos usuários, aviso por WhatsApp) e mostra a conferência de tudo o que o sistema usa.
+
+## Atualização 36 · Lançamento mais simples
+OS de logística em 4 telas e de manutenção em 3. O microfone escuta uma frase e para sozinho (no máximo 20 segundos).
+
+## Atualização 37 · Controle de Eficiência
+**Rodar no Supabase:** `supabase/24_eficiencia.sql` (uma vez). No fim aparece uma conferência com 6 itens "OK".
+- **Veículo:** km por litro vazio/leve e com carga pesada, custo da troca de óleo e filtro, custo e duração dos pneus (Frota → Veículos → Editar cadastro).
+- **Combustível** (menu da Frota): lançar por quinzena os litros, o valor pago e o km do painel. O sistema mostra km/l real, % do esperado e R$ por km.
+- **OS de logística:** carga leve ou pesada.
+- **OS da frota feita por prestador:** ao programar, nasce sozinha a OS de logística "Levar veículo à oficina"; ao concluir, a OS "Buscar veículo na oficina". Na conclusão há o campo "Valor pago pelo serviço".
+- **Controle de Eficiência** (menu de todas as áreas): ranking de consumo dos veículos e ranking dos funcionários (missões, tempo médio, missão mais longa). A coordenação geral vê também o custo de cada missão (equipe + combustível + óleo + pneus + extras) e cadastra os salários. Os salários ficam protegidos no banco: só quem tem acesso a todas as áreas vê.
