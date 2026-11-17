@@ -90,7 +90,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=37;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=38;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1853,7 +1853,7 @@ function mRowHTML(m){
 function renderMOrdens(){
   const f=S.mlf;
   const segs=[["novos","Chamados novos"],["abertas","Em aberto"],["atrasadas","Atrasadas"],["agendada","Programadas"],["em_execucao","Em execução"],["aguardando","Aguardando"],["concluida","Concluídas"],["cancelada","Canceladas"],["todas","Todas"]];
-  const L=S.manutencoes;
+  const L=manInfra(),nFr=S.manutencoes.length-L.length;
   const cnt=k=>k==="todas"?L.length:k==="novos"?L.filter(m=>m.status==="aberto").length:k==="abertas"?L.filter(m=>MABERTOS.includes(m.status)).length:k==="atrasadas"?L.filter(mAtrasada).length:L.filter(m=>m.status===k).length;
   let h=`<div class="head"><div><h1>Chamados e <em>OS</em></h1><p>Chamados abertos pelos setores e ordens de manutenção corretiva e preventiva, da triagem à conclusão com foto.</p></div>${isMan()?`<div class="act"><a class="btn pri" href="#m-nova">Nova OS de manutenção</a></div>`:""}</div>${banner()}${avisoSQL()}
   <div class="seg" role="group" aria-label="Situação">${segs.map(([k,l])=>`<button type="button" data-mseg="${k}" aria-pressed="${f.status===k}">${l}<span class="c num">${cnt(k)}</span></button>`).join("")}</div>
@@ -1868,6 +1868,7 @@ function renderMOrdens(){
   let list=filtraM();
   if(f.status!=="concluida"&&f.status!=="cancelada"&&f.status!=="todas") list.sort((a,b)=>({urgente:0,alta:1,normal:2,baixa:3}[a.prioridade]-{urgente:0,alta:1,normal:2,baixa:3}[b.prioridade])||prazoM(a)-prazoM(b));
   else list.sort((a,b)=>T(b.criadoEm)-T(a.criadoEm));
+  if(nFr&&isFrota()) h+=`<p class="hint" style="margin:0 0 12px">${plural(nFr,"OS de veículo fica","OS de veículo ficam")} em <a href="#f-os">Frota › OS da frota</a>.</p>`;
   if(!L.length) h+=`<div class="empty"><h3>Nenhuma manutenção registrada ainda</h3><p>Os chamados dos setores aparecem aqui assim que são abertos.${isMan()?' Você também pode <a href="#m-nova">registrar uma OS</a> ou criar um <a href="#m-prev">plano preventivo</a>.':""}</p></div>`;
   else if(!list.length) h+=`<div class="empty"><h3>Nada com esses filtros</h3><p>${f.status==="novos"?"Nenhum chamado esperando triagem.":"Ajuste a situação, o local ou a busca."}</p></div>`;
   else h+=`<div class="list">${list.slice(0,300).map(mRowHTML).join("")}</div>`;
@@ -3653,7 +3654,7 @@ function renderFServ(){
 /* =====================================================================
    OS DA FROTA · toda OS de veículo fica só na área Frota
    ===================================================================== */
-const ehFrotaM=m=>!!(m&&(m.veiculoId||m.categoria==="Veículos"));
+const ehFrotaM=m=>!!(m&&m.veiculoId);
 const manInfra=()=>S.manutencoes.filter(m=>!ehFrotaM(m));
 const osFrota=()=>S.manutencoes.filter(ehFrotaM);
 const F_OS_ST=[["abertas","Em aberto"],["aberto","Novas"],["agendada","Agendadas"],["em_execucao","Em execução"],["aguardando","Aguardando"],["concluida","Concluídas"],["cancelada","Canceladas"],["todas","Todas"]];
