@@ -480,3 +480,6 @@ Os números das abas de Chamados e OS passam a contar só o que aparece na lista
 
 ## Atualização 40 · Atualização automática
 As telas se atualizam sozinhas: na hora pelo tempo real do Supabase e, como reserva, a cada 30 segundos. Ao desbloquear o celular ou voltar para a aba, a tela também se atualiza. Quando entra OS ou pedido novo, aparece um aviso. O que está sendo digitado num formulário não é apagado.
+
+## Atualização 41 · Novo visual da TV da manutenção
+Cabeçalho em degradê marsala com a assinatura dourada, indicador "Ao vivo", indicadores no topo (a fazer, em execução, atrasadas, finalizadas e % no prazo), cartões com barra de prazo, iniciais de quem está fazendo e alerta piscando em vermelho no que passou do prazo.

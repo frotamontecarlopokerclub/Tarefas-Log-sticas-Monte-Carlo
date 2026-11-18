@@ -92,7 +92,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=40;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=41;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -4269,38 +4269,61 @@ const desde=iso=>{const ms=Date.now()-T(iso);if(!isFinite(ms))return "";if(ms>=8
 
 /* ---------- TV ---------- */
 let tvTimer=null;
-function tvCard(m,k){const pz=prazoFalta(m);const late=k!=="feita"&&pz.late;const pr=m.prioridade||"normal";
-  return `<div class="tv-c p-${pr}${late?" atr":""}${m.status==="aguardando"?" hold":""}" data-tvc>
-    <div class="tv-c1"><b class="num">${esc(codM(m))}</b><span class="tv-p p-${pr}">${PRIO_COR[pr]||"Média"}</span>${m.emergencial?`<span class="tv-p emg">Emergência</span>`:""}${m.tipo==="preventiva"?`<span class="tv-p prev">Preventiva</span>`:""}</div>
-    <div class="tv-t">${esc(tituloCurto(m))}</div>
-    <div class="tv-l">${esc(ondeM(m)||"Local não informado")}${m.categoria?" · "+esc(m.categoria):""}</div>
-    ${k==="fazer"?`<div class="tv-f${late?" atr":pz.perto?" perto":""}">${late?"⚠ ":""}${esc(pz.txt)}</div>${m.executor==="terceiro"?`<div class="tv-q">Prestador: ${esc(m.prestadorId&&nomePrest(m.prestadorId)!=="—"?nomePrest(m.prestadorId):"a definir")}</div>`:(m.equipeIds||[]).length?`<div class="tv-q">Indicado: ${esc(nomeEquipe(m.equipeIds))}</div>`:""}`
-    :k==="exec"?`<div class="tv-q"><b>${esc((m.equipeIds||[]).length?nomeEquipe(m.equipeIds):"—")}</b></div><div class="tv-f${late?" atr":""}">${m.status==="aguardando"?"Pausada: "+esc(m.aguardandoMotivo||""):"Fazendo há "+esc(desde(m.iniciadoEm))}${late?" · prazo vencido":""}</div>`
-    :`<div class="tv-q">${esc((m.equipeIds||[]).length?nomeEquipe(m.equipeIds):executorTxt(m))}</div><div class="tv-f ok">Finalizada ${esc(fHora(m.concluidoEm))}${dayKey(m.concluidoEm)!==dayKey(new Date())?" de ontem":""}</div>`}
-  </div>`}
+const TVI={pin:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',ok:'<path d="M20 6L9 17l-5-5"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  fila:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',run:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
+  alerta:'<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>',meta:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>'};
+const tvi=(k,c)=>`<svg class="${c||"tvi"}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TVI[k]}</svg>`;
+const avatares=ids=>(ids||[]).slice(0,3).map(id=>{const p=byId(S.equipe,id);return `<span class="tv-av" title="${esc(p?p.nome:"")}">${esc(iniciais(p?p.nome:"?"))}</span>`}).join("")+((ids||[]).length>3?`<span class="tv-av mais">+${ids.length-3}</span>`:"");
+function consumoPrazo(m){const ini=T(m.criadoEm),fim=prazoM(m);if(!isFinite(ini)||!isFinite(fim)||fim<=ini)return null;return Math.max(0,Math.min(1,(Date.now()-ini)/(fim-ini)))}
+function tvCard(m,k){const pz=prazoFalta(m);const late=k!=="feita"&&m.status!=="concluida"&&pz.late;const pr=m.prioridade||"normal";const c=consumoPrazo(m);
+  const nivel=late?"r":c==null?"":c>=.85?"r":c>=.6?"a":"g";
+  const eq=(m.equipeIds||[]).length?nomeEquipe(m.equipeIds):"";
+  return `<article class="tv-c p-${pr}${late?" atr":""}${m.status==="aguardando"?" hold":""}" data-tvc>
+    <div class="tv-c1"><span class="tv-cod num">${esc(codM(m))}</span><span class="tv-p p-${pr}">${PRIO_COR[pr]||"Média"}</span>${m.emergencial?`<span class="tv-p emg">Emergência</span>`:""}${m.tipo==="preventiva"?`<span class="tv-p prev">Preventiva</span>`:""}${m.categoria?`<span class="tv-cat">${esc(m.categoria)}</span>`:""}</div>
+    <h4 class="tv-t">${esc(tituloCurto(m))}</h4>
+    <p class="tv-l">${tvi("pin")}<span>${esc(ondeM(m)||"Local não informado")}</span></p>
+    ${k==="fazer"?`<div class="tv-pz ${nivel}">${c!=null?`<div class="tv-bar"><i style="width:${Math.round((late?1:c)*100)}%"></i></div>`:""}<span class="tv-pzt">${late?tvi("alerta"):tvi("clock")}${esc(pz.txt)}</span></div>
+      ${m.executor==="terceiro"?`<p class="tv-q">Prestador · ${esc(m.prestadorId&&nomePrest(m.prestadorId)!=="—"?nomePrest(m.prestadorId):"a definir")}</p>`:eq?`<p class="tv-q">Indicado · ${esc(eq)}</p>`:""}`
+    :k==="exec"?`<div class="tv-eq">${avatares(m.equipeIds)}<b>${esc(eq||"Equipe")}</b></div>
+      <div class="tv-pz ${m.status==="aguardando"?"a":late?"r":""}"><span class="tv-pzt">${m.status==="aguardando"?tvi("alerta")+"Pausada · "+esc(m.aguardandoMotivo||""):tvi("run")+"Em execução há "+esc(desde(m.iniciadoEm))}</span>${late?`<span class="tv-tag r">Prazo vencido</span>`:""}</div>`
+    :`<div class="tv-eq">${avatares(m.equipeIds)}<b>${esc(eq||executorTxt(m))}</b></div>
+      <div class="tv-pz g"><span class="tv-pzt">${tvi("ok")}Finalizada às ${esc(fHora(m.concluidoEm))}${dayKey(m.concluidoEm)!==dayKey(new Date())?" de ontem":""}</span>${isFinite(prazoM(m))&&T(m.concluidoEm)>prazoM(m)?`<span class="tv-tag a">Fora do prazo</span>`:""}</div>`}
+  </article>`}
 function renderMTv(){
   if(!podeDesenhar())return;
-  const P=osPainelMan();const atr=P.aFazer.filter(m=>prazoFalta(m).late).length+P.exec.filter(m=>prazoFalta(m).late).length;
+  const P=osPainelMan();const atrF=P.aFazer.filter(m=>prazoFalta(m).late).length,atrE=P.exec.filter(m=>prazoFalta(m).late).length,atr=atrF+atrE;
+  const noPz=P.feitas.filter(m=>isFinite(prazoM(m))&&T(m.concluidoEm)<=prazoM(m)).length;const pct=P.feitas.length?Math.round(noPz/P.feitas.length*100):null;
   const grupos=["urgente","alta","normal","baixa"].map(k=>[k,P.aFazer.filter(m=>(m.prioridade||"normal")===k)]).filter(g=>g[1].length);
-  const agora=new Date();
+  const agora=new Date();const atual=S.demo?agora:new Date(S.ultimaAtual||agora);
+  const kpi2=(ico,l,v,sub,cls)=>`<div class="tv-k ${cls||""}"><span class="tv-ki">${tvi(ico)}</span><div><span class="tv-kl">${l}</span><b class="num">${v}</b><small>${sub}</small></div></div>`;
   let h=`<div class="tv">
-  <div class="tv-h"><div class="tv-tit"><b>Manutenção</b><span>${esc((t=>t.charAt(0).toUpperCase()+t.slice(1))(agora.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})))}</span></div>
-    <div class="tv-n"><span><b class="num">${P.aFazer.length}</b> a fazer</span><span><b class="num">${P.exec.length}</b> em execução</span><span><b class="num">${P.feitas.length}</b> finalizadas em 24h</span>${atr?`<span class="atr"><b class="num">${atr}</b> atrasada${atr>1?"s":""}</span>`:""}</div>
-    <div class="tv-clock num">${fHora(agora.toISOString())}</div>${S.role!=="tv"?`<a class="btn sm ghost tv-x" href="#m-ordens">Sair da TV</a>`:""}</div>
+  <header class="tv-h">
+    <svg class="tv-diag" viewBox="0 0 600 140" preserveAspectRatio="xMaxYMin slice" aria-hidden="true"><line x1="240" y1="0" x2="600" y2="300" stroke="#C7932D" stroke-opacity=".18" stroke-width="1.4"/><line x1="360" y1="0" x2="600" y2="200" stroke="#C7932D" stroke-opacity=".18" stroke-width="1.4"/><line x1="470" y1="0" x2="600" y2="108" stroke="#C7932D" stroke-opacity=".14" stroke-width="1.4"/></svg>
+    <img class="tv-logo" src="assets/logo-assinatura.svg" alt="Monte Carlo">
+    <span class="tv-sep" aria-hidden="true"></span>
+    <div class="tv-tit"><h1>Central de <em>Manutenção</em></h1><p>${esc((t=>t.charAt(0).toUpperCase()+t.slice(1))(agora.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})))}</p></div>
+    <div class="tv-live"><i aria-hidden="true"></i><span>Ao vivo</span><small>atualizado ${esc(fHora(atual.toISOString()))}</small></div>
+    <div class="tv-clock num">${fHora(agora.toISOString())}</div>
+    ${S.role!=="tv"?`<a class="tv-x" href="#m-ordens">Sair da TV</a>`:""}
+  </header>
+  <div class="tv-kpis">
+    ${kpi2("fila","A fazer",P.aFazer.length,grupos.map(([k,l])=>l.length+" "+PRIO_COR[k].toLowerCase()).join(" · ")||"fila vazia")}
+    ${kpi2("run","Em execução",P.exec.length,P.exec.filter(m=>m.status==="aguardando").length?P.exec.filter(m=>m.status==="aguardando").length+" pausada(s)":"equipe em serviço")}
+    ${kpi2("alerta","Atrasadas",atr,atr?(atrF?atrF+" na fila":"")+(atrF&&atrE?" · ":"")+(atrE?atrE+" em execução":""):"tudo dentro do prazo",atr?"alerta":"ok")}
+    ${kpi2("ok","Finalizadas",P.feitas.length,"últimas 24 horas")}
+    ${kpi2("meta","No prazo",pct==null?"—":pct+"%",P.feitas.length?noPz+" de "+P.feitas.length+" em 24 h":"sem finalizadas em 24 h",pct==null?"":pct>=90?"ok":pct<75?"alerta":"")}
+  </div>
   <div class="tv-cols">
-    <section class="tv-col fazer"><h2>A fazer</h2><div class="tv-b">${grupos.length?grupos.map(([k,l])=>`<h3 class="tv-g p-${k}">${PRIO_COR[k]} <small>${esc(MPRAZO_TXT[k])}</small><span class="num">${l.length}</span></h3>${l.map(m=>tvCard(m,"fazer")).join("")}`).join(""):`<p class="tv-v">Nenhuma OS esperando. 👏</p>`}</div><p class="tv-mais" hidden></p></section>
-    <section class="tv-col exec"><h2>Em execução</h2><div class="tv-b">${P.exec.length?P.exec.map(m=>tvCard(m,"exec")).join(""):`<p class="tv-v">Ninguém em serviço agora.</p>`}</div><p class="tv-mais" hidden></p></section>
-    <section class="tv-col feita"><h2>Finalizadas · 24h</h2><div class="tv-b">${P.feitas.length?P.feitas.map(m=>tvCard(m,"feita")).join(""):`<p class="tv-v">Nada finalizado nas últimas 24 horas.</p>`}</div><p class="tv-mais" hidden></p></section>
+    <section class="tv-col fazer"><div class="tv-ch"><h2>A fazer</h2><span class="tv-n num">${P.aFazer.length}</span></div><div class="tv-b">${grupos.length?grupos.map(([k,l])=>`<h3 class="tv-g p-${k}"><i aria-hidden="true"></i>${PRIO_COR[k]}<small>${esc(MPRAZO_TXT[k])}</small><span class="num">${l.length}</span></h3>${l.map(m=>tvCard(m,"fazer")).join("")}`).join(""):`<p class="tv-v">${tvi("ok","tvi lg")}Nenhuma OS esperando</p>`}</div><p class="tv-mais" hidden></p></section>
+    <section class="tv-col exec"><div class="tv-ch"><h2>Em execução</h2><span class="tv-n num">${P.exec.length}</span></div><div class="tv-b">${P.exec.length?P.exec.map(m=>tvCard(m,"exec")).join(""):`<p class="tv-v">${tvi("run","tvi lg")}Ninguém em serviço agora</p>`}</div><p class="tv-mais" hidden></p></section>
+    <section class="tv-col feita"><div class="tv-ch"><h2>Finalizadas</h2><small>24 h</small><span class="tv-n num">${P.feitas.length}</span></div><div class="tv-b">${P.feitas.length?P.feitas.map(m=>tvCard(m,"feita")).join(""):`<p class="tv-v">${tvi("ok","tvi lg")}Nada finalizado nas últimas 24 horas</p>`}</div><p class="tv-mais" hidden></p></section>
   </div>${S.demo?"":`<button class="tv-out" id="tvSair" type="button">Sair</button>`}</div>`;
   app.innerHTML=h;
-  // o que não cabe na tela vira "+N"
   $$(".tv-col").forEach(col=>{const b=col.querySelector(".tv-b"),mais=col.querySelector(".tv-mais");const lim=b.getBoundingClientRect().bottom;let n=0;
     b.querySelectorAll("[data-tvc]").forEach(c=>{if(c.getBoundingClientRect().bottom>lim+1){c.style.visibility="hidden";n++}});
     if(n){mais.hidden=false;mais.textContent="+ "+n+(n>1?" OS que não cabem na tela":" OS que não cabe na tela")}});
   const sx=$("#tvSair");if(sx)sx.onclick=sair;
-  if(!tvTimer)tvTimer=setInterval(()=>{if(S.route!=="m-tv"){clearInterval(tvTimer);tvTimer=null;return}
-    renderMTv()},30000);
-  S.tvLoad=S.tvLoad||Date.now();
+  if(!tvTimer)tvTimer=setInterval(()=>{if(S.route!=="m-tv"){clearInterval(tvTimer);tvTimer=null;return}renderMTv()},30000);
 }
 
 /* ---------- celular da manutenção ---------- */
