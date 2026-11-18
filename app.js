@@ -92,7 +92,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=39;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=40;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -214,12 +214,43 @@ async function carregar(t){
   S[t]=data.map(fromDb); S.loaded[t]=true;
 }
 const recarga={};
+// assinatura do conteúdo: só redesenha a tela quando algo mudou
+const assinaturaT=t=>(S[t]||[]).map(x=>x.id+":"+(x.status||"")+":"+(x.atualizadoEm||x.criadoEm||"")).join("|");
+function avisarNovos(t,antes){
+  if(!antes||!S.role)return;const novos=(S[t]||[]).filter(x=>!antes.has(x.id));if(!novos.length||novos.length>5)return;
+  if(t==="manutencoes"&&(isMan()||S.role==="tv"||S.role==="oficina")){const l=novos.filter(m=>!m.veiculoId||isFrota());if(l.length)toast(l.length===1?"Nova OS na manutenção: "+codM(l[0])+(l[0].prioridade==="urgente"?" · URGENTE":""):l.length+" OS novas na manutenção")}
+  else if(t==="os"&&isLog()&&S.role!=="campo")toast(novos.length===1?"Nova OS na logística: "+codigo(novos[0]):novos.length+" OS novas na logística");
+  else if(t==="pedidos"&&isLog())toast(novos.length===1?"Novo pedido de "+(novos[0].solicitante||"um setor"):novos.length+" pedidos novos");
+}
+async function recarregar(ts){
+  if(!sb||!S.role||document.body.classList.contains("auth"))return;
+  const antes={},ids={};ts.forEach(t=>{antes[t]=assinaturaT(t);ids[t]=S.loaded[t]?new Set((S[t]||[]).map(x=>x.id)):null});
+  const r=await Promise.allSettled(ts.map(carregar));S.ultimaAtual=Date.now();
+  const mudou=ts.filter((t,i)=>r[i].status==="fulfilled"&&assinaturaT(t)!==antes[t]);
+  if(!mudou.length)return;
+  mudou.forEach(t=>avisarNovos(t,ids[t]));
+  if(mudou.includes("perfis")){const me=S.perfis.find(x=>x.id===S.uid);if(me&&(me.areaAcesso||"ambas")!==S.areaAcesso){location.reload();return}}
+  if(mudou.includes("recorrencias")&&isLog())gerarRecorrentes();if(mudou.includes("planos")&&isMan())gerarPreventivas();
+  buildNav();render();
+}
+let rtCanal=null,rtTent=0;
 function assinarTempoReal(){
-  sb.channel("logistica-mc").on("postgres_changes",{event:"*",schema:"public"},pl=>{
-    const t=pl.table; clearTimeout(recarga[t]);
-    recarga[t]=setTimeout(async()=>{ await carregar(t); if(t==="pedidos"||t==="perfis") buildNav(); if(t==="recorrencias"&&isLog()) gerarRecorrentes(); if(t==="planos"&&isMan()) gerarPreventivas(); if(t==="perfis"){const me=S.perfis.find(x=>x.id===S.uid);if(me&&(me.areaAcesso||"ambas")!==S.areaAcesso){location.reload();return}} if(t==="manutencoes") buildNav(); render(); },250);
-  }).subscribe();
-  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&sb) Promise.all(["os","pedidos","manutencoes"].map(carregar)).then(()=>{buildNav();render()}); });
+  // 1) tempo real: o banco avisa na hora em que uma OS entra ou muda
+  const conectar=()=>{
+    try{if(rtCanal)sb.removeChannel(rtCanal)}catch(e){}
+    rtCanal=sb.channel("facilities-mc-"+Date.now()).on("postgres_changes",{event:"*",schema:"public"},pl=>{
+      const t=pl.table; clearTimeout(recarga[t]);recarga[t]=setTimeout(()=>recarregar([t]),250);
+    }).subscribe(st=>{S.rtStatus=st;dlog("tempo real: "+st);
+      if(st==="SUBSCRIBED")rtTent=0;
+      if(st==="CHANNEL_ERROR"||st==="TIMED_OUT"||st==="CLOSED"){clearTimeout(S.rtRe);S.rtRe=setTimeout(conectar,Math.min(60000,5000*(++rtTent)))}});
+  };
+  conectar();
+  // 2) reserva: confere sozinho a cada 30 segundos, mesmo se o tempo real cair
+  const base=()=>S.role==="tv"||S.role==="oficina"?["manutencoes"]:S.role==="campo"?["os","manutencoes"]:["os","pedidos","manutencoes"];
+  clearInterval(S.pollT);S.pollT=setInterval(()=>{if(document.visibilityState==="visible")recarregar(base())},30000);
+  // 3) ao voltar para a tela (celular desbloqueado, aba de novo em foco)
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&sb){recarregar(base());if(S.rtStatus&&S.rtStatus!=="SUBSCRIBED")conectar()}});
+  window.addEventListener("online",()=>{recarregar(base());conectar()});
 }
 async function sair(){ if(sb) await sb.auth.signOut(); else location.reload(); }
 
@@ -4268,7 +4299,7 @@ function renderMTv(){
     if(n){mais.hidden=false;mais.textContent="+ "+n+(n>1?" OS que não cabem na tela":" OS que não cabe na tela")}});
   const sx=$("#tvSair");if(sx)sx.onclick=sair;
   if(!tvTimer)tvTimer=setInterval(()=>{if(S.route!=="m-tv"){clearInterval(tvTimer);tvTimer=null;return}
-    if(!S.demo&&Date.now()-(S.tvLoad||0)>120000){S.tvLoad=Date.now();carregar("manutencoes").then(()=>{if(S.route==="m-tv")renderMTv()}).catch(()=>{})}else renderMTv()},30000);
+    renderMTv()},30000);
   S.tvLoad=S.tvLoad||Date.now();
 }
 

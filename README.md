@@ -477,3 +477,6 @@ Os números das abas de Chamados e OS passam a contar só o que aparece na lista
 - **Especialidades** de cada pessoa (Cadastros › Equipe › Editar), podendo marcar várias.
 - Ao criar a OS, o gestor define a prioridade; a equipe não precisa ser escolhida (fica "Equipe da manutenção").
 - O gestor vê a mesma tela da TV no menu **Painel TV**.
+
+## Atualização 40 · Atualização automática
+As telas se atualizam sozinhas: na hora pelo tempo real do Supabase e, como reserva, a cada 30 segundos. Ao desbloquear o celular ou voltar para a aba, a tela também se atualiza. Quando entra OS ou pedido novo, aparece um aviso. O que está sendo digitado num formulário não é apagado.

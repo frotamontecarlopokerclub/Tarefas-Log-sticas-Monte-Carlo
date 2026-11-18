@@ -947,7 +947,7 @@ body.auth #diagBtn{bottom:16px}
 .mic.ico.on{background:var(--danger-surface);box-shadow:none;animation:micPulse 1.2s ease-in-out infinite}
 .mic.ico .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 :root{--versao-css:"34"}
-:root{--versao-css:"39"}
+:root{--versao-css:"40"}
 
 /* ---------- Controle de Eficiência (v37) ---------- */
 .ef-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 16px;border-bottom:1px solid var(--line)}
