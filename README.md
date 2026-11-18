@@ -464,3 +464,16 @@ OS de logística em 4 telas e de manutenção em 3. O microfone escuta uma frase
 - **OS de logística:** carga leve ou pesada.
 - **OS da frota feita por prestador:** ao programar, nasce sozinha a OS de logística "Levar veículo à oficina"; ao concluir, a OS "Buscar veículo na oficina". Na conclusão há o campo "Valor pago pelo serviço".
 - **Controle de Eficiência** (menu de todas as áreas): ranking de consumo dos veículos e ranking dos funcionários (missões, tempo médio, missão mais longa). A coordenação geral vê também o custo de cada missão (equipe + combustível + óleo + pneus + extras) e cadastra os salários. Os salários ficam protegidos no banco: só quem tem acesso a todas as áreas vê.
+
+## Atualização 38 · Lista da Manutenção
+Os números das abas de Chamados e OS passam a contar só o que aparece na lista; OS de veículo ficam em Frota › OS da frota.
+
+## Atualização 39 · TV e celular da manutenção
+**Rodar no Supabase:** `supabase/25_painel_manutencao.sql` (uma vez). No fim aparecem 5 itens "OK".
+- **Dois logins novos** (Cadastros › Usuários › Acesso):
+  - **TV da manutenção · só mostra:** abre direto o painel da TV com as OS a fazer (por prioridade), em execução (com quem está fazendo) e finalizadas nas últimas 24 h. Passou do prazo, pisca em vermelho. Não altera nada.
+  - **Celular da manutenção · equipe:** o celular do setor. A equipe toca na OS, escolhe quem vai fazer (especialistas aparecem primeiro), inicia, pausa e finaliza dizendo o que foi feito (foto opcional).
+- **Prazos pela prioridade**, contados da abertura: urgente 2 h · alta até 23h59 do mesmo dia · média até 23h59 do 2º dia seguinte · baixa até 23h59 do 3º dia seguinte.
+- **Especialidades** de cada pessoa (Cadastros › Equipe › Editar), podendo marcar várias.
+- Ao criar a OS, o gestor define a prioridade; a equipe não precisa ser escolhida (fica "Equipe da manutenção").
+- O gestor vê a mesma tela da TV no menu **Painel TV**.

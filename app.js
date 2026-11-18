@@ -12,8 +12,10 @@ const FUNCOES=["Motorista","Ajudante","Coordenador","Operador","Eletricista","En
 const ST={registrada:"Registrada",agendada:"Agendada",em_rota:"Em rota",concluida:"Concluída",cancelada:"Cancelada"};
 const ABERTOS=["registrada","agendada","em_rota"];
 const MCATS=["Elétrica","Hidráulica","Ar-condicionado","Refrigeração","Cozinha industrial","Civil / alvenaria","Pintura","Marcenaria","Serralheria","Gerador / energia","Incêndio / segurança","Elevador","TI / telefonia","Jardinagem","Limpeza técnica","Outros"];
-const MPRIOS=[["urgente","Urgente"],["alta","Alta"],["normal","Normal"],["baixa","Baixa"]];
-const MPRIO_SOL=[["normal","Normal · pode ser nos próximos dias"],["alta","Alta · está atrapalhando o trabalho"],["urgente","Urgente · risco, vazamento ou parou a operação"],["baixa","Baixa · pode esperar"]];
+const MPRIOS=[["urgente","Urgente"],["alta","Alta"],["normal","Média"],["baixa","Baixa"]];
+const MPRIO_SOL=[["urgente","Urgente · fazer já, em até 2 horas"],["alta","Alta · no mesmo dia"],["normal","Média · em até 2 dias"],["baixa","Baixa · em até 3 dias"]];
+const ESPECIALIDADES=MCATS.filter(c=>c!=="Outros").concat(["Manutenção geral"]);
+const MPRAZO_TXT={urgente:"até 2 horas",alta:"no mesmo dia",normal:"em até 2 dias",baixa:"em até 3 dias"};
 const MST={aberto:"Chamado aberto",agendada:"Programada",em_execucao:"Em execução",aguardando:"Aguardando",concluida:"Concluída",cancelada:"Cancelada"};
 const MABERTOS=["aberto","agendada","em_execucao","aguardando"];
 const FREQS=[["semanal","Semanal",{d:7}],["quinzenal","Quinzenal",{d:14}],["mensal","Mensal",{m:1}],["bimestral","Bimestral",{m:2}],["trimestral","Trimestral",{m:3}],["semestral","Semestral",{m:6}],["anual","Anual",{m:12}]];
@@ -89,8 +91,8 @@ const snake=k=>k.replace(/[A-Z]/g,c=>"_"+c.toLowerCase());
 function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
-const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo"};
-const VERSAO=38;console.info("Facilities MC · versão "+VERSAO);
+const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
+const VERSAO=39;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -181,7 +183,7 @@ async function startSession(session){
   if(perfil.trocar_senha) return renderAuth("trocar");
   S.role=PAPEL_ROLE[perfil.papel]; S.authMode=null;
   {const ap=areasPermitidas();if(ap.length&&!ap.includes(S.area))S.area=ap[0];}
-  modoApp(true); document.body.classList.toggle("campo",S.role==="campo");
+  modoApp(true); document.body.classList.toggle("campo",S.role==="campo"||S.role==="oficina");document.body.classList.toggle("tvmode",S.role==="tv");
   buildNav(); if(!location.hash||location.hash.length<2) location.replace("#"+navCfg().home); route();
   dlog("menu montado, rota "+location.hash+" · classe "+(document.body.className||"-"));
   let lento=false;
@@ -303,8 +305,8 @@ function renderAuth(mode){
 }
 
 /* ---------- Usuários (cadastro de acessos) ---------- */
-const PAPEIS=[["pendente","Aguardando liberação"],["campo","Equipe de campo · só executa"],["logistica","Gestão · cria e distribui OS"],["setor","Solicitante · faz pedidos"],["leitura","Somente leitura"],["bloqueado","Bloqueado"]];
-const GRUPOS_USR=[["pendente","Aguardando liberação","Quem se cadastrou e espera você definir o acesso."],["campo","Equipe de campo","Veem no celular só as missões em que foram escalados."],["logistica","Gestão","Criam as OS e escalam equipe, veículo e horário."],["setor","Solicitantes","Fazem pedidos e abrem chamados."],["leitura","Somente leitura","Acompanham painéis e OS, sem alterar."],["bloqueado","Bloqueados","Sem acesso ao sistema."]];
+const PAPEIS=[["pendente","Aguardando liberação"],["campo","Equipe de campo · só executa"],["logistica","Gestão · cria e distribui OS"],["setor","Solicitante · faz pedidos"],["leitura","Somente leitura"],["tv","TV da manutenção · só mostra"],["oficina","Celular da manutenção · equipe"],["bloqueado","Bloqueado"]];
+const GRUPOS_USR=[["pendente","Aguardando liberação","Quem se cadastrou e espera você definir o acesso."],["campo","Equipe de campo","Veem no celular só as missões em que foram escalados."],["logistica","Gestão","Criam as OS e escalam equipe, veículo e horário."],["setor","Solicitantes","Fazem pedidos e abrem chamados."],["leitura","Somente leitura","Acompanham painéis e OS, sem alterar."],["tv","TV da manutenção","Login da televisão do setor: mostra as OS abertas, em execução e finalizadas. Não altera nada."],["oficina","Celular da manutenção","Login do celular do setor: a equipe escolhe quem faz, inicia e finaliza as OS."],["bloqueado","Bloqueados","Sem acesso ao sistema."]];
 const iniciais=n=>String(n||"?").trim().split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase()||"?";
 function usrCard(p){
   const eu=p.id===S.uid;const eqp=S.equipe.find(x=>x.perfilId===p.id);const login=usuarioDe(p.email)?"Usuário <b>"+esc(usuarioDe(p.email))+"</b>":esc(p.email||"");
@@ -330,7 +332,9 @@ function renderUsuarios(){
       <div><b>Equipe de campo</b><span>Todos os funcionários que executam: motoristas, ajudantes e técnicos. Ao liberar, o sistema já coloca a pessoa na equipe (não precisa cadastrar antes). Na hora de criar a OS você escolhe quem vai; cada um vê no celular só as OS em que foi incluído, toca em "Estou ciente" e inicia.</span></div>
       <div><b>Gestão</b><span>Recebe os pedidos, cria as OS e escala equipe, veículo e horário. A área limita a Logística (com a Frota), a Manutenção, só a Frota ou todas. Só quem tem todas libera usuários.</span></div>
       <div><b>Solicitante</b><span>Faz pedidos à logística e abre chamados de manutenção. Pode ter permissão para cadastrar fornecedor novo.</span></div>
-      <div><b>Somente leitura</b><span>Diretoria: vê painéis, OS e a Gestão, sem alterar nada.</span></div></div>
+      <div><b>Somente leitura</b><span>Diretoria: vê painéis, OS e a Gestão, sem alterar nada.</span></div>
+      <div><b>TV da manutenção</b><span>Crie uma conta só para a televisão do setor (ex.: tv.manutencao). Ela mostra as OS por prioridade e pisca em vermelho o que passou do prazo. Não altera nada.</span></div>
+      <div><b>Celular da manutenção</b><span>Uma conta para o celular que fica no setor. A equipe escolhe quem vai fazer, inicia, pausa e finaliza as OS.</span></div></div>
       <p class="hint" style="margin:10px 0 0">Esqueceram a senha? Toque em <b>Nova senha</b> no cartão da pessoa: o sistema mostra uma senha provisória e, no próximo acesso, ela cria a dela.</p></details>
     ${S.demo?`<p style="color:var(--mute)">No modo demonstração não há usuários.</p>`:""}
     ${ps.length>6?`<div class="field" style="margin:4px 0 14px;max-width:360px"><label for="usrQ">Buscar pessoa</label><input type="search" id="usrQ" placeholder="Nome, e-mail ou usuário"></div>`:""}
@@ -366,11 +370,11 @@ function isStaff(){return S.role==="log"}
 function isLog(){return S.role==="log"&&(S.areaAcesso==="ambas"||S.areaAcesso==="logistica")}
 function isMan(){return S.role==="log"&&(S.areaAcesso==="ambas"||S.areaAcesso==="manutencao")}
 function isFrota(){return S.role==="log"&&["ambas","logistica","frota"].includes(S.areaAcesso)}
-function areasPermitidas(){if(S.role==="campo")return [];if(S.role==="sol")return ["log","man"];if(S.role!=="log")return ["log","man","frota"];return {logistica:["log","frota"],manutencao:["man"],frota:["frota"]}[S.areaAcesso]||["log","man","frota"]}
+function areasPermitidas(){if(S.role==="campo")return [];if(S.role==="tv"||S.role==="oficina")return ["man"];if(S.role==="sol")return ["log","man"];if(S.role!=="log")return ["log","man","frota"];return {logistica:["log","frota"],manutencao:["man"],frota:["frota"]}[S.areaAcesso]||["log","man","frota"]}
 function isAdmin(){return S.role==="log"&&S.areaAcesso==="ambas"}
 function areaFixa(){if(S.role!=="log")return null;const a=areasPermitidas();return a.length===1?a[0]:null}
 const LABELS={painel:"Painel",ordens:"Ordens",pedidos:"Pedidos",agenda:"Agenda",relatorio:"Relatório",cadastros:"Cadastros",nova:"Nova OS",solicitar:"Novo pedido",meus:"Meus pedidos",
-  gestao:"Gestão",eficiencia:"Controle de Eficiência","f-comb":"Combustível",missoes:"Minhas missões",missao:"Missão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Veículos",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem",veiculos:"Veículos",emergencia:"Emergência","f-painel":"Painel","f-os":"OS da frota","f-conf":"Conferências","f-lav":"Lavagens","f-serv":"Serviços e custos"};
+  gestao:"Gestão",eficiencia:"Controle de Eficiência","m-tv":"Painel TV","m-fila":"Ordens da manutenção","f-comb":"Combustível",missoes:"Minhas missões",missao:"Missão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Veículos",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem",veiculos:"Veículos",emergencia:"Emergência","f-painel":"Painel","f-os":"OS da frota","f-conf":"Conferências","f-lav":"Lavagens","f-serv":"Serviços e custos"};
 const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   agenda:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',pedidos:'<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
   relatorio:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 17v-4M12 17V8M16 17v-6"/>',cadastros:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
@@ -380,16 +384,19 @@ const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect 
   equip:'<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M19 9h3M19 15h3M2 9h3M2 15h3"/>'};
 ICO.frota='<path d="M3 13l2-6h14l2 6v5h-2.5M3 13v5h2.5M3 13h18"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/><path d="M9.5 17.5h5"/>';ICO["f-lav"]='<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9 14a3 3 0 0 0 3 3"/>';ICO.gestao='<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/><path d="M15 8h4v4"/>';
 ICO.eficiencia='<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/><circle cx="12" cy="14" r="1.5"/>';ICO["f-comb"]='<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M7 7h5v4H7z"/><path d="M15 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/>';
+ICO["m-tv"]='<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>';ICO["m-fila"]=ICO.wrench||'';
 Object.assign(ICO,{"f-painel":ICO.painel,"f-os":ICO.wrench,"f-conf":ICO.meus,"f-serv":ICO.wrench,conferir:ICO.meus,lavar:ICO["f-lav"],"m-painel":ICO.painel,"m-ordens":ICO.wrench,"m-prev":ICO.prev,"m-equip":ICO.equip,"m-meus":ICO.meus,"m-eq":ICO.equip});
 const svgI=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[k]}</svg>`;
 function navCfg(){
   if(S.role==="campo")return {top:["missoes"],cta:null,mob:[],more:[],home:"missoes"};
+  if(S.role==="tv")return {top:["m-tv"],cta:null,mob:[],more:[],home:"m-tv"};
+  if(S.role==="oficina")return {top:["m-fila"],cta:null,mob:[],more:[],home:"m-fila"};
   if(S.area==="frota"){
     if(S.role==="log")return {top:["f-painel","f-os","frota","f-comb","f-conf","f-lav","f-serv","eficiencia","cadastros"],cta:"conferir",mob:["f-painel","f-os","conferir","frota"],more:["f-comb","f-conf","f-lav","f-serv","eficiencia","cadastros"],home:"f-painel"};
     return {top:["f-painel","f-os","frota","f-comb","f-conf","f-lav","f-serv","eficiencia"],cta:null,mob:["f-painel","f-os","frota","f-conf"],more:["f-comb","f-lav","f-serv","eficiencia"],home:"f-painel"};
   }
   if(S.area==="man"){
-    if(S.role==="log")return {top:["m-painel","m-ordens","m-prev","m-equip"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),cta:"m-nova",mob:["m-painel","m-ordens","m-nova","m-prev"],more:["m-equip"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),home:"m-ordens"};
+    if(S.role==="log")return {top:["m-painel","m-ordens","m-tv","m-prev","m-equip"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),cta:"m-nova",mob:["m-painel","m-ordens","m-nova","m-tv"],more:["m-prev","m-equip"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),home:"m-ordens"};
     if(S.role==="sol")return {top:["m-meus","m-equip"],cta:"m-chamado",mob:["m-meus","m-chamado","m-equip"],more:[],home:"m-meus"};
     return {top:["gestao","m-painel","m-ordens","m-prev","m-equip","eficiencia"],cta:null,mob:["gestao","m-painel","m-ordens","m-equip"],more:["m-prev","eficiencia"],home:"gestao"};
   }
@@ -434,7 +441,7 @@ function route(){
   let bloq=false;{const ap=areasPermitidas();if(novaArea&&ap.length&&!ap.includes(novaArea)){novaArea=null;h="";bloq=true}}
   if(novaArea&&novaArea!==S.area){S.area=novaArea;try{localStorage.setItem("mc-area",S.area)}catch(e){}buildNav()}
   if(h==="m-chamado"&&isMan())h="m-nova";
-  const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],S.role==="campo"?["missao","conferir","lavar","veiculos","emergencia"]:["m-eq"].concat(S.role==="log"||S.role==="ver"?["veiculo"]:[],S.role==="log"?["veiculo-editar","conferir","lavar","emergencia"]:[]));
+  const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],S.role==="campo"?["missao","conferir","lavar","veiculos","emergencia"]:S.role==="oficina"?["m-exec"]:S.role==="tv"?[]:["m-eq"].concat(S.role==="log"||S.role==="ver"?["veiculo"]:[],S.role==="log"?["veiculo-editar","conferir","lavar","emergencia"]:[]));
   S.route=ok.includes(h)?h:c.home; S.routeArg=ok.includes(h)?(arg||null):null;
   if(bloq){try{history.replaceState(null,"","#"+S.route)}catch(e){}}
   $("#sheetL").innerHTML="";
@@ -457,10 +464,10 @@ function render(force){
   else if(S.route==="conferir"||S.route==="veiculo-editar"||S.route==="lavar"||S.route==="emergencia"){ if(force||!formMounted){ ({conferir:renderConferir,lavar:renderLavar,emergencia:renderEmergencia}[S.route]||renderVeiculoEditar)(); formMounted=true; } }
   else { formMounted=false;
     const fn={painel:renderPainel,ordens:renderOrdens,agenda:renderAgenda,cadastros:renderCadastros,pedidos:renderPedidos,meus:renderMeus,relatorio:renderRelatorio,
-      gestao:renderGestao,missoes:renderMissoes,veiculos:renderVeicCampo,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo,"f-painel":renderFPainel,"f-os":renderFOs,"f-comb":renderFComb,eficiencia:renderEficiencia,"f-conf":renderFConf,"f-lav":renderFLav,"f-serv":renderFServ}[S.route]||renderPainel;
+      gestao:renderGestao,missoes:renderMissoes,veiculos:renderVeicCampo,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo,"f-painel":renderFPainel,"f-os":renderFOs,"m-tv":renderMTv,"m-fila":renderMFila,"m-exec":renderMExec,"f-comb":renderFComb,eficiencia:renderEficiencia,"f-conf":renderFConf,"f-lav":renderFLav,"f-serv":renderFServ}[S.route]||renderPainel;
     // preserva foco em campos de busca
     const ae=document.activeElement, aid=ae&&ae.id, pos=ae&&ae.selectionStart;
-    if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq)||(S.route==="veiculo"&&S.vServ)||(S.route==="f-comb"&&S.ab)||(S.route==="eficiencia"&&S.efTab==="salarios"))) { /* não redesenha durante edição */ }
+    if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq)||(S.route==="veiculo"&&S.vServ)||(S.route==="f-comb"&&S.ab)||(S.route==="m-exec"&&S.ox&&(S.ox.modo||S.ox.sel.length))||(S.route==="eficiencia"&&S.efTab==="salarios"))) { /* não redesenha durante edição */ }
     else fn();
     if(aid){const el=document.getElementById(aid); if(el&&el!==ae){el.focus(); try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(e){}}}
   }
@@ -469,7 +476,7 @@ function render(force){
 }
 function banner(){
   if(S.demo) return `<div class="banner"><b>Modo demonstração.</b> O arquivo config.js ainda não tem o endereço e a chave do Supabase. Os dados abaixo são exemplos e não são salvos.
-    <span class="demo-roles">Ver como: ${[["log:ambas","Coordenação"],["log:logistica","Equipe logística"],["log:manutencao","Equipe manutenção"],["log:frota","Equipe frota"],["campo:ambas","Equipe de campo (celular)"],["sol:ambas","Solicitante"],["ver:ambas","Leitura"]].map(([k,l])=>`<button type="button" class="btn sm${S.role+":"+S.areaAcesso===k?" pri":""}" data-demorole="${k}">${l}</button>`).join("")}</span></div>`;
+    <span class="demo-roles">Ver como: ${[["log:ambas","Coordenação"],["log:logistica","Equipe logística"],["log:manutencao","Equipe manutenção"],["log:frota","Equipe frota"],["campo:ambas","Equipe de campo (celular)"],["sol:ambas","Solicitante"],["ver:ambas","Leitura"],["oficina:manutencao","Celular da manutenção"],["tv:manutencao","TV da manutenção"]].map(([k,l])=>`<button type="button" class="btn sm${S.role+":"+S.areaAcesso===k?" pri":""}" data-demorole="${k}">${l}</button>`).join("")}</span></div>`;
   if(S.role==="ver") return `<div class="banner"><b>Somente leitura.</b> Seu acesso permite consultar as OS e os indicadores. Para fazer pedidos e abrir chamados, peça à coordenação o acesso de Solicitante.</div>`;
   return "";
 }
@@ -1459,7 +1466,7 @@ const CAD={
   solicitantes:{t:"Solicitantes",col:"solicitantes",desc:"Quem pede serviços à logística. O WhatsApp cadastrado recebe o aviso de conclusão.",
     f:[["nome","Nome","text"],["telefone","WhatsApp","tel"],["setorId","Setor","setor"]],m:x=>[fFone(x.telefone),x.setorId?nomeSetor(x.setorId):""]},
   equipe:{t:"Equipe",col:"equipe",desc:"Motoristas, ajudantes, técnicos e coordenação que executam as OS. A área define em qual lista a pessoa aparece.",
-    f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["area","Área","select",AREAS],["telefone","Telefone","tel"],["custoHora","Custo por hora (R$)","money"]],m:x=>[[x.funcao,(AREAS.find(a=>a[0]===(x.area||"logistica"))||[,""])[1]].filter(Boolean).join(" · "),[x.telefone,nOuNull(x.custoHora)!=null?fBRL(x.custoHora)+"/h":"Custo/h: padrão"].filter(Boolean).join(" · ")]},
+    f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["area","Área","select",AREAS],["telefone","Telefone","tel"],["custoHora","Custo por hora (R$)","money"],["especialidades","Especialidades na manutenção (pode marcar mais de uma)","multi",ESPECIALIDADES]],m:x=>[[x.funcao,(AREAS.find(a=>a[0]===(x.area||"logistica"))||[,""])[1]].filter(Boolean).join(" · ")+((x.especialidades||[]).length?" · "+x.especialidades.join(", "):""),[x.telefone,nOuNull(x.custoHora)!=null?fBRL(x.custoHora)+"/h":"Custo/h: padrão"].filter(Boolean).join(" · ")]},
   prestadores:{t:"Prestadores",col:"prestadores",desc:"Empresas e profissionais terceirizados da manutenção. O painel soma OS e custos por prestador.",
     f:[["nome","Nome","text"],["especialidade","Especialidade","select",MCATS.concat(["Veículos"])],["telefone","Telefone","tel"],["contato","Contato","text"],["documento","CNPJ / CPF","text"]],m:x=>[[x.especialidade,x.telefone].filter(Boolean).join(" · "),x.contato||x.documento]},
   veiculos:{t:"Veículos",col:"veiculos",desc:"Frota usada nas movimentações. Toque em Editar para o cadastro completo, ou veja tudo em Frota.",
@@ -1486,14 +1493,14 @@ function renderCadastros(){
         ${isLog()?`<div class="filters"><div class="field"><label for="waTest">Enviar teste para</label><input type="tel" id="waTest" inputmode="tel" placeholder="(11) 99999-9999" value="${esc(S.meuTelefone||"")}"></div><button class="btn" id="waTestOk" type="button">Enviar mensagem de teste</button></div>
         <label class="chk" style="margin-top:6px"><input type="checkbox" id="waAuto"${S.config.whatsappAuto?" checked":""}> Enviar o aviso de conclusão automaticamente</label>
         <p class="err" id="waErr" role="alert" style="margin:8px 0 0"></p>`:""}</div></section>`:"")+(isMan()||!isStaff()?`
-      <section class="card" style="margin-top:16px"><div class="card-h"><h2>Prazos da manutenção</h2><span class="sub">horas a partir da abertura do chamado</span></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:66ch">Quando a OS não tem um prazo definido na triagem, vale o prazo da prioridade. É a base dos indicadores de atraso e de conclusão no prazo.</p>
-        <div class="filters">${MPRIOS.map(([k,l])=>`<div class="field"><label for="sla-${k}">${l} (h)</label><input type="number" id="sla-${k}" min="1" step="1" value="${esc(slaH(k))}"${isMan()?"":" disabled"}></div>`).join("")}${isMan()?`<button class="btn pri" id="slaOk" type="button">Salvar prazos</button>`:""}</div></div></section>`:"");
+      <section class="card" style="margin-top:16px"><div class="card-h"><h2>Prazos da manutenção</h2><span class="sub">contados da abertura da OS</span></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:66ch">Quando a OS não tem um prazo definido, vale o da prioridade. Passou do prazo, a OS pisca em vermelho na TV da manutenção.</p>
+        <ul class="pz-l">${MPRIOS.map(([k,l])=>`<li><span class="mp mp-${k}">${l}</span>${k==="urgente"?"Fazer já: até 2 horas":k==="alta"?"No mesmo dia, até 23h59":k==="normal"?"Até 23h59 do 2º dia seguinte":"Até 23h59 do 3º dia seguinte"}</li>`).join("")}</ul></div></section>`:"");
     app.innerHTML=h;bindCad();return;
   }
   const C=CAD[tab];let list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||(tab==="locais"?grupoLocal(a)[0]-grupoLocal(b)[0]:0)||sortNome(a,b));
   if(tab==="setores"){const at=gruposSetores(list.filter(x=>x.ativo!==false)).flatMap(g=>g.itens);list=at.concat(list.filter(x=>x.ativo===false))}
   const ed=S.cadEdit;
-  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${optsSetores((x||{})[k]||"","Sem setor")}</select>`:t==="local"?`<select id="ce-${k}">${opts(S.locais.filter(l=>l.ativo!==false||l.id===(x||{})[k]).sort(sortNome),(x||{})[k]||"","Sem local")}</select>`:t==="money"?`<input type="text" inputmode="decimal" id="ce-${k}" placeholder="Ex.: 1,80" value="${esc(nOuNull((x||{})[k])!=null?String((x||{})[k]).replace(".",","):"")}">`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||(Array.isArray(o[0])?o[0][0]:o[0]))}</select>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
+  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${optsSetores((x||{})[k]||"","Sem setor")}</select>`:t==="local"?`<select id="ce-${k}">${opts(S.locais.filter(l=>l.ativo!==false||l.id===(x||{})[k]).sort(sortNome),(x||{})[k]||"","Sem local")}</select>`:t==="money"?`<input type="text" inputmode="decimal" id="ce-${k}" placeholder="Ex.: 1,80" value="${esc(nOuNull((x||{})[k])!=null?String((x||{})[k]).replace(".",","):"")}">`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||(Array.isArray(o[0])?o[0][0]:o[0]))}</select>`:t==="multi"?`<div class="chips" id="ce-${k}" role="group" aria-label="${esc(l)}">${o.map(v=>`<button type="button" class="chip" data-mv="${esc(v)}" aria-pressed="${((x||{})[k]||[]).includes(v)}">${esc(v)}</button>`).join("")}</div>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
     <div class="actions"><button class="btn pri sm" type="submit">Salvar</button><button class="btn sm ghost" type="button" data-cx>Cancelar</button></div></form>`;
   h+=`<section class="card"><div class="card-h"><h2>${C.t}</h2><span class="sub">${esc(C.desc)}</span></div><div class="card-b">
     ${isStaff()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
@@ -1550,7 +1557,7 @@ function bindCad(){
   $$("[data-cx]").forEach(b=>b.onclick=()=>{S.cadEdit=null;renderCadastros()});
   $$("[data-tg]").forEach(b=>b.onclick=async()=>{const x=byId(S[S.cadTab],b.dataset.tg);const on=x.ativo===false;
     try{ if(S.demo){x.ativo=on;renderCadastros()} else { const {error}=await sb.from(CAD[S.cadTab].col).update({ativo:on}).eq("id",x.id); if(error)throw error; await carregar(CAD[S.cadTab].col); renderCadastros(); } }catch(e){toast("Não foi possível alterar.")}});
-  $$("[data-form]").forEach(f=>f.onsubmit=async e=>{e.preventDefault();const C=CAD[S.cadTab];const d={};C.f.forEach(([k])=>d[k]=$("#ce-"+k).value.trim());
+  $$("[data-form]").forEach(f=>f.onsubmit=async e=>{e.preventDefault();const C=CAD[S.cadTab];const d={};C.f.forEach(([k,,t])=>d[k]=t==="multi"?$$("#ce-"+k+" [data-mv]").filter(b=>b.getAttribute("aria-pressed")==="true").map(b=>b.dataset.mv):$("#ce-"+k).value.trim());
     if(!d.nome){toast("Informe o nome.");return}
     if(S.cadTab==="setores"&&!d.localId) d.localId=null;
     for(const [k,,t] of C.f){ if(t!=="money")continue; if(d[k]===""){d[k]=null;continue} const n=numBR(d[k]); if(n===""||n<0){toast("Valor inválido em "+C.f.find(f=>f[0]===k)[1]+". Use vírgula, por exemplo 1,80.");return} d[k]=n; }
@@ -1743,11 +1750,12 @@ function renderRelatorio(){
   function bindRel(){$("#rmS").onchange=e=>{S.rm=e.target.value;renderRelatorio()};
     const ex=$("#expM");if(ex){ex.onclick=()=>exportCSV(mesStats(S.rm).all,S.rm)}}
 }
-document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-demorole]");if(!b||!S.demo)return;const [r,ar]=b.dataset.demorole.split(":");S.role=r;S.areaAcesso=ar||"ambas";document.body.classList.toggle("campo",r==="campo");
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-demorole]");if(!b||!S.demo)return;const [r,ar]=b.dataset.demorole.split(":");S.role=r;S.areaAcesso=ar||"ambas";document.body.classList.toggle("campo",r==="campo"||r==="oficina");document.body.classList.toggle("tvmode",r==="tv");
+  if(r==="tv"||r==="oficina"){S.area="man";S.meName=r==="tv"?"TV da manutenção":"Celular da manutenção";buildNav();const h="#"+navCfg().home;if(location.hash===h)route();else location.hash=h;return}
   if(r==="campo"){S.demoEquipeId="e0";S.meName="Motorista A";const h=new Date();S.os.filter(o=>(o.equipeIds||[]).includes("e0")&&["agendada","em_rota"].includes(o.status)).length||S.os.filter(o=>o.status==="agendada").slice(0,2).forEach(o=>{o.equipeIds=["e0"]});
     S.manutencoes.filter(m=>["agendada","em_execucao"].includes(m.status)&&m.executor!=="terceiro").slice(0,2).forEach(m=>{if(!m.equipeIds.includes("e0"))m.equipeIds=m.equipeIds.concat(["e0"])});
     buildNav();if(location.hash==="#missoes")route();else location.hash="#missoes";return}
-  if(S.meName==="Motorista A")S.meName="";{const ap=areasPermitidas();if(ap.length&&!ap.includes(S.area))S.area=ap[0]}if(areaFixa()){S.area=areaFixa();const h="#"+navCfg().home;buildNav();if(location.hash===h)route();else location.hash=h;return}buildNav();route();});
+  if(["Motorista A","TV da manutenção","Celular da manutenção"].includes(S.meName))S.meName="";{const ap=areasPermitidas();if(ap.length&&!ap.includes(S.area))S.area=ap[0]}if(areaFixa()){S.area=areaFixa();const h="#"+navCfg().home;buildNav();if(location.hash===h)route();else location.hash=h;return}buildNav();route();});
 
 /* =====================================================================
    MANUTENÇÃO · Facilities
@@ -1759,14 +1767,15 @@ const custoLinha=c=>(Number(c.valor)||0)*(c.qtd===""||c.qtd==null?1:(Number(c.qt
 const custoLancado=m=>(m.custos||[]).reduce((s,c)=>s+custoLinha(c),0);
 const custoTotal=m=>custoLancado(m)+maoObraM(m);
 const slaH=p=>Number(((S.config.slaMan)||SLA_PADRAO)[p]||SLA_PADRAO[p]||72);
-function prazoM(m){return T(m.prazo)||(T(m.criadoEm)+slaH(m.prioridade||"normal")*3600000)}
+function prazoPrio(p,base){const b=new Date(base||Date.now());if(isNaN(b))return NaN;if(p==="urgente")return b.getTime()+2*3600000;const dias={alta:0,normal:2,baixa:3}[p];const d=new Date(b.getFullYear(),b.getMonth(),b.getDate()+(dias==null?2:dias),23,59,59);return d.getTime()}
+function prazoM(m){return T(m.prazo)||(m.tipo==="preventiva"?T(m.criadoEm)+slaH(m.prioridade||"normal")*3600000:prazoPrio(m.prioridade||"normal",m.criadoEm))}
 function mAtrasada(m){return MABERTOS.includes(m.status)&&isFinite(prazoM(m))&&Date.now()>prazoM(m)}
 function mConclAtraso(m){return m.status==="concluida"&&isFinite(prazoM(m))&&T(m.concluidoEm)>prazoM(m)}
 const tAtend=m=>T(m.iniciadoEm)-T(m.criadoEm);
 const tSolucao=m=>T(m.concluidoEm)-T(m.criadoEm);
 const nomeEquip=id=>{const e=byId(S.equipamentos,id);return e?e.nome+(e.codigo?" · "+e.codigo:""):"—"};
 const nomePrest=id=>(byId(S.prestadores,id)||{}).nome||"—";
-const executorTxt=m=>m.executor==="terceiro"?(m.prestadorId?nomePrest(m.prestadorId):"Prestador a definir"):((m.equipeIds||[]).length?nomeEquipe(m.equipeIds):"Equipe a definir");
+const executorTxt=m=>m.executor==="terceiro"?(m.prestadorId?nomePrest(m.prestadorId):"Prestador a definir"):((m.equipeIds||[]).length?nomeEquipe(m.equipeIds):m.veiculoId?"Equipe a definir":"Equipe da manutenção (escolhe no celular)");
 const tituloM=m=>m.titulo||String(m.descricao||"").split("\n")[0].slice(0,90)||(m.tipo==="preventiva"?"Preventiva":"Manutenção");
 const ondeM=m=>[nomeLocal(m.localId)!=="—"?nomeLocal(m.localId):"",m.localDetalhe,m.setorId?nomeSetor(m.setorId).split(" · ")[0]:"",m.equipamentoId?nomeEquip(m.equipamentoId):""].filter(Boolean).join(" · ")||"Local não informado";
 const areaDe=p=>p.area||"logistica";
@@ -1812,7 +1821,7 @@ const optsPrest=sel=>`<option value="">Escolha o prestador…</option>`+S.presta
 function execHTML(X){ // X: {executor,equipeIds,prestadorId}
   const eq=equipeMan(X.equipeIds);
   return `<div class="field full"><span class="lbl">Quem executa</span><div class="seg2" role="group" aria-label="Quem executa"><button type="button" data-exe="interno" aria-pressed="${X.executor!=="terceiro"}">Equipe interna</button><button type="button" data-exe="terceiro" aria-pressed="${X.executor==="terceiro"}">Prestador (terceiro)</button></div></div>
-    <div class="field full" id="exInt"${X.executor==="terceiro"?" hidden":""}><span class="lbl">Técnicos</span><div class="chips" id="exChips">${chipsTec(X)}</div>${qaHTML("equipe","exTec",{area:"manutencao",funcao:"Manutenção geral"})}</div>
+    <div class="field full" id="exInt"${X.executor==="terceiro"?" hidden":""}><span class="lbl">Técnicos <i class="opc">opcional: a equipe escolhe no celular da manutenção</i></span><div class="chips" id="exChips">${chipsTec(X)}</div>${qaHTML("equipe","exTec",{area:"manutencao",funcao:"Manutenção geral"})}</div>
     <div class="field full" id="exTer"${X.executor==="terceiro"?"":" hidden"}><label for="mPrest">Prestador</label><select id="mPrest">${optsPrest(X.prestadorId)}</select>${qaHTML("prestador","exPre")}</div>`;
 }
 function chipsTec(X){const eq=equipeMan(X.equipeIds);return eq.length?eq.map(p=>`<button type="button" class="chip" data-meq="${esc(p.id)}" aria-pressed="${(X.equipeIds||[]).includes(p.id)}">${esc(p.nome)}${p.funcao?`<small>${esc(p.funcao)}</small>`:""}${semApp(p)}</button>`).join(""):`<span class="hint">Nenhum técnico cadastrado ainda.</span>`}
@@ -1823,7 +1832,7 @@ function bindExec(root,X){
   bindQA(root,{exTec:row=>{X.executor="interno";X.equipeIds=X.equipeIds||[];if(!X.equipeIds.includes(row.id))X.equipeIds.push(row.id);const c=$("#exChips",root);if(c){c.innerHTML=chipsTec(X);bindExec(root,X)}},
     exPre:row=>{X.executor="terceiro";X.prestadorId=row.id;const sel=$("#mPrest",root);if(sel)sel.innerHTML=optsPrest(row.id)}});
 }
-const executorOk=X=>X.executor==="terceiro"?!!X.prestadorId:(X.equipeIds||[]).length>0;
+const executorOk=X=>X.executor==="terceiro"?!!X.prestadorId:true;
 
 /* ---------- LISTA ---------- */
 function filtraM(){
@@ -2168,8 +2177,10 @@ function bindMPanel(m){
     const limpos=()=>(A.custos||[]).filter(c=>!c.pago&&((c.desc||"").trim()||c.valor!=="")).map(c=>({desc:(c.desc||"").trim(),tipo:c.tipo,qtd:c.qtd===""?1:c.qtd,valor:c.valor===""?0:c.valor})).concat(pagoN!=null?[{desc:"Valor pago pelo serviço",tipo:"Serviço de terceiro",qtd:1,valor:pagoN,pago:true}]:[]);
     try{
       if(A.t==="triagem"){
+        if(A.prioridade!==m.prioridade&&A.pz===toInput(m.prazo)&&!ehFrotaM(m))A.pz=toInput(new Date(prazoPrio(A.prioridade,m.criadoEm)).toISOString());
         const d={categoria:A.categoria||null,prioridade:A.prioridade,executor:A.executor,equipeIds:A.executor==="terceiro"?[]:(A.equipeIds||[]),prestadorId:A.executor==="terceiro"?(A.prestadorId||""):"",agendadoPara:fromInput(A.ag),prazo:fromInput(A.pz),observacoes:(A.obs||"").trim()};
-        if(!executorOk(d)){err.textContent=d.executor==="terceiro"?"Escolha o prestador.":"Escolha ao menos um técnico.";return}
+        if(!executorOk(d)){err.textContent="Escolha o prestador.";return}
+        if(ehFrotaM(m)&&d.executor!=="terceiro"&&!d.equipeIds.length){err.textContent="Escolha ao menos um técnico.";return}
         if(d.prazo&&T(d.prazo)<Date.now()-60000&&!A.pzOk){A.pzOk=true;err.textContent="O prazo informado já passou. Toque em Salvar de novo para manter.";return}
         btn.disabled=true;const st=m.status==="aberto"?"agendada":m.status;
         await saveM(m.id,Object.assign(d,{status:st,triadoEm:m.triadoEm||now,atualizadoEm:now,historico:mhist(m,st,(m.status==="aberto"?"Triagem: ":"Reprogramada: ")+executorTxt(d)+(d.agendadoPara?" · "+fDH(d.agendadoPara):""))}));
@@ -2736,6 +2747,7 @@ const ICON={mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a
   cam:'<path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/>',gal:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
   pin:'<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',ok:'<path d="M5 12l5 5L20 7"/>',back:'<path d="M15 5l-7 7 7 7"/>',
   pause:'<path d="M9 5v14M15 5v14"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'};
+ICON.play='<path d="M7 4l13 8-13 8z"/>';
 const ic=(k,cls)=>`<svg class="${cls||"ic"}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 const cienteEm=o=>{const id=meuEquipeId();return id&&o&&o.cientes?o.cientes[id]||null:null};
 const meuEquipeId=()=>S.demo?S.demoEquipeId:((S.equipe.find(p=>p.perfilId===S.uid)||{}).id||null);
@@ -3018,15 +3030,15 @@ const PASSOS_MAN=[
     bind:d=>{bindPicker("wzL",id=>{d.localId=id})},
     read:d=>{d.localId=$("#wzL").value;d.localDetalhe=$("#wzDet").value.trim()},valid:d=>d.localId?null:"Escolha o local."},
   {q:"Quem faz e quando?",html:d=>`<span class="lbl">Urgência</span><div class="wz-tiles col2">${MPRIO_SOL.map(([k,l])=>`<button type="button" class="wz-tile sm prio-${k}${d.prioridade===k?" on":""}" data-pr="${k}"><b>${esc(l.split(" · ")[0])}</b><small>${esc(l.split(" · ")[1]||"")}</small></button>`).join("")}</div>
-      <span class="lbl" style="margin-top:16px;display:block">Quem faz</span><div class="wz-tiles col3">${[["interno","Equipe interna"],["terceiro","Prestador"],["depois","Decidir depois"]].map(([k,l])=>`<button type="button" class="wz-tile sm${d.exec===k?" on":""}" data-ex="${k}"><b>${l}</b></button>`).join("")}</div>
-      <div id="wzExI"${d.exec==="interno"?"":" hidden"} style="margin-top:12px">${chipsEquipe(equipeMan(d.equipeIds),d.equipeIds,"wmq")}</div>
+      <span class="lbl" style="margin-top:16px;display:block">Quem faz</span><div class="wz-tiles col3">${[["interno","Equipe da manutenção"],["terceiro","Prestador"],["depois","Decidir depois"]].map(([k,l])=>`<button type="button" class="wz-tile sm${d.exec===k?" on":""}" data-ex="${k}"><b>${l}</b></button>`).join("")}</div>
+      <div id="wzExI"${d.exec==="interno"?"":" hidden"} style="margin-top:12px"><p class="hint" style="margin:0 0 8px">A equipe escolhe quem faz no celular da manutenção. Se quiser, já indique alguém:</p>${chipsEquipe(equipeMan(d.equipeIds),d.equipeIds,"wmq")}</div>
       <div id="wzExT"${d.exec==="terceiro"?"":" hidden"} style="margin-top:12px"><select id="wzPr" class="wz-in">${optsPrest(d.prestadorId)}</select></div>
-      <span class="lbl" style="margin-top:16px;display:block">Quando</span>${quandoHTML(d,true)}`,
+      <span class="lbl" style="margin-top:16px;display:block">Quando <i class="opc">opcional</i></span>${quandoHTML(d,true)}`,
     bind:d=>{$$("[data-pr]").forEach(b=>b.onclick=()=>{d.prioridade=b.dataset.pr;$$("[data-pr]").forEach(x=>x.classList.toggle("on",x===b))});
       $$("[data-ex]").forEach(b=>b.onclick=()=>{d.exec=b.dataset.ex;$$("[data-ex]").forEach(x=>x.classList.toggle("on",x===b));$("#wzExI").hidden=d.exec!=="interno";$("#wzExT").hidden=d.exec!=="terceiro"});
       bindChips("wmq",d.equipeIds);$("#wzPr").onchange=e=>{d.prestadorId=e.target.value};bindQuando(d)},
-    read:d=>lerQuando(d),
-    valid:d=>!d.exec?"Escolha quem faz.":d.exec==="interno"&&!d.equipeIds.length?"Escolha ao menos um técnico, ou toque em Decidir depois.":d.exec==="terceiro"&&!d.prestadorId?"Escolha o prestador, ou toque em Decidir depois.":!d.quandoK&&d.exec!=="depois"?"Escolha quando.":d.quandoK&&d.quandoK!=="sem"&&!d.quando?"Escolha o dia e a hora.":null},
+    read:d=>{lerQuando(d);if(!d.quandoK){d.quandoK="sem";d.quando=null}},
+    valid:d=>!d.exec?"Escolha quem faz.":d.exec==="terceiro"&&!d.prestadorId?"Escolha o prestador, ou toque em Decidir depois.":d.quandoK&&d.quandoK!=="sem"&&!d.quando?"Escolha o dia e a hora.":null},
 ];
 function bindFotosWz(d){$$("[data-msrm]").forEach(b=>b.onclick=()=>{PASSOS_MAN[0].read(d);d.fotos.splice(+b.dataset.msrm,1);wzRender()});
   $$("[data-msup]").forEach(up=>up.onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;PASSOS_MAN[0].read(d);up.parentElement.querySelector("span").textContent="Enviando…";d.busy=true;const r=await uploadFiles(fs,$("#wzErr"));d.busy=false;d.fotos.push(...r);wzRender()});bindZoom(app)}
@@ -3047,7 +3059,7 @@ function resumoWz(){const d=W.d;const L=[];const linha=(i,t,v)=>L.push(`<div cla
 function novoWz(kind){
   if(kind==="log") return {kind,i:0,d:{tipo:"Remanejamento",oQue:"",carga:"leve",ret:[{localId:"",detalhe:""}],ent:[{localId:"",detalhe:""}],itens:[{desc:"",qtd:"",un:"un"}],solicitante:"",tel:"",setorId:"",quandoK:"",quando:null,equipeIds:[],veiculoId:"",veicOk:false}};
   const eq=S.routeArg?byId(S.equipamentos,S.routeArg):null;
-  return {kind,i:0,d:{solicitante:"",tel:"",descricao:"",fotos:[],categoria:eq&&eq.categoria||"",catOk:!!(eq&&eq.categoria),localId:eq?eq.localId||"":"",equipamentoId:eq?eq.id:"",localDetalhe:"",setorId:eq?eq.setorId||"":"",prioridade:"normal",exec:"",equipeIds:[],prestadorId:"",quandoK:"",quando:null}};
+  return {kind,i:0,d:{solicitante:"",tel:"",descricao:"",fotos:[],categoria:eq&&eq.categoria||"",catOk:!!(eq&&eq.categoria),localId:eq?eq.localId||"":"",equipamentoId:eq?eq.id:"",localDetalhe:"",setorId:eq?eq.setorId||"":"",prioridade:"normal",exec:"interno",equipeIds:[],prestadorId:"",quandoK:"",quando:null}};
 }
 function wzPassos(){return W.kind==="log"?PASSOS_LOG:PASSOS_MAN}
 function renderWizard(kind){
@@ -4007,7 +4019,7 @@ function loadDemo(){
   S.solicitantes=[{id:"c1",nome:"Laura Souza",telefone:"(11) 99999-8888",setorId:"s4",ativo:true},{id:"c2",nome:"Marcos Lima",telefone:"(11) 98888-7777",setorId:"s1",ativo:true}];
   S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
     modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];
-  loadDemoMan(); loadDemoFrota(); loadDemoEmg(); loadDemoEfic();
+  loadDemoMan(); loadDemoFrota(); loadDemoEmg(); loadDemoEfic(); loadDemoPainel();
   S.relatorios=[{id:pm.getFullYear()+"-"+pad(pm.getMonth()+1),geradoEm:new Date(now-12*86400000).toISOString(),resumo:"Exemplo de fechamento. O volume cresceu puxado por Eventos e Bar, e a rota CD → Mirage concentrou a maior parte das transferências. O tempo de resposta caiu, mas um terço das OS concluídas passou da previsão de término, quase todas em retiradas de fornecedor.",destaques:["Rever a previsão de término das retiradas em fornecedor, que costumam levar mais de 2 h.","Concentrar as entregas CD → Mirage em uma rota fixa pela manhã."]}];
 }
 
@@ -4201,6 +4213,143 @@ function loadDemoEfic(){
       S.veiculo_abastecimentos.push({id:"ab"+k+j,veiculoId:v.id,periodoIni:dayKey(i),periodoFim:dayKey(f),combustivel:v.combustivel||"",litros:l,valor:Math.round(l*preco[v.id]*100)/100,kmInicial:kf-km,kmFinal:kf,criadoEm:f.toISOString()})})}
   S.os.forEach((o,i)=>{o.carga=i%4===0?"pesada":"leve"});
   S.funcionario_custos=[["e0",3100,220,70],["e1",2950,220,70],["e2",2100,220,70],["e3",2050,220,70]].map(([equipeId,salario,horasMes,encargosPct])=>({equipeId,salario,horasMes,encargosPct}));
+}
+
+/* =====================================================================
+   TV E CELULAR DA MANUTENÇÃO
+   ===================================================================== */
+const PRIO_ORD={urgente:0,alta:1,normal:2,baixa:3};
+const PRIO_COR={urgente:"Urgente",alta:"Alta",normal:"Média",baixa:"Baixa"};
+function osPainelMan(){
+  const fimHoje=new Date();fimHoje.setHours(23,59,59,999);const d24=Date.now()-86400000;
+  const L=S.manutencoes.filter(m=>!m.veiculoId&&m.status!=="cancelada");
+  const aFazer=L.filter(m=>["aberto","agendada"].includes(m.status)&&(m.tipo!=="preventiva"||!m.agendadoPara||T(m.agendadoPara)<=fimHoje.getTime()))
+    .sort((a,b)=>(PRIO_ORD[a.prioridade]??2)-(PRIO_ORD[b.prioridade]??2)||prazoM(a)-prazoM(b));
+  const exec=L.filter(m=>["em_execucao","aguardando"].includes(m.status)).sort((a,b)=>(PRIO_ORD[a.prioridade]??2)-(PRIO_ORD[b.prioridade]??2)||prazoM(a)-prazoM(b));
+  const feitas=L.filter(m=>m.status==="concluida"&&T(m.concluidoEm)>=d24).sort((a,b)=>T(b.concluidoEm)-T(a.concluidoEm));
+  return {aFazer,exec,feitas};
+}
+function prazoFalta(m){const p=prazoM(m);if(!isFinite(p))return {txt:"sem prazo",late:false};const dif=p-Date.now(),ab=Math.abs(dif);
+  const dur=ab<3600000?Math.max(1,Math.round(ab/60000))+" min":ab<86400000?Math.floor(ab/3600000)+"h"+String(Math.round(ab%3600000/60000)).padStart(2,"0"):Math.round(ab/86400000)+" dia"+(Math.round(ab/86400000)>1?"s":"");
+  if(dif<0)return {txt:"Atrasada há "+dur,late:true};
+  const pd=new Date(p),hoje=dayKey(new Date());return {txt:(dif<3600000*6?"Faltam "+dur:dayKey(pd)===hoje?"Até hoje "+fHora(pd.toISOString()):"Até "+pd.toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit"})+" "+fHora(pd.toISOString())),late:false,perto:dif<3600000}}
+const tituloCurto=m=>tituloM(m)||m.descricao||"Manutenção";
+const desde=iso=>{const ms=Date.now()-T(iso);if(!isFinite(ms))return "";if(ms>=86400000){const d=Math.floor(ms/86400000);return d+" dia"+(d>1?"s":"")}return ms<3600000?Math.max(1,Math.round(ms/60000))+" min":Math.floor(ms/3600000)+"h"+String(Math.round(ms%3600000/60000)).padStart(2,"0")};
+
+/* ---------- TV ---------- */
+let tvTimer=null;
+function tvCard(m,k){const pz=prazoFalta(m);const late=k!=="feita"&&pz.late;const pr=m.prioridade||"normal";
+  return `<div class="tv-c p-${pr}${late?" atr":""}${m.status==="aguardando"?" hold":""}" data-tvc>
+    <div class="tv-c1"><b class="num">${esc(codM(m))}</b><span class="tv-p p-${pr}">${PRIO_COR[pr]||"Média"}</span>${m.emergencial?`<span class="tv-p emg">Emergência</span>`:""}${m.tipo==="preventiva"?`<span class="tv-p prev">Preventiva</span>`:""}</div>
+    <div class="tv-t">${esc(tituloCurto(m))}</div>
+    <div class="tv-l">${esc(ondeM(m)||"Local não informado")}${m.categoria?" · "+esc(m.categoria):""}</div>
+    ${k==="fazer"?`<div class="tv-f${late?" atr":pz.perto?" perto":""}">${late?"⚠ ":""}${esc(pz.txt)}</div>${m.executor==="terceiro"?`<div class="tv-q">Prestador: ${esc(m.prestadorId&&nomePrest(m.prestadorId)!=="—"?nomePrest(m.prestadorId):"a definir")}</div>`:(m.equipeIds||[]).length?`<div class="tv-q">Indicado: ${esc(nomeEquipe(m.equipeIds))}</div>`:""}`
+    :k==="exec"?`<div class="tv-q"><b>${esc((m.equipeIds||[]).length?nomeEquipe(m.equipeIds):"—")}</b></div><div class="tv-f${late?" atr":""}">${m.status==="aguardando"?"Pausada: "+esc(m.aguardandoMotivo||""):"Fazendo há "+esc(desde(m.iniciadoEm))}${late?" · prazo vencido":""}</div>`
+    :`<div class="tv-q">${esc((m.equipeIds||[]).length?nomeEquipe(m.equipeIds):executorTxt(m))}</div><div class="tv-f ok">Finalizada ${esc(fHora(m.concluidoEm))}${dayKey(m.concluidoEm)!==dayKey(new Date())?" de ontem":""}</div>`}
+  </div>`}
+function renderMTv(){
+  if(!podeDesenhar())return;
+  const P=osPainelMan();const atr=P.aFazer.filter(m=>prazoFalta(m).late).length+P.exec.filter(m=>prazoFalta(m).late).length;
+  const grupos=["urgente","alta","normal","baixa"].map(k=>[k,P.aFazer.filter(m=>(m.prioridade||"normal")===k)]).filter(g=>g[1].length);
+  const agora=new Date();
+  let h=`<div class="tv">
+  <div class="tv-h"><div class="tv-tit"><b>Manutenção</b><span>${esc((t=>t.charAt(0).toUpperCase()+t.slice(1))(agora.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})))}</span></div>
+    <div class="tv-n"><span><b class="num">${P.aFazer.length}</b> a fazer</span><span><b class="num">${P.exec.length}</b> em execução</span><span><b class="num">${P.feitas.length}</b> finalizadas em 24h</span>${atr?`<span class="atr"><b class="num">${atr}</b> atrasada${atr>1?"s":""}</span>`:""}</div>
+    <div class="tv-clock num">${fHora(agora.toISOString())}</div>${S.role!=="tv"?`<a class="btn sm ghost tv-x" href="#m-ordens">Sair da TV</a>`:""}</div>
+  <div class="tv-cols">
+    <section class="tv-col fazer"><h2>A fazer</h2><div class="tv-b">${grupos.length?grupos.map(([k,l])=>`<h3 class="tv-g p-${k}">${PRIO_COR[k]} <small>${esc(MPRAZO_TXT[k])}</small><span class="num">${l.length}</span></h3>${l.map(m=>tvCard(m,"fazer")).join("")}`).join(""):`<p class="tv-v">Nenhuma OS esperando. 👏</p>`}</div><p class="tv-mais" hidden></p></section>
+    <section class="tv-col exec"><h2>Em execução</h2><div class="tv-b">${P.exec.length?P.exec.map(m=>tvCard(m,"exec")).join(""):`<p class="tv-v">Ninguém em serviço agora.</p>`}</div><p class="tv-mais" hidden></p></section>
+    <section class="tv-col feita"><h2>Finalizadas · 24h</h2><div class="tv-b">${P.feitas.length?P.feitas.map(m=>tvCard(m,"feita")).join(""):`<p class="tv-v">Nada finalizado nas últimas 24 horas.</p>`}</div><p class="tv-mais" hidden></p></section>
+  </div>${S.demo?"":`<button class="tv-out" id="tvSair" type="button">Sair</button>`}</div>`;
+  app.innerHTML=h;
+  // o que não cabe na tela vira "+N"
+  $$(".tv-col").forEach(col=>{const b=col.querySelector(".tv-b"),mais=col.querySelector(".tv-mais");const lim=b.getBoundingClientRect().bottom;let n=0;
+    b.querySelectorAll("[data-tvc]").forEach(c=>{if(c.getBoundingClientRect().bottom>lim+1){c.style.visibility="hidden";n++}});
+    if(n){mais.hidden=false;mais.textContent="+ "+n+(n>1?" OS que não cabem na tela":" OS que não cabe na tela")}});
+  const sx=$("#tvSair");if(sx)sx.onclick=sair;
+  if(!tvTimer)tvTimer=setInterval(()=>{if(S.route!=="m-tv"){clearInterval(tvTimer);tvTimer=null;return}
+    if(!S.demo&&Date.now()-(S.tvLoad||0)>120000){S.tvLoad=Date.now();carregar("manutencoes").then(()=>{if(S.route==="m-tv")renderMTv()}).catch(()=>{})}else renderMTv()},30000);
+  S.tvLoad=S.tvLoad||Date.now();
+}
+
+/* ---------- celular da manutenção ---------- */
+function filaCard(m){const pz=prazoFalta(m);const pr=m.prioridade||"normal";const ex=["em_execucao","aguardando"].includes(m.status);const late=m.status!=="concluida"&&pz.late;
+  return `<button class="ms-card fl p-${pr}${late?" atr":""}${m.status==="aguardando"?" hold":ex?" run":""}" type="button" data-fl="${esc(m.id)}">
+    <span class="ms-top"><span class="tv-p p-${pr}">${PRIO_COR[pr]}</span><span class="ms-when${late?" late":""}">${ic("clock","ic sm")}${m.status==="concluida"?"Finalizada "+esc(fHora(m.concluidoEm)):esc(pz.txt)}</span></span>
+    ${m.emergencial?`<span class="ms-emg">Emergência</span>`:""}<span class="ms-t">${esc(tituloCurto(m))}</span><span class="ms-s">${esc(ondeM(m))}</span>
+    <span class="ms-foot"><span class="ms-st">${ex?(m.status==="aguardando"?"Pausada · ":"Fazendo · ")+esc(nomeEquipe(m.equipeIds)):m.status==="concluida"?esc(nomeEquipe(m.equipeIds)):m.executor==="terceiro"?"Prestador":"Esperando"}</span><span class="ms-go">${m.status==="concluida"?"Ver":ex?"Abrir":"Iniciar"} ›</span></span></button>`}
+function renderMFila(){
+  if(!podeDesenhar())return;S.ox=null;
+  const P=osPainelMan();const tab=S.flTab||"fazer";
+  let h=`<div class="ms-head"><h1>Ordens da manutenção</h1><p>${(t=>t.charAt(0).toUpperCase()+t.slice(1))(new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"}))}</p></div>${banner()}
+    <div class="fl-tabs" role="tablist">${[["fazer","A fazer",P.aFazer.length],["exec","Em execução",P.exec.length],["feitas","Finalizadas",P.feitas.length]].map(([k,l,n])=>`<button type="button" role="tab" aria-selected="${tab===k}" data-flt="${k}">${l}<span class="num">${n}</span></button>`).join("")}</div>`;
+  if(!S.demo&&!S.loaded.manutencoes){app.innerHTML=h+`<div class="empty"><h3>Carregando…</h3></div>`;return}
+  const L=tab==="fazer"?P.aFazer:tab==="exec"?P.exec:P.feitas;
+  if(!L.length)h+=`<div class="ms-empty">${ic("ok","ic xl")}<h2>${tab==="fazer"?"Nenhuma OS esperando":tab==="exec"?"Ninguém em serviço agora":"Nada finalizado nas últimas 24 horas"}</h2></div>`;
+  else if(tab==="fazer")["urgente","alta","normal","baixa"].forEach(k=>{const l=L.filter(m=>(m.prioridade||"normal")===k);if(l.length)h+=`<h2 class="ms-sec">${PRIO_COR[k]} · ${esc(MPRAZO_TXT[k])}</h2>${l.map(filaCard).join("")}`});
+  else h+=L.map(filaCard).join("");
+  app.innerHTML=h+sairHTML();
+  $$("[data-flt]").forEach(b=>b.onclick=()=>{S.flTab=b.dataset.flt;renderMFila()});
+  $$("[data-fl]").forEach(b=>b.onclick=()=>{location.hash="#m-exec/"+b.dataset.fl});bindSairMs();
+}
+function pessoasMan(m){const cat=m.categoria||"";const eq=S.equipe.filter(p=>p.ativo!==false&&areaDe(p)!=="logistica").sort(sortNome);
+  const ind=cat?eq.filter(p=>(p.especialidades||[]).includes(cat)):[];return {ind,outros:eq.filter(p=>!ind.includes(p))}}
+function chipPessoa(p,sel){return `<button type="button" class="chip big" data-px="${esc(p.id)}" aria-pressed="${sel.includes(p.id)}"><b>${esc(p.nome)}</b>${(p.especialidades||[]).length?`<small>${esc(p.especialidades.join(", "))}</small>`:p.funcao?`<small>${esc(p.funcao)}</small>`:""}</button>`}
+async function oficinaAcao(m,acao,pessoas,texto,fotos){
+  if(S.demo){const now=nowISO();const nm=pessoas?nomeEquipe(pessoas):"";
+    const H=(st,nota)=>(m.historico||[]).concat([{s:st,em:now,nota}]);
+    if(acao==="iniciar")Object.assign(m,{status:"em_execucao",executor:"interno",equipeIds:pessoas,iniciadoEm:m.iniciadoEm||now,triadoEm:m.triadoEm||now,historico:H("em_execucao","Iniciada por "+nm)});
+    if(acao==="equipe")Object.assign(m,{equipeIds:pessoas,historico:H(m.status,"Equipe: "+nm)});
+    if(acao==="pausar")Object.assign(m,{status:"aguardando",aguardandoMotivo:texto,historico:H("aguardando",texto)});
+    if(acao==="retomar")Object.assign(m,{status:"em_execucao",aguardandoMotivo:null,historico:H("em_execucao","Retomada")});
+    if(acao==="finalizar")Object.assign(m,{status:"concluida",concluidoEm:now,solucao:texto,fotosDepois:fotos||[],aguardandoMotivo:null,horasTrabalho:Math.round((Date.now()-T(m.iniciadoEm||now))/36000)/100,historico:H("concluida","Finalizada no celular da manutenção")});
+    return m}
+  const {data,error}=await sb.rpc("oficina_acao",{p_id:m.id,p_acao:acao,p_pessoas:pessoas||null,p_texto:texto||null,p_fotos:fotos||null});
+  if(error)throw error;const o=fromDb(data);localUpsertM(m.id,o);return byId(S.manutencoes,m.id)}
+function renderMExec(){
+  if(!podeDesenhar())return;
+  const m=byId(S.manutencoes,S.routeArg);
+  const bar=`<div class="ms-bar"><a class="ms-back" href="#m-fila">${ic("back","ic")}Ordens</a>${m?`<span class="ms-cod">${esc(codM(m))}</span>`:""}</div>`;
+  if(!m){app.innerHTML=bar+`<div class="ms-empty"><h2>OS não encontrada</h2><p>Ela pode ter sido cancelada.</p></div>`;return}
+  if(!S.ox||S.ox.id!==m.id)S.ox={id:m.id,sel:(m.equipeIds||[]).slice(),modo:null,txt:"",fotos:[]};const X=S.ox;
+  const pz=prazoFalta(m),pr=m.prioridade||"normal";const ex=["em_execucao","aguardando"].includes(m.status);
+  let h=bar+`<p class="ms-sub"><span class="tv-p p-${pr}">${PRIO_COR[pr]}</span> ${m.categoria?esc(m.categoria)+" · ":""}${m.tipo==="preventiva"?"Preventiva":"Corretiva"}</p>
+    <h1 class="ms-h">${esc(tituloCurto(m))}</h1>
+    <div class="ms-box${pz.late&&m.status!=="concluida"?" warn":""}">${ic("clock","ic sm")} <b>${m.status==="concluida"?"Finalizada "+esc(fDH(m.concluidoEm)):esc(pz.txt)}</b>${m.status!=="concluida"?` <span style="color:var(--mute)">· prazo ${esc(fDH(new Date(prazoM(m)).toISOString()))}</span>`:""}</div>
+    <div class="ms-box"><span class="ms-lbl">Onde</span><b>${esc(ondeM(m)||"Local não informado")}</b>${m.solicitante?`<p style="margin:6px 0 0">Pedido por ${esc(m.solicitante)}${m.solicitanteTelefone?` · <a href="tel:${esc(String(m.solicitanteTelefone).replace(/\D/g,""))}">${esc(fFone(m.solicitanteTelefone))}</a>`:""}</p>`:""}</div>
+    ${m.descricao&&m.descricao!==tituloCurto(m)?`<div class="ms-box"><span class="ms-lbl">O problema</span><p style="margin:0;white-space:pre-line">${esc(m.descricao)}</p></div>`:""}
+    ${(m.fotosAbertura||[]).length?`<div class="ms-box"><span class="ms-lbl">Fotos de quem pediu</span><div class="photos">${m.fotosAbertura.map((f,i)=>`<div class="ph"><button type="button" data-zoom="${esc(f.url)}" aria-label="Ampliar foto ${i+1}"><img src="${esc(f.url)}" alt="Foto ${i+1}"></button></div>`).join("")}</div></div>`:""}
+    ${m.status==="aguardando"?`<div class="ms-box hold">Pausada: ${esc(m.aguardandoMotivo||"")}</div>`:""}`;
+  const escolher=()=>{const P=pessoasMan(m);return `<div class="ms-box"><span class="ms-lbl">Quem vai fazer? <i>toque em uma ou mais pessoas</i></span>
+    ${P.ind.length?`<p class="fl-g">Especialistas em ${esc(m.categoria)}</p><div class="chips">${P.ind.map(p=>chipPessoa(p,X.sel)).join("")}</div><p class="fl-g">Outros</p>`:""}<div class="chips">${P.outros.map(p=>chipPessoa(p,X.sel)).join("")||`<span class="hint">Nenhuma pessoa da manutenção cadastrada.</span>`}</div></div>`};
+  if(m.status==="concluida"){h+=`<div class="ms-box"><span class="ms-lbl">Feito por</span><b>${esc(nomeEquipe(m.equipeIds)||"—")}</b>${m.solucao?`<p style="margin:6px 0 0;white-space:pre-line">${esc(m.solucao)}</p>`:""}</div>`}
+  else if(m.executor==="terceiro"&&!ex){h+=`<div class="ms-box warn">Esta OS é de prestador: ${esc(nomePrest(m.prestadorId)||"a definir")}. A coordenação acompanha.</div>`}
+  else if(!ex){h+=escolher()+`<p class="err" id="oxErr" role="alert"></p><button class="ms-cta" type="button" id="oxIni">${ic("play","ic")}Iniciar o serviço</button>`}
+  else if(X.modo==="fim"){h+=`<div class="ms-box"><span class="ms-lbl">O que foi feito? <i>obrigatório</i></span><textarea id="oxTxt" class="ms-in" rows="3" placeholder="Ex.: troquei o sifão e testei, sem vazamento">${esc(X.txt)}</textarea></div>${fotoCtl("ox",X.fotos,false,"Foto do serviço pronto (opcional)")}<p class="err" id="oxErr" role="alert"></p><button class="ms-cta" type="button" id="oxFim">${ic("ok","ic")}Finalizar a OS</button><button class="ms-cta sec" type="button" id="oxVolta">Voltar</button>`}
+  else if(X.modo==="pausa"){h+=`<div class="ms-box"><span class="ms-lbl">Por que vai parar?</span><textarea id="oxTxt" class="ms-in" rows="2" placeholder="Ex.: falta peça, local fechado">${esc(X.txt)}</textarea></div><p class="err" id="oxErr" role="alert"></p><button class="ms-cta hold" type="button" id="oxPausa">Pausar</button><button class="ms-cta sec" type="button" id="oxVolta">Voltar</button>`}
+  else if(X.modo==="equipe"){h+=escolher()+`<p class="err" id="oxErr" role="alert"></p><button class="ms-cta" type="button" id="oxEq">Salvar quem está fazendo</button><button class="ms-cta sec" type="button" id="oxVolta">Voltar</button>`}
+  else{h+=`<div class="ms-box"><span class="ms-lbl">Fazendo</span><b>${esc(nomeEquipe(m.equipeIds))}</b><p style="margin:6px 0 0;color:var(--mute)">Desde ${esc(fHora(m.iniciadoEm))} · há ${esc(desde(m.iniciadoEm))}</p></div><p class="err" id="oxErr" role="alert"></p>
+    ${m.status==="aguardando"?`<button class="ms-cta" type="button" id="oxRet">${ic("play","ic")}Retomar o serviço</button>`:`<button class="ms-cta" type="button" id="oxGoFim">${ic("ok","ic")}Finalizar a OS</button><button class="ms-cta sec" type="button" id="oxGoPausa">Preciso parar</button>`}
+    <button class="ms-cta sec" type="button" id="oxGoEq">Mudar quem está fazendo</button>`}
+  app.innerHTML=h;
+  const err=$("#oxErr");const go=modo=>{X.modo=modo;X.txt="";renderMExec();window.scrollTo(0,document.body.scrollHeight)};
+  const run=async(btn,fn)=>{if(!btn)return;btn.onclick=async()=>{err.textContent="";btn.disabled=true;try{await fn();}catch(e){console.error(e);btn.disabled=false;err.textContent=(e&&e.message&&/[a-zà-ú]{4}/i.test(e.message)?e.message:"Não foi possível salvar. Verifique a internet.")}}};
+  $$("[data-px]").forEach(b=>b.onclick=()=>{const id=b.dataset.px;X.sel=X.sel.includes(id)?X.sel.filter(x=>x!==id):X.sel.concat([id]);b.setAttribute("aria-pressed",X.sel.includes(id))});
+  const tx=$("#oxTxt");if(tx)tx.addEventListener("input",()=>{X.txt=tx.value});
+  run($("#oxIni"),async()=>{if(!X.sel.length)throw new Error("Escolha quem vai fazer.");await oficinaAcao(m,"iniciar",X.sel);toast(codM(m)+" iniciada");S.ox=null;renderMExec()});
+  run($("#oxEq"),async()=>{if(!X.sel.length)throw new Error("Escolha quem está fazendo.");await oficinaAcao(m,"equipe",X.sel);toast("Equipe atualizada");X.modo=null;renderMExec()});
+  run($("#oxRet"),async()=>{await oficinaAcao(m,"retomar");toast("Serviço retomado");renderMExec()});
+  run($("#oxPausa"),async()=>{if(!X.txt.trim())throw new Error("Diga por que vai parar.");await oficinaAcao(m,"pausar",null,X.txt.trim());toast(codM(m)+" pausada");X.modo=null;renderMExec()});
+  run($("#oxFim"),async()=>{if(!X.txt.trim())throw new Error("Diga o que foi feito.");await oficinaAcao(m,"finalizar",null,X.txt.trim(),X.fotos);toast(codM(m)+" finalizada");S.ox=null;location.hash="#m-fila"});
+  const gf=$("#oxGoFim");if(gf)gf.onclick=()=>go("fim");const gp=$("#oxGoPausa");if(gp)gp.onclick=()=>go("pausa");const ge=$("#oxGoEq");if(ge)ge.onclick=()=>{X.sel=(m.equipeIds||[]).slice();go("equipe")};
+  const vt=$("#oxVolta");if(vt)vt.onclick=()=>{X.modo=null;renderMExec()};
+  $$("[data-msrm]").forEach(b=>b.onclick=()=>{X.fotos.splice(+b.dataset.msrm,1);renderMExec()});
+  $$("[data-msup]").forEach(up=>up.onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;up.parentElement.querySelector("span").textContent="Enviando…";$$("[data-msup]").forEach(z=>z.disabled=true);
+    const r=await uploadFiles(fs,err);X.fotos=X.fotos.concat(r);renderMExec()});
+}
+function loadDemoPainel(){
+  const esp=[["Elétrica","Gerador / energia"],["Hidráulica","Civil / alvenaria"],["Ar-condicionado","Refrigeração"],["Pintura","Marcenaria"],["Manutenção geral"]];let i=0;
+  S.equipe.forEach(p=>{if(areaDe(p)!=="logistica"){p.especialidades=esp[i%esp.length];i++}});
 }
 
 /* ---------- Início ---------- */
