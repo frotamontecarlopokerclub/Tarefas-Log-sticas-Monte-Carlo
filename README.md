@@ -483,3 +483,33 @@ As telas se atualizam sozinhas: na hora pelo tempo real do Supabase e, como rese
 
 ## Atualização 41 · Novo visual da TV da manutenção
 Cabeçalho em degradê marsala com a assinatura dourada, indicador "Ao vivo", indicadores no topo (a fazer, em execução, atrasadas, finalizadas e % no prazo), cartões com barra de prazo, iniciais de quem está fazendo e alerta piscando em vermelho no que passou do prazo.
+
+## Atualização 42 · Rotas da logística
+**Rodar no Supabase:** `supabase/26_rotas.sql` (uma vez). No fim aparecem 5 itens "OK".
+- **No celular do motorista**, a rota tem 4 passos: **Saí com o veículo** (checklist rápido de 6 itens + km), **Começar a rota** (marca as OS que vão juntas + km), **Terminei a rota** (km) e **Devolvi o veículo** (km; a hora é registrada sozinha). Dá para incluir outra OS no meio do caminho. Item ruim no checklist abre OS da frota sozinho.
+- Cada OS continua com as suas paradas, fotos e assinatura, sem pedir km.
+- **Custo:** o percurso da rota (km e horas da saída à devolução, combustível, óleo, pneus e equipe) é um só e é dividido entre as OS pela distância de cada uma. Assim o custo do dia não soma o mesmo percurso duas vezes.
+- **Cadastros › Distâncias:** km entre as unidades, usado na divisão. Sem a distância, divide pelo número de paradas.
+- **Menu Rotas** (Logística): as rotas de cada dia, com os horários, os km, as OS de cada rota, a parte de cada uma e o custo do dia.
+
+## Atualização 43 · Fotos mais leves
+**Rodar no Supabase:** `supabase/27_fotos_leves.sql` (uma vez). No fim aparecem 3 itens "OK".
+- Fotos novas guardadas em 1024 px e qualidade reduzida: cerca de 100 KB cada (antes passavam de 400 KB). No máximo 3 por etapa.
+- Foto só é obrigatória quando há problema: avaria ou falta relatada na entrega, item ruim no checklist de saída da rota ou no checklist da manutenção. Nos demais casos é opcional.
+- Comprovante da entrega final: nome e assinatura de quem recebeu (ou uma foto, se não der para assinar).
+- Cadastros › Regras › **Fotos antigas** (coordenação geral): apaga as fotos das OS encerradas há mais de 6 meses, mantendo histórico, textos e assinaturas.
+
+## Atualização 44 · Horário informado, OS no caminho e TV estilo aeroporto
+**Rodar no Supabase:** `supabase/28_campo_autonomo.sql` (uma vez). No fim aparecem 4 itens "OK".
+- **Horário informado à mão:** se o celular descarregou ou ficou sem internet, a equipe toca em **"Aconteceu em outro horário?"** e informa dia e hora. Vale na saída do veículo, no início e no fim da rota, na devolução, em cada retirada e entrega, no início e no fim da manutenção (app de campo e celular da manutenção). O sistema não aceita horário no futuro, com mais de 7 dias ou antes da etapa anterior. O histórico marca "horário informado".
+- **Nova OS no caminho:** o motorista cria a OS sozinho quando pedem outro serviço no trajeto: de onde e para onde (unidade cadastrada ou endereço escrito), o que levar, carga, quem pediu e telefone. Em rota, a OS já entra na rota e no mesmo veículo; sem rota, fica nas missões dele.
+- **Coordenação:** essas OS aparecem com o selo **"Criada no campo"**. Na OS, confira e toque em **Marcar como revisada**.
+- **TV da manutenção estilo painel de aeroporto:** quadro escuro com as colunas Prioridade, OS, Serviço, Local, Responsável, Prazo e Situação. As atrasadas ficam no topo e piscam; a lista vira de página sozinha a cada 12 segundos. Ao lado, as finalizadas das últimas 24 h; embaixo, um letreiro com o que está acontecendo agora.
+
+## Atualização 45 · Ordens do dia
+Não precisa rodar nada no Supabase.
+- **Painel da logística e Painel da manutenção:** novo quadro **Ordens do dia** no topo, em três colunas: **A fazer** (programadas ou pedidas no dia e, hoje, também as pendentes que ficaram de dias anteriores), **Em execução** e **Feitas**. Use ‹ e › para ir de um dia para outro, escolha a data no calendário ou toque em **Hoje**. Toque numa OS para abrir; **Ver na lista** abre a lista já filtrada naquele dia.
+- **Ordens (logística), Chamados e OS (manutenção) e OS da frota:** nova linha **Dia** com Todos os dias · Hoje · Ontem · calendário. Com um dia escolhido, as abas viram Tudo do dia · A fazer · Em execução · Feitas · Canceladas, com a contagem de cada uma.
+
+## Atualização 46 · TV mais sóbria
+Não precisa rodar nada no Supabase. A TV da manutenção ficou só com as cores do Monte Carlo (preto, marsala, dourado e bege), sem selos coloridos. O vermelho aparece apenas no que está atrasado, com um aviso discreto. Dentro do sistema (menu Painel TV), o quadro fica mais compacto para caber na tela do computador.

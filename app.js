@@ -78,7 +78,9 @@ function atrasada(o){ // aberta e passou do prazo
 function concluidaComAtraso(o){if(o.status!=="concluida")return false;const p=prazo(o);return isFinite(p)&&T(o.concluidoEm)>p+tolMs()}
 function tResposta(o){const a=T(o.agendadaEm),s=T(o.solicitadoEm||o.criadoEm);return a-s}
 function tExec(o){return T(o.concluidoEm)-T(o.iniciadoEm)}
-function rotaTxt(o){return nomeLocal(o.origemId)+" → "+nomeLocal(o.destinoId)}
+const nomeP=p=>p.localId?nomeLocal(p.localId):(p.detalhe||"—");
+const origemTxt=o=>o.origemId?nomeLocal(o.origemId):(o.origemDetalhe||"—"),destinoTxt=o=>o.destinoId?nomeLocal(o.destinoId):(o.destinoDetalhe||"—");
+function rotaTxt(o){return origemTxt(o)+" → "+destinoTxt(o)}
 function toast(msg){$$(".toast").forEach(x=>x.remove());const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2800)}
 function sortNome(a,b){return (a.nome||"").localeCompare(b.nome||"","pt-BR")}
 const ativos=arr=>arr.filter(x=>x.ativo!==false).sort(sortNome);
@@ -92,7 +94,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=41;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=46;console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -187,7 +189,7 @@ async function startSession(session){
   buildNav(); if(!location.hash||location.hash.length<2) location.replace("#"+navCfg().home); route();
   dlog("menu montado, rota "+location.hash+" · classe "+(document.body.className||"-"));
   let lento=false;
-  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes","manutencoes","equipamentos","prestadores","planos","veiculo_conferencias","veiculo_servicos","veiculo_abastecimentos"].concat(isAdmin()?["funcionario_custos"]:[])
+  await Promise.all(["locais","setores","equipe","veiculos","config","os","pedidos","relatorios","perfis","recorrencias","solicitantes","manutencoes","equipamentos","prestadores","planos","veiculo_conferencias","veiculo_servicos","veiculo_abastecimentos","rotas","distancias"].concat(isAdmin()?["funcionario_custos"]:[])
     .map(t=>comTempo(carregar(t),30000).catch(e=>{console.warn("carregar",t,e);lento=true})));
   dlog("dados carregados"+(lento?" (lento)":"")+" · classe "+(document.body.className||"-"));
   buildNav(); render();
@@ -246,7 +248,7 @@ function assinarTempoReal(){
   };
   conectar();
   // 2) reserva: confere sozinho a cada 30 segundos, mesmo se o tempo real cair
-  const base=()=>S.role==="tv"||S.role==="oficina"?["manutencoes"]:S.role==="campo"?["os","manutencoes"]:["os","pedidos","manutencoes"];
+  const base=()=>S.role==="tv"||S.role==="oficina"?["manutencoes"]:S.role==="campo"?["os","manutencoes","rotas"]:["os","pedidos","manutencoes","rotas"];
   clearInterval(S.pollT);S.pollT=setInterval(()=>{if(document.visibilityState==="visible")recarregar(base())},30000);
   // 3) ao voltar para a tela (celular desbloqueado, aba de novo em foco)
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&sb){recarregar(base());if(S.rtStatus&&S.rtStatus!=="SUBSCRIBED")conectar()}});
@@ -405,7 +407,7 @@ function areasPermitidas(){if(S.role==="campo")return [];if(S.role==="tv"||S.rol
 function isAdmin(){return S.role==="log"&&S.areaAcesso==="ambas"}
 function areaFixa(){if(S.role!=="log")return null;const a=areasPermitidas();return a.length===1?a[0]:null}
 const LABELS={painel:"Painel",ordens:"Ordens",pedidos:"Pedidos",agenda:"Agenda",relatorio:"Relatório",cadastros:"Cadastros",nova:"Nova OS",solicitar:"Novo pedido",meus:"Meus pedidos",
-  gestao:"Gestão",eficiencia:"Controle de Eficiência","m-tv":"Painel TV","m-fila":"Ordens da manutenção","f-comb":"Combustível",missoes:"Minhas missões",missao:"Missão","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Veículos",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem",veiculos:"Veículos",emergencia:"Emergência","f-painel":"Painel","f-os":"OS da frota","f-conf":"Conferências","f-lav":"Lavagens","f-serv":"Serviços e custos"};
+  gestao:"Gestão",eficiencia:"Controle de Eficiência","rotas-dia":"Rotas","m-tv":"Painel TV","m-fila":"Ordens da manutenção","f-comb":"Combustível",missoes:"Minhas missões",missao:"Missão","campo-os":"Nova OS no caminho","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Veículos",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem",veiculos:"Veículos",emergencia:"Emergência","f-painel":"Painel","f-os":"OS da frota","f-conf":"Conferências","f-lav":"Lavagens","f-serv":"Serviços e custos"};
 const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   agenda:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',pedidos:'<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
   relatorio:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 17v-4M12 17V8M16 17v-6"/>',cadastros:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
@@ -415,7 +417,7 @@ const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect 
   equip:'<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M19 9h3M19 15h3M2 9h3M2 15h3"/>'};
 ICO.frota='<path d="M3 13l2-6h14l2 6v5h-2.5M3 13v5h2.5M3 13h18"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/><path d="M9.5 17.5h5"/>';ICO["f-lav"]='<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9 14a3 3 0 0 0 3 3"/>';ICO.gestao='<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/><path d="M15 8h4v4"/>';
 ICO.eficiencia='<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/><circle cx="12" cy="14" r="1.5"/>';ICO["f-comb"]='<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M7 7h5v4H7z"/><path d="M15 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/>';
-ICO["m-tv"]='<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>';ICO["m-fila"]=ICO.wrench||'';
+ICO["rotas-dia"]='<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/>';ICO["m-tv"]='<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>';ICO["m-fila"]=ICO.wrench||'';
 Object.assign(ICO,{"f-painel":ICO.painel,"f-os":ICO.wrench,"f-conf":ICO.meus,"f-serv":ICO.wrench,conferir:ICO.meus,lavar:ICO["f-lav"],"m-painel":ICO.painel,"m-ordens":ICO.wrench,"m-prev":ICO.prev,"m-equip":ICO.equip,"m-meus":ICO.meus,"m-eq":ICO.equip});
 const svgI=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[k]}</svg>`;
 function navCfg(){
@@ -431,9 +433,9 @@ function navCfg(){
     if(S.role==="sol")return {top:["m-meus","m-equip"],cta:"m-chamado",mob:["m-meus","m-chamado","m-equip"],more:[],home:"m-meus"};
     return {top:["gestao","m-painel","m-ordens","m-prev","m-equip","eficiencia"],cta:null,mob:["gestao","m-painel","m-ordens","m-equip"],more:["m-prev","eficiencia"],home:"gestao"};
   }
-  if(S.role==="log")return {top:["painel","ordens","pedidos","agenda","relatorio"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),cta:"nova",mob:["painel","ordens","nova","agenda"],more:["pedidos","relatorio"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),home:"painel"};
+  if(S.role==="log")return {top:["painel","ordens","rotas-dia","pedidos","agenda","relatorio"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),cta:"nova",mob:["painel","ordens","nova","agenda"],more:["rotas-dia","pedidos","relatorio"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),home:"painel"};
   if(S.role==="sol")return {top:["meus","ordens","agenda","painel","relatorio"],cta:"solicitar",mob:["meus","ordens","solicitar","painel"],more:["agenda","relatorio"],home:"meus"};
-  return {top:["gestao","painel","ordens","agenda","relatorio","eficiencia"],cta:null,mob:["gestao","painel","ordens","agenda"],more:["relatorio","eficiencia"],home:"gestao"};
+  return {top:["gestao","painel","ordens","rotas-dia","agenda","relatorio","eficiencia"],cta:null,mob:["gestao","painel","ordens","agenda"],more:["rotas-dia","relatorio","eficiencia"],home:"gestao"};
 }
 const pendentes=()=>S.pedidos.filter(x=>x.status==="aguardando").length;
 const chamadosNovos=()=>isMan()?manInfra().filter(m=>m.status==="aberto").length:0;
@@ -472,7 +474,7 @@ function route(){
   let bloq=false;{const ap=areasPermitidas();if(novaArea&&ap.length&&!ap.includes(novaArea)){novaArea=null;h="";bloq=true}}
   if(novaArea&&novaArea!==S.area){S.area=novaArea;try{localStorage.setItem("mc-area",S.area)}catch(e){}buildNav()}
   if(h==="m-chamado"&&isMan())h="m-nova";
-  const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],S.role==="campo"?["missao","conferir","lavar","veiculos","emergencia"]:S.role==="oficina"?["m-exec"]:S.role==="tv"?[]:["m-eq"].concat(S.role==="log"||S.role==="ver"?["veiculo"]:[],S.role==="log"?["veiculo-editar","conferir","lavar","emergencia"]:[]));
+  const c=navCfg();const ok=c.top.concat(c.more,c.mob,c.cta?[c.cta]:[],S.role==="campo"?["missao","conferir","lavar","veiculos","emergencia","rota","campo-os"]:S.role==="oficina"?["m-exec"]:S.role==="tv"?[]:["m-eq"].concat(S.role==="log"||S.role==="ver"?["veiculo"]:[],S.role==="log"?["veiculo-editar","conferir","lavar","emergencia"]:[]));
   S.route=ok.includes(h)?h:c.home; S.routeArg=ok.includes(h)?(arg||null):null;
   if(bloq){try{history.replaceState(null,"","#"+S.route)}catch(e){}}
   $("#sheetL").innerHTML="";
@@ -495,10 +497,10 @@ function render(force){
   else if(S.route==="conferir"||S.route==="veiculo-editar"||S.route==="lavar"||S.route==="emergencia"){ if(force||!formMounted){ ({conferir:renderConferir,lavar:renderLavar,emergencia:renderEmergencia}[S.route]||renderVeiculoEditar)(); formMounted=true; } }
   else { formMounted=false;
     const fn={painel:renderPainel,ordens:renderOrdens,agenda:renderAgenda,cadastros:renderCadastros,pedidos:renderPedidos,meus:renderMeus,relatorio:renderRelatorio,
-      gestao:renderGestao,missoes:renderMissoes,veiculos:renderVeicCampo,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo,"f-painel":renderFPainel,"f-os":renderFOs,"m-tv":renderMTv,"m-fila":renderMFila,"m-exec":renderMExec,"f-comb":renderFComb,eficiencia:renderEficiencia,"f-conf":renderFConf,"f-lav":renderFLav,"f-serv":renderFServ}[S.route]||renderPainel;
+      gestao:renderGestao,missoes:renderMissoes,veiculos:renderVeicCampo,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo,"f-painel":renderFPainel,"f-os":renderFOs,rota:renderRota,"campo-os":renderNovaCampo,"rotas-dia":renderRotasDia,"m-tv":renderMTv,"m-fila":renderMFila,"m-exec":renderMExec,"f-comb":renderFComb,eficiencia:renderEficiencia,"f-conf":renderFConf,"f-lav":renderFLav,"f-serv":renderFServ}[S.route]||renderPainel;
     // preserva foco em campos de busca
     const ae=document.activeElement, aid=ae&&ae.id, pos=ae&&ae.selectionStart;
-    if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq)||(S.route==="veiculo"&&S.vServ)||(S.route==="f-comb"&&S.ab)||(S.route==="m-exec"&&S.ox&&(S.ox.modo||S.ox.sel.length))||(S.route==="eficiencia"&&S.efTab==="salarios"))) { /* não redesenha durante edição */ }
+    if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq)||(S.route==="veiculo"&&S.vServ)||(S.route==="f-comb"&&S.ab)||(S.route==="m-exec"&&S.ox&&(S.ox.modo||S.ox.sel.length))||(S.route==="rota"&&S.rt&&(S.rt.k==="nova"||S.rt.km||S.rt.busy))||(S.route==="eficiencia"&&S.efTab==="salarios")||(S.route==="campo-os"&&S.nc&&!S.nc.fim))) { /* não redesenha durante edição */ }
     else fn();
     if(aid){const el=document.getElementById(aid); if(el&&el!==ae){el.focus(); try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(e){}}}
   }
@@ -563,6 +565,7 @@ function renderPainel(){
     <div class="field"><label for="fLoc">Unidade (origem ou destino)</label><select id="fLoc">${opts(ativos(S.locais),S.f.local,"Todas as unidades")}</select></div>
   </div>`;
   if(L){app.innerHTML=h+L;bindPainel();return}
+  h+=diaQuadroHTML(S.os.filter(o=>(!S.f.setor||o.setorId===S.f.setor)&&(!S.f.local||o.origemId===S.f.local||o.destinoId===S.f.local)),S.pdia||hojeK(),false,"#ordens");
 
   h+=`<div class="kpis">
     ${kpi("OS no período",val.length,"",canc?canc+" cancelada"+(canc>1?"s":""):"Sem cancelamentos")}
@@ -672,6 +675,7 @@ function bindPainel(){
   $("#fSet").onchange=e=>{S.f.setor=e.target.value;sv();renderPainel()};
   $("#fLoc").onchange=e=>{S.f.local=e.target.value;sv();renderPainel()};
   const ex=$("#exp"); if(ex){ ex.onclick=()=>exportCSV(); }
+  bindDiaQuadro(renderPainel,(k,c)=>{Object.assign(S.lf,{dia:k,dcat:c,q:"",setor:S.f.setor||"",local:S.f.local||""})});bindOpen();
 }
 async function exportCSV(listArg,suf){
   const list=Array.isArray(listArg)?listArg:S.os.filter(inPainel);
@@ -685,25 +689,86 @@ async function exportCSV(listArg,suf){
   a.href=url;a.download="logistica-os-"+(suf||dayKey(new Date()))+".csv";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 
+/* =====================================================================
+   ORDENS DO DIA · o que estava a fazer, em execução, feito e cancelado
+   num dia escolhido (logística, manutenção e frota)
+   ===================================================================== */
+const hojeK=()=>dayKey(new Date());
+const dK=iso=>iso?dayKey(iso):"";
+const DIA_CATS=[["tudo","Tudo do dia"],["fazer","A fazer"],["exec","Em execução"],["feita","Feitas"],["canc","Canceladas"]];
+// k = "AAAA-MM-DD". Devolve "fazer" | "exec" | "feita" | "canc" | null
+function diaCat(x,k,man){
+  const st=x.status,hoje=hojeK();
+  if(st==="cancelada")return dK(x.canceladoEm||x.atualizadoEm)===k?"canc":null;
+  const ini=dK(x.iniciadoEm),fim=st==="concluida"?dK(x.concluidoEm):"";
+  if(fim&&fim===k)return "feita";
+  if(fim&&fim<k)return null;
+  const rodando=man?["em_execucao","aguardando"].includes(st):st==="em_rota";
+  if(ini&&ini<=k)return k<=hoje?"exec":null;
+  if(!ini&&rodando&&k===hoje)return "exec";
+  if(k>hoje)return dK(x.agendadoPara)===k?"fazer":null;
+  const pediu=dK(man?x.criadoEm:(x.solicitadoEm||x.criadoEm));
+  if(dK(x.agendadoPara)===k||(pediu===k&&(!x.agendadoPara||dK(x.agendadoPara)<=k)))return "fazer";
+  // hoje também aparecem as pendentes de dias anteriores que ainda não começaram
+  if(k===hoje&&!fim&&!rodando){
+    if(man)return st==="aberto"||(st==="agendada"&&(!x.agendadoPara||dK(x.agendadoPara)<=k))||(MABERTOS.includes(st)&&isFinite(prazoM(x))&&dayKey(new Date(prazoM(x)))<=k)?"fazer":null;
+    return st==="registrada"||(st==="agendada"&&(!x.agendadoPara||dK(x.agendadoPara)<k))?"fazer":null}
+  return null}
+function diaNome(k){const [Y,M,D]=k.split("-").map(Number);const d=new Date(Y,M-1,D);const h=hojeK(),on=dayKey(new Date(Date.now()-DIA_MS)),am=dayKey(new Date(Date.now()+DIA_MS));
+  const sem=d.toLocaleDateString("pt-BR",{weekday:"long"});return (k===h?"Hoje":k===on?"Ontem":k===am?"Amanhã":sem.charAt(0).toUpperCase()+sem.slice(1))+", "+d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}
+const diaMais=(k,n)=>{const [Y,M,D]=k.split("-").map(Number);return dayKey(new Date(Y,M-1,D+n,12))};
+// barra de escolha do dia (listas): Todos os dias · Hoje · Ontem · data
+function diaBarHTML(p,dia){return `<div class="diab" role="group" aria-label="Dia"><span class="diab-l">Dia</span>
+  <button type="button" class="chip" data-${p}dia="" aria-pressed="${!dia}">Todos os dias</button>
+  <button type="button" class="chip" data-${p}dia="${hojeK()}" aria-pressed="${dia===hojeK()}">Hoje</button>
+  <button type="button" class="chip" data-${p}dia="${diaMais(hojeK(),-1)}" aria-pressed="${dia===diaMais(hojeK(),-1)}">Ontem</button>
+  <span class="diab-d"><button type="button" class="diab-n" data-${p}dia="${dia?diaMais(dia,-1):diaMais(hojeK(),-1)}" aria-label="Dia anterior">‹</button><input type="date" id="${p}DiaIn" value="${esc(dia||"")}" aria-label="Escolher o dia"><button type="button" class="diab-n" data-${p}dia="${dia?diaMais(dia,1):hojeK()}" aria-label="Dia seguinte">›</button></span>
+  ${dia?`<span class="diab-t">${esc(diaNome(dia))}</span>`:""}</div>`}
+function bindDiaBar(p,set){$$(`[data-${p}dia]`).forEach(b=>b.onclick=()=>set(b.dataset[p+"dia"]));const i=$("#"+p+"DiaIn");if(i)i.onchange=()=>set(i.value||"")}
+function diaSegsHTML(p,L,k,cat,man){const c={tudo:0,fazer:0,exec:0,feita:0,canc:0};L.forEach(x=>{const d=diaCat(x,k,man);if(d){c[d]++;c.tudo++}});
+  return `<div class="seg" role="group" aria-label="Situação no dia">${DIA_CATS.map(([v,l])=>`<button type="button" data-${p}dcat="${v}" aria-pressed="${(cat||"tudo")===v}">${l}<span class="c num">${c[v]}</span></button>`).join("")}</div>`}
+const DIA_ORD={exec:0,fazer:1,feita:2,canc:3};
+function ordenaDia(L,k,man){return L.slice().sort((a,b)=>DIA_ORD[diaCat(a,k,man)]-DIA_ORD[diaCat(b,k,man)]||(T(a.concluidoEm||a.iniciadoEm||a.agendadoPara||a.criadoEm)||0)-(T(b.concluidoEm||b.iniciadoEm||b.agendadoPara||b.criadoEm)||0))}
+// quadro "Ordens do dia" nos painéis
+function diaQuadroHTML(L,k,man,verHref){
+  const g={fazer:[],exec:[],feita:[],canc:[]};L.forEach(x=>{const d=diaCat(x,k,man);if(d)g[d].push(x)});
+  Object.keys(g).forEach(c=>g[c]=ordenaDia(g[c],k,man));
+  const hora=(x,c)=>c==="feita"?"Feita "+fHora(x.concluidoEm):c==="exec"?(x.iniciadoEm?"Desde "+(dK(x.iniciadoEm)===k?fHora(x.iniciadoEm):fDH(x.iniciadoEm)):"Em andamento"):c==="canc"?"Cancelada":x.agendadoPara&&dK(x.agendadoPara)===k?"Às "+fHora(x.agendadoPara):x.agendadoPara&&dK(x.agendadoPara)<k?"Era "+fDH(x.agendadoPara):"Sem horário";
+  const late=x=>man?mAtrasada(x):atrasada(x);
+  const linha=(x,c)=>`<button type="button" class="dia-r${c==="fazer"&&late(x)?" atr":""}" ${man?"data-mopen":"data-open"}="${esc(x.id)}"><span class="dia-c num">${esc(man?codM(x):codigo(x))}</span><span class="dia-x"><b>${esc(man?tituloM(x):rotaTxt(x))}</b><small>${esc(man?ondeM(x):itensResumo(x))}</small></span><span class="dia-h"><b class="num">${esc(hora(x,c))}</b><small>${esc(man?(x.status==="aberto"?"Aguardando triagem":executorTxt(x)):(nomeEquipe(x.equipeIds)||"Sem equipe"))}</small>${c==="fazer"&&late(x)?`<i>Atrasada</i>`:c==="exec"&&x.status==="aguardando"?`<i class="w">Pausada</i>`:""}</span></button>`;
+  const col=(c,t,cls)=>`<div class="dia-col ${cls}"><h3>${t}<span class="num">${g[c].length}</span></h3>${g[c].length?g[c].slice(0,8).map(x=>linha(x,c)).join("")+(g[c].length>8?`<a class="dia-mais" href="${verHref}" data-diacat="${c}">Ver as ${g[c].length}</a>`:""):`<p class="dia-v">${{fazer:"Nada a fazer",exec:"Nada em execução",feita:"Nada feito ainda"}[c]}</p>`}</div>`;
+  const tot=g.fazer.length+g.exec.length+g.feita.length;
+  return `<section class="card dia-q"><div class="card-h"><h2>Ordens do dia</h2><span class="sub">${plural(tot,"ordem","ordens")}${g.canc.length?" · "+plural(g.canc.length,"cancelada"):""}</span></div><div class="card-b">
+    <div class="dia-nav"><button type="button" class="btn sm" data-pdia="${diaMais(k,-1)}" aria-label="Dia anterior">‹</button><input type="date" id="pDiaIn" value="${esc(k)}" aria-label="Escolher o dia"><button type="button" class="btn sm" data-pdia="${diaMais(k,1)}" aria-label="Dia seguinte">›</button>${k!==hojeK()?`<button type="button" class="btn sm" data-pdia="${hojeK()}">Hoje</button>`:""}<b class="dia-nm">${esc(diaNome(k))}</b><a class="btn sm ghost" href="${verHref}" data-diacat="tudo">Ver na lista</a></div>
+    <div class="dia-cols">${col("fazer",k<hojeK()?"Programadas":"A fazer","fz")}${col("exec","Em execução","ex")}${col("feita","Feitas","ft")}</div></div></section>`}
+// liga o quadro do painel: troca de dia e "ver na lista"
+function bindDiaQuadro(redraw,abrirLista){
+  $$("[data-pdia]").forEach(b=>b.onclick=()=>{S.pdia=b.dataset.pdia;redraw()});
+  const i=$("#pDiaIn");if(i)i.onchange=()=>{S.pdia=i.value||hojeK();redraw()};
+  $$("[data-diacat]").forEach(a=>a.addEventListener("click",()=>abrirLista(S.pdia||hojeK(),a.dataset.diacat)));
+}
+
 /* ---------- ORDENS ---------- */
 function filtraLista(){
   const f=S.lf,q=f.q.trim().toLowerCase();
   return S.os.filter(o=>{
+    if(f.dia){const c=diaCat(o,f.dia,false);if(!c||(f.dcat&&f.dcat!=="tudo"&&c!==f.dcat))return false}
+    else{
     if(f.status==="abertas"&&!ABERTOS.includes(o.status))return false;
     if(f.status==="atrasadas"&&!atrasada(o))return false;
-    if(["em_rota","concluida","cancelada","registrada","agendada"].includes(f.status)&&o.status!==f.status)return false;
+    if(["em_rota","concluida","cancelada","registrada","agendada"].includes(f.status)&&o.status!==f.status)return false;}
     if(f.setor&&o.setorId!==f.setor)return false;
     if(f.tipo&&o.tipo!==f.tipo)return false;
     if(f.local&&o.origemId!==f.local&&o.destinoId!==f.local)return false;
-    if(q){const hay=[codigo(o),o.solicitante,o.tipo,paradasDe(o).map(p=>nomeLocal(p.localId)).join(" "),nomeSetor(o.setorId),nomeEquipe(o.equipeIds),nomeVeic(o.veiculoId),o.observacoes,(o.itens||[]).map(i=>i.desc).join(" ")].join(" ").toLowerCase();if(!hay.includes(q))return false}
+    if(q){const hay=[codigo(o),o.solicitante,o.tipo,paradasDe(o).map(nomeP).join(" "),nomeSetor(o.setorId),nomeEquipe(o.equipeIds),nomeVeic(o.veiculoId),o.observacoes,(o.itens||[]).map(i=>i.desc).join(" ")].join(" ").toLowerCase();if(!hay.includes(q))return false}
     return true;
   });
 }
 function rowHTML(o){
   const late=atrasada(o),lateC=concluidaComAtraso(o);
   return `<button class="row" type="button" data-open="${esc(o.id)}">
-    <span class="cod num">${codigo(o)}<small>${esc(o.tipo||"")}</small></span>
-    <span class="rt"><b>${esc(nomeLocal(o.origemId))} <span class="arrow">→</span> ${esc(nomeLocal(o.destinoId))}${extraParadas(o)}</b><span>${esc(itensResumo(o))}</span></span>
+    <span class="cod num">${codigo(o)}<small>${esc(o.tipo||"")}</small>${o.criadaNoCampo&&!o.revisadaEm?`<small class="campo-b">Criada no campo</small>`:""}</span>
+    <span class="rt"><b>${esc(origemTxt(o))} <span class="arrow">→</span> ${esc(destinoTxt(o))}${extraParadas(o)}</b><span>${esc(itensResumo(o))}</span></span>
     <span class="meta"><div><b class="num">${fDH(o.agendadoPara)}</b>${o.prioridade&&o.prioridade!=="normal"?` · <span class="prio-${o.prioridade}">${o.prioridade==="urgente"?"Urgente":"Alta"}</span>`:""}</div><div>${esc(nomeSetor(o.setorId))}${o.solicitante?" · "+esc(o.solicitante):""}</div></span>
     <span class="meta meta2"><div>${esc(nomeEquipe(o.equipeIds))}</div><div>${esc(nomeVeic(o.veiculoId))}</div></span>
     <span class="stc"><span class="st ${o.status}">${ST[o.status]||o.status}</span>${late?`<span class="late">Atrasada</span>`:lateC?`<span class="late">Concluída com atraso</span>`:""}</span>
@@ -715,7 +780,8 @@ function renderOrdens(){
   const segs=[["abertas","Em aberto"],["atrasadas","Atrasadas"],["registrada","Registradas"],["agendada","Agendadas"],["em_rota","Em rota"],["concluida","Concluídas"],["cancelada","Canceladas"],["todas","Todas"]];
   const cnt=k=>k==="todas"?S.os.length:k==="abertas"?S.os.filter(o=>ABERTOS.includes(o.status)).length:k==="atrasadas"?S.os.filter(atrasada).length:S.os.filter(o=>o.status===k).length;
   let h=`<div class="head"><div><h1>Ordens de <em>serviço</em></h1><p>Todas as movimentações registradas pela logística, da solicitação à entrega com foto.</p></div>${isLog()?`<div class="act"><a class="btn pri" href="#nova">Nova OS</a></div>`:""}</div>${banner()}
-  <div class="seg" role="group" aria-label="Situação">${segs.map(([k,l])=>`<button type="button" data-seg="${k}" aria-pressed="${f.status===k}">${l}<span class="c num">${S.loaded.os||S.demo?cnt(k):""}</span></button>`).join("")}</div>
+  ${diaBarHTML("l",f.dia)}
+  ${f.dia?diaSegsHTML("l",S.os,f.dia,f.dcat,false):`<div class="seg" role="group" aria-label="Situação">${segs.map(([k,l])=>`<button type="button" data-seg="${k}" aria-pressed="${f.status===k}">${l}<span class="c num">${S.loaded.os||S.demo?cnt(k):""}</span></button>`).join("")}</div>`}
   <div class="filters">
     <div class="field grow"><label for="lq">Buscar</label><input type="search" id="lq" placeholder="Número, solicitante, item, local, equipe…" value="${esc(f.q)}"></div>
     <details class="fx" id="fx"${f.more||window.innerWidth>760?" open":""}><summary class="btn sm">Filtros${(f.setor||f.local||f.tipo)?" ativos":""}</summary><div class="fx-in">
@@ -725,14 +791,16 @@ function renderOrdens(){
   </div></details></div>`;
   if(L){app.innerHTML=h+L;bindOrdens();return}
   let list=filtraLista();
-  if(["abertas","atrasadas","registrada","agendada","em_rota"].includes(f.status)) list.sort((a,b)=>(T(a.agendadoPara)||9e15)-(T(b.agendadoPara)||9e15));
+  if(f.dia) list=ordenaDia(list,f.dia,false);
+  else if(["abertas","atrasadas","registrada","agendada","em_rota"].includes(f.status)) list.sort((a,b)=>(T(a.agendadoPara)||9e15)-(T(b.agendadoPara)||9e15));
   if(!S.os.length) h+=`<div class="empty"><h3>Nenhuma OS registrada ainda</h3><p>Cada pedido que chegar à logística, por WhatsApp, telefone ou pessoalmente, vira uma OS aqui.${isLog()?' <a href="#nova">Registrar a primeira</a>.':""}</p></div>`;
-  else if(!list.length) h+=`<div class="empty"><h3>Nenhuma OS com esses filtros</h3><p>Ajuste a situação, o setor ou a busca.</p></div>`;
+  else if(!list.length) h+=`<div class="empty"><h3>Nenhuma OS com esses filtros</h3><p>${f.dia?"Nada nesta situação em "+esc(diaNome(f.dia).toLowerCase())+". Escolha outro dia ou Todos os dias.":"Ajuste a situação, o setor ou a busca."}</p></div>`;
   else h+=`<div class="list">${list.slice(0,300).map(rowHTML).join("")}</div>${list.length>300?`<p style="color:var(--mute);margin-top:10px">Mostrando 300 de ${list.length}. Use a busca ou os filtros para refinar.</p>`:""}`;
   app.innerHTML=h;bindOrdens();
 }
 function bindOrdens(){
   $$("[data-seg]").forEach(b=>b.onclick=()=>{S.lf.status=b.dataset.seg;renderOrdens()});
+  bindDiaBar("l",v=>{S.lf.dia=v;if(!v)S.lf.dcat="tudo";renderOrdens()});$$("[data-ldcat]").forEach(b=>b.onclick=()=>{S.lf.dcat=b.dataset.ldcat;renderOrdens()});
   let tm;$("#lq").oninput=e=>{clearTimeout(tm);const v=e.target.value;tm=setTimeout(()=>{S.lf.q=v;renderOrdens()},220)};
   $("#fx").ontoggle=e=>{S.lf.more=e.target.open};
   $("#lSet").onchange=e=>{S.lf.setor=e.target.value;renderOrdens()};
@@ -751,7 +819,7 @@ function renderAgenda(){
   const semData=S.os.filter(o=>ABERTOS.includes(o.status)&&!o.agendadoPara);
   const sod=new Date();sod.setHours(0,0,0,0);
   const ag=o=>`<button class="ag" type="button" data-open="${esc(o.id)}"><span class="h num">${o.agendadoPara?fHora(o.agendadoPara):"--:--"}<small>${codigo(o)}</small></span>
-    <span class="x"><b>${esc(nomeLocal(o.origemId))} <span class="arrow">→</span> ${esc(nomeLocal(o.destinoId))}${extraParadas(o)}</b><span>${o.recorrenciaId?"Rota fixa · ":""}${esc(o.tipo||"")} · ${esc(nomeEquipe(o.equipeIds))} · ${esc(nomeVeic(o.veiculoId))}</span></span>
+    <span class="x"><b>${esc(origemTxt(o))} <span class="arrow">→</span> ${esc(destinoTxt(o))}${extraParadas(o)}</b><span>${o.recorrenciaId?"Rota fixa · ":""}${esc(o.tipo||"")} · ${esc(nomeEquipe(o.equipeIds))} · ${esc(nomeVeic(o.veiculoId))}</span></span>
     <span class="stc"><span class="st ${o.status}">${ST[o.status]}</span>${atrasada(o)?`<span class="late">Atrasada</span>`:""}</span></button>`;
   if(atr.length) h+=`<div class="day"><h2 style="color:var(--s-late)">Atrasadas <span>${atr.length}</span></h2>${atr.map(o=>ag(o).replace('<span class="h num">',`<span class="h num" style="font-size:13px">${fData(o.agendadoPara)}<br>`)).join("")}</div>`;
   let any=false;
@@ -958,8 +1026,8 @@ function renderDrawer(){
     if(o.status==="registrada") acts=`<button class="btn pri" data-act="editar">Agendar equipe e veículo</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
     if(o.status==="agendada") acts=`<button class="btn pri" data-act="iniciar">Iniciar rota</button><button class="btn" data-act="editar">Editar</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
     if(o.status==="em_rota"){const ps=paradasDe(o),nx=proximaParada(o),ult=ps[ps.length-1];
-      acts=(nx>=0?`<button class="btn pri" data-parada="${nx}">Registrar ${verboParada(ps[nx])} em ${esc(nomeLocal(ps[nx].localId))}</button>`
-        :`<button class="btn pri" data-act="concluir">Concluir ${verboParada(ult)} em ${esc(nomeLocal(ult.localId))}</button>`)+`<button class="btn" data-act="editar">Editar</button>`;}
+      acts=(nx>=0?`<button class="btn pri" data-parada="${nx}">Registrar ${verboParada(ps[nx])} em ${esc(nomeP(ps[nx]))}</button>`
+        :`<button class="btn pri" data-act="concluir">Concluir ${verboParada(ult)} em ${esc(nomeP(ult))}</button>`)+`<button class="btn" data-act="editar">Editar</button>`;}
     if(o.status==="cancelada") acts=`<button class="btn" data-act="reabrir">Reabrir OS</button>`;
   }
   const A=S.action;
@@ -969,8 +1037,8 @@ function renderDrawer(){
         <span class="hint">${(()=>{const u=o.veiculoId?ultimoKm(o.veiculoId,o.id):null;return u?"Último registro deste veículo: "+fKm(u.km)+" ("+codigo(u.os)+", "+fDH(u.em)+")":o.veiculoId?"Primeiro registro deste veículo":""})()}</span></div></div>
       <p class="hint" style="margin:0">As fotos são tiradas em cada parada: na retirada, a mercadoria; na entrega, o material entregue a quem recebeu.</p>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk">Confirmar saída</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
-  if(A&&A.t==="concluir") panel=`<div class="panel" id="pan"><h3>${(()=>{const ps=paradasDe(o),u=ps[ps.length-1];return (u.tipo==="retirada"?"Retirada final":"Entrega")+" em "+esc(nomeLocal(u.localId))+(ps.length>1?` · parada ${ps.length} de ${ps.length}`:"")})()}</h3>
-      <div class="field"><span class="lbl req">${paradasDe(o).slice(-1)[0].tipo==="retirada"?"Fotos da mercadoria":"Fotos do material entregue"}</span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upC" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upCg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div><span class="hint">Mostre os itens no local, de preferência com quem recebeu. Ao menos uma foto.</span></div>
+  if(A&&A.t==="concluir") panel=`<div class="panel" id="pan"><h3>${(()=>{const ps=paradasDe(o),u=ps[ps.length-1];return (u.tipo==="retirada"?"Retirada final":"Entrega")+" em "+esc(nomeP(u))+(ps.length>1?` · parada ${ps.length} de ${ps.length}`:"")})()}</h3>
+      <div class="field"><span class="lbl">${paradasDe(o).slice(-1)[0].tipo==="retirada"?"Fotos da mercadoria":"Fotos do material entregue"} <i class="opc">opcional</i></span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upC" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upCg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div><span class="hint">Mostre os itens no local, de preferência com quem recebeu. Ao menos uma foto.</span></div>
       <div class="field"><span class="lbl">Assinatura de quem recebeu</span><div class="sig" id="sigBox"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Assine aqui com o dedo</span></div>
         <div class="actions"><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div></div>
       <div class="fg"><div class="field"><label for="rec">Recebido por</label><input type="text" id="rec" value="${esc(A.rec||"")}" placeholder="Nome de quem recebeu"></div>
@@ -979,8 +1047,8 @@ function renderDrawer(){
       <div class="field full"><label for="cObs">Observações da entrega</label><textarea id="cObs" placeholder="Divergências, avarias, itens faltantes…">${esc(A.obs||"")}</textarea></div></div>
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>Encerrar OS</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
   if(A&&A.t==="parada"){const pp=paradasDe(o)[A.idx];const ent=pp.tipo==="entrega";
-    panel=`<div class="panel" id="pan"><h3>${ent?"Entrega":"Retirada"} em ${esc(nomeLocal(pp.localId))} · parada ${A.idx+1} de ${paradasDe(o).length}</h3>
-      <div class="field"><span class="lbl req">${ent?"Fotos do material entregue":"Fotos da mercadoria retirada"}</span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upP" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upPg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div></div>
+    panel=`<div class="panel" id="pan"><h3>${ent?"Entrega":"Retirada"} em ${esc(nomeP(pp))} · parada ${A.idx+1} de ${paradasDe(o).length}</h3>
+      <div class="field"><span class="lbl">${ent?"Fotos do material entregue":"Fotos da mercadoria retirada"} <i class="opc">opcional</i></span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upP" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upPg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div></div>
       ${ent?`<div class="field"><span class="lbl">Assinatura de quem recebeu</span><div class="sig" id="sigBox"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Assine aqui com o dedo</span></div>
         <div class="actions"><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div></div>`:""}
       <div class="fg"><div class="field"><label for="rec">${ent?"Recebido por":"Quem liberou no local"}</label><input type="text" id="rec" value="${esc(A.rec||"")}" placeholder="${ent?"Nome de quem recebeu":"Opcional: nome de quem entregou a mercadoria"}"></div>
@@ -1004,6 +1072,7 @@ function renderDrawer(){
     <div class="dr-h"><div class="row1"><div><h2 id="drT" class="num">${codigo(o)}</h2><p>${esc(o.tipo||"")}${o.prioridade&&o.prioridade!=="normal"?" · Prioridade "+(o.prioridade==="urgente"?"urgente":"alta"):""}</p></div><button class="cl" id="drX" aria-label="Fechar">×</button></div>
       <span class="stl"><span class="st ${o.status}">${ST[o.status]}</span></span>${late?` <span class="stl"><span class="late">Atrasada</span></span>`:lateC?` <span class="stl"><span class="late">Concluída com atraso</span></span>`:""}</div>
     <div class="dr-b">
+      ${o.criadaNoCampo?(o.revisadaEm?`<p class="hint" style="margin:0 0 10px">${ic("van","ic sm")} Criada no campo pela equipe · revisada em ${esc(fDH(o.revisadaEm))}</p>`:`<div class="banner campo-n"><b>Criada no campo pela equipe.</b> O pedido chegou durante a missão${o.solicitante?" (pedido por "+esc(o.solicitante)+")":""}. Confira endereço, itens e setor; se precisar, edite. ${isLog()?`<button class="btn sm" type="button" data-act="revisar">Marcar como revisada</button>`:""}</div>`):""}
       ${!A?`<div class="actions">${acts}${copyBtn}${extraActs}</div>`:""}${S.copyOpen&&!A?copyPanel(o):""}${panel}${emgBoxDrawer("log",o)}
       <section class="card card-b" style="padding-top:16px">${stopsHTML(o,isLog()&&!A)}${o.recorrenciaId?`<p class="hint" style="margin:10px 0 0">Gerada pela rota fixa ${esc((byId(S.recorrencias,o.recorrenciaId)||{}).nome||"")}</p>`:""}</section>
       <section class="card card-b" style="padding-top:16px"><dl class="dl">
@@ -1011,6 +1080,7 @@ function renderDrawer(){
         <div><dt>Previsão de término</dt><dd class="num">${fDH(o.previstoAte)}</dd></div>
         <div><dt>Equipe</dt><dd>${(o.equipeIds||[]).length&&["agendada","em_rota"].includes(o.status)?equipeCiencia(o):esc(nomeEquipe(o.equipeIds))}</dd></div>
         <div><dt>Veículo</dt><dd>${esc(nomeVeic(o.veiculoId))}${o.veiculoId?` <span style="color:var(--faint);font-weight:500">· carga ${o.carga==="pesada"?"pesada":"leve"}</span>`:""}</dd></div>
+        ${o.rotaId?(()=>{const rr=byId(S.rotas||[],o.rotaId);if(!rr)return "";const pr=partRota(o);const outras=osDaRota(rr).filter(x=>x.id!==o.id);return `<div><dt>Rota</dt><dd><a class="lnk" href="#rotas-dia" data-rdia="${esc(dayKey(rr.saidaEm))}">${esc(codR(rr))}</a> · ${esc(ROTA_ST[rr.status].toLowerCase())}${outras.length?` · junto com ${outras.map(x=>esc(codigo(x))).join(", ")}`:""}${pr?`<br><span style="color:var(--mute)">${fNum(pr.s*100)}% do custo da rota (${pr.metodo==="distancia"?"pela distância":"pelas paradas"})</span>`:""}</dd></div>`})():""}
         ${o.manutencaoId?`<div><dt>Transporte da frota</dt><dd>${o.transporte==="volta"?"Buscar":"Levar"} o veículo · <button type="button" class="lnk" data-mopen="${esc(o.manutencaoId)}">${esc((m=>m?codM(m):"OS da frota")(byId(S.manutencoes,o.manutencaoId)))}</button></dd></div>`:""}
         <div><dt>Setor solicitante</dt><dd>${esc(nomeSetor(o.setorId))}</dd></div>
         <div><dt>Quem pediu</dt><dd>${esc(o.solicitante||"—")}${o.canal?` <span style="color:var(--faint);font-weight:500">por ${esc(o.canal)}</span>`:""}</dd></div>
@@ -1035,6 +1105,7 @@ function renderDrawer(){
   if(dr&&A&&A.t==="avisar"&&!A.visto){A.visto=true;dr.scrollTop=0;const t=$("#waTel");if(t&&!t.value)t.focus();}
   $("#drX").onclick=closeOS; $("#ov").onclick=e=>{if(e.target.id==="ov")closeOS()};
   $$("[data-mopen]",layer).forEach(b=>b.onclick=()=>{closeOS();openM(b.dataset.mopen)});
+  $$("[data-rdia]",layer).forEach(b=>b.onclick=()=>{S.rdDia=b.dataset.rdia;closeOS()});
   $$("[data-zoom]",layer).forEach(b=>b.onclick=()=>{const lb=document.createElement("div");lb.className="lb";lb.innerHTML=`<img src="${esc(b.dataset.zoom)}" alt="Foto ampliada">`;lb.onclick=()=>lb.remove();document.body.appendChild(lb)});
   $$("[data-act]",layer).forEach(b=>b.onclick=()=>doAct(o,b.dataset.act));
   $$("[data-parada]",layer).forEach(b=>b.onclick=()=>{S.copyOpen=false;S.action={t:"parada",idx:+b.dataset.parada,fotos:[],sig:[]};renderDrawer();const p=$("#pan");if(p)p.scrollIntoView({block:"nearest"})});
@@ -1049,8 +1120,8 @@ function resumo(o){
   const it=(o.itens||[]).map(i=>"• "+[i.qtd===""||i.qtd==null?"":String(i.qtd).replace(".",","),i.un||"",i.desc].filter(Boolean).join(" ")).join("\n");
   const pr=o.prioridade==="urgente"?" — URGENTE":o.prioridade==="alta"?" — prioridade alta":"";
   const L=[`*${codigo(o)} · ${o.tipo||"Serviço"}*${pr}`,`Situação: ${ST[o.status]||o.status}`,
-    ...(multi(o)?["Paradas:\n"+paradasDe(o).map((p,i)=>`${i+1}. ${p.tipo==="retirada"?"Retirada":"Entrega"} · ${nomeLocal(p.localId)}${p.detalhe?" ("+p.detalhe+")":""}${p.status==="feita"?" ✔":""}`).join("\n")]
-      :[`Retirada: ${nomeLocal(o.origemId)}${o.origemDetalhe?" ("+o.origemDetalhe+")":""}`,`Entrega: ${nomeLocal(o.destinoId)}${o.destinoDetalhe?" ("+o.destinoDetalhe+")":""}`]),
+    ...(multi(o)?["Paradas:\n"+paradasDe(o).map((p,i)=>`${i+1}. ${p.tipo==="retirada"?"Retirada":"Entrega"} · ${nomeP(p)}${p.detalhe&&p.localId?" ("+p.detalhe+")":""}${p.status==="feita"?" ✔":""}`).join("\n")]
+      :[`Retirada: ${origemTxt(o)}${o.origemDetalhe&&o.origemId?" ("+o.origemDetalhe+")":""}`,`Entrega: ${destinoTxt(o)}${o.destinoDetalhe&&o.destinoId?" ("+o.destinoDetalhe+")":""}`]),
     o.agendadoPara?`Quando: ${fData(o.agendadoPara)}, das ${fHora(o.agendadoPara)}${o.previstoAte?" às "+fHora(o.previstoAte):""}`:"Quando: a definir",
     `Equipe: ${nomeEquipe(o.equipeIds)}`,`Veículo: ${nomeVeic(o.veiculoId)}`];
   if(it)L.push("Itens:\n"+it);
@@ -1062,6 +1133,7 @@ function resumo(o){
 function copyPanel(o){const t=resumo(o);return `<div class="panel copybox"><h3>Resumo da ${codigo(o)}</h3><label class="lbl" for="cpT">Texto selecionado. Copie e cole no WhatsApp.</label><textarea id="cpT" readonly>${esc(t)}</textarea>
   <div class="actions"><a class="btn pri" href="https://wa.me/?text=${encodeURIComponent(t)}" target="_blank" rel="noopener">Abrir no WhatsApp</a><button class="btn ghost" id="cpX" type="button">Fechar</button></div></div>`}
 async function doAct(o,a){
+  if(a==="revisar"){try{await saveOS(o.id,{revisadaEm:nowISO(),atualizadoEm:nowISO(),historico:hist(o,o.status,"OS criada no campo revisada pela coordenação")});toast(codigo(o)+" revisada")}catch(e){toast("Não foi possível salvar.")}return}
   if(a==="copiar"){const t=resumo(o);let ok=false;try{await navigator.clipboard.writeText(t);ok=true}catch(e){}
     if(ok){toast("Resumo copiado. Cole no WhatsApp.");S.copyOpen=true;renderDrawer();}else{S.copyOpen=true;renderDrawer();}return}
   if(a==="avisar"){S.copyOpen=false;S.action={t:"avisar",fone:telefoneSugerido(o),msg:msgConclusao(o)};renderDrawer();const p=$("#pan");if(p)p.scrollIntoView({block:"nearest"});return}
@@ -1079,10 +1151,10 @@ async function doAct(o,a){
 async function compress(file){
   try{
     const bmp=await createImageBitmap(file,{imageOrientation:"from-image"});
-    const mx=1600,sc=Math.min(1,mx/Math.max(bmp.width,bmp.height));
+    const mx=1024,sc=Math.min(1,mx/Math.max(bmp.width,bmp.height));
     const c=document.createElement("canvas");c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);
     c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
-    return await new Promise(r=>c.toBlob(b=>r(b||file),"image/jpeg",.82));
+    return await new Promise(r=>c.toBlob(b=>r(b&&b.size<file.size?b:(b||file)),"image/jpeg",.6));
   }catch(e){return file}
 }
 async function enviarArquivo(blob,ext,type){
@@ -1153,7 +1225,6 @@ function bindPanel(o){
         await saveOS(o.id,{status:"em_rota",iniciadoEm:nowISO(),kmInicial:km,checklist,atualizadoEm:nowISO(),historico:hist(o,"em_rota","Saída do veículo"+(probs?" · checklist com "+probs+" problema"+(probs>1?"s":""):""))});
         S.action=null;toast(codigo(o)+" em rota");}
       if(A.t==="concluir"){
-        if(!A.fotos.length){err.textContent="Anexe ao menos uma foto da entrega.";return}
         const kmTxt=String(A.kmF==null?"":A.kmF).trim();
         if(o.veiculoId&&kmTxt===""){err.textContent="Informe o km final do veículo (odômetro na chegada).";return}
         const km=kmTxt===""?null:Math.round(Number(kmTxt));
@@ -1181,7 +1252,6 @@ function bindPanel(o){
         } else S.action={t:"avisar",fone,msg:msgConclusao(o2)}; }
       if(A.t==="parada"){
         const ps=JSON.parse(JSON.stringify(paradasDe(o)));const pp=ps[A.idx];const ent=pp.tipo==="entrega";
-        if(!A.fotos.length){err.textContent=ent?"Anexe ao menos uma foto do material entregue.":"Anexe ao menos uma foto da mercadoria retirada.";return}
         const temSig=(A.sig||[]).some(st=>st.length>1);
         if(temSig&&!(A.rec||"").trim()){err.textContent="Informe o nome de quem assinou.";return}
         btn.disabled=true;btn.textContent="Salvando…";let assinatura=null;
@@ -1214,6 +1284,7 @@ function bindPanel(o){
 /* ---------- PARADAS ---------- */
 const PTIPOS=[["retirada","Retirada"],["entrega","Entrega"]];
 const DIAS=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+function ultimoFeito(o){const f=paradasDe(o).map(p=>p.feitoEm).filter(Boolean).sort();return f.length?f[f.length-1]:(o.iniciadoEm||null)}
 function paradasDe(o){
   if(o.paradas&&o.paradas.length) return o.paradas;
   return [{id:"p0",tipo:"retirada",localId:o.origemId||"",detalhe:o.origemDetalhe||"",status:"pendente"},
@@ -1255,9 +1326,9 @@ function stopsHTML(o,canAct){
     const feita=paradaFeita(o,p,i)||(i===ultimo&&o.status==="concluida");
     const btn=canAct&&o.status==="em_rota"&&!feita&&i!==ultimo&&i!==nx?`<button class="btn sm" data-parada="${i}" type="button">Registrar ${verboParada(p)}</button>`:"";
     return `<div class="rs${feita?" ok":""}"><span class="rd ${p.tipo}" aria-hidden="true"></span><div class="rc">
-      <div class="rt1"><b>${esc(nomeLocal(p.localId))}</b><span class="rk">${p.tipo==="retirada"?"Retirada":"Entrega"}${M?` · parada ${i+1}`:""}${i===nx||(nx===-1&&i===ultimo&&o.status==="em_rota")?` · <b class="prox">próxima</b>`:""}</span>${linksRota(p.localId)}</div>
+      <div class="rt1"><b>${esc(nomeP(p))}</b><span class="rk">${p.tipo==="retirada"?"Retirada":"Entrega"}${M?` · parada ${i+1}`:""}${i===nx||(nx===-1&&i===ultimo&&o.status==="em_rota")?` · <b class="prox">próxima</b>`:""}</span>${linksRota(p.localId)}</div>
       ${(byId(S.locais,p.localId)||{}).endereco?`<span class="rdet">${esc(byId(S.locais,p.localId).endereco)}</span>`:""}
-      ${p.detalhe?`<span class="rdet">${esc(p.detalhe)}</span>`:""}
+      ${p.detalhe&&p.localId?`<span class="rdet">${esc(p.detalhe)}</span>`:""}
       ${feita&&p.feitoEm?`<span class="rdone">Feita ${fDH(p.feitoEm)}${p.pessoa?" · "+esc(p.pessoa):""}</span>`:""}
       ${(p.fotos||[]).length?`<div class="photos sm">${p.fotos.map((f,j)=>`<div class="ph"><button type="button" data-zoom="${esc(f.url)}" aria-label="Ampliar foto da parada ${i+1}"><img src="${esc(f.url)}" alt="Foto da parada ${i+1}" loading="lazy"></button></div>`).join("")}</div>`:""}
       ${p.assinatura?`<div class="sig-view sm"><img src="${esc(p.assinatura.url)}" alt="Assinatura na parada ${i+1}"></div>`:""}
@@ -1346,9 +1417,10 @@ function linksRota(localId){
 }
 
 /* ---------- QUILOMETRAGEM ---------- */
-function kmRodados(o){return (o.kmFinal!=null&&o.kmInicial!=null&&o.kmFinal>=o.kmInicial)?o.kmFinal-o.kmInicial:null}
+function kmRodados(o){if(o.rotaId){const pr=partRota(o);if(pr)return Math.round(rotaKm(pr.r)*pr.s*10)/10}return (o.kmFinal!=null&&o.kmInicial!=null&&o.kmFinal>=o.kmInicial)?o.kmFinal-o.kmInicial:null}
 function ultimoKm(veiculoId,excetoId){
   let best=null;
+  (S.rotas||[]).forEach(r=>{if(r.veiculoId!==veiculoId)return;[[r.kmDevolucao,r.devolvidoEm],[r.kmFim,r.fimEm],[r.kmInicio,r.inicioEm],[r.kmSaida,r.saidaEm]].forEach(([k,t])=>{if(k!=null&&(!best||k>best.km))best={km:Number(k),em:t,rota:r}})});
   S.os.forEach(o=>{if(o.veiculoId!==veiculoId||o.id===excetoId)return;
     [[o.kmFinal,o.concluidoEm],[o.kmInicial,o.iniciadoEm]].forEach(([k,t])=>{if(k!=null&&k!==""&&(!best||k>best.km))best={km:Number(k),em:t,os:o}})});
   return best;
@@ -1470,7 +1542,7 @@ function renderRotasFixas(){
     ${isLog()?`<a class="btn sm" href="#nova" id="novaRec">Nova rota fixa</a>`:""}
     ${list.length?list.map(r=>{const m=r.modelo||{};const ps=m.paradas||[];
       return `<div class="rec-row${r.ativo===false?" off":""}"><div class="rec-n"><b>${esc(r.nome)}</b>${r.ativo===false?` <span style="color:var(--faint);font-weight:500">pausada</span>`:""}
-        <span class="m">${esc(ps.length?ps.map(p=>nomeLocal(p.localId)).join(" → "):"")}</span></div>
+        <span class="m">${esc(ps.length?ps.map(nomeP).join(" → "):"")}</span></div>
         <span class="m">${esc(diasTxt(r))} · ${esc(r.hora||"")} · ${fDur((r.duracaoMin||120)*60000)}</span>
         <span class="m">${esc(nomeEquipe(m.equipeIds))} · ${esc(nomeVeic(m.veiculoId))}</span>
         ${isLog()?(S.recDel===r.id?`<span class="actions"><span class="err">Excluir a rota? As OS já criadas continuam.</span><button class="btn sm danger" data-rdel2="${esc(r.id)}" type="button">Excluir</button><button class="btn sm ghost" data-rdelx type="button">Voltar</button></span>`
@@ -1504,14 +1576,15 @@ const CAD={
     f:[["nome","Modelo / apelido","text"],["placa","Placa","text"],["tipo","Tipo","select",["Carro","Utilitário","Van","Caminhão 3/4","Caminhão toco","Moto","SUV","Caminhonete","Outro"]],["capacidade","Capacidade","text"],["custoKm","Custo por km (R$)","money"]],m:x=>{const u=ultimoKm(x.id);return [[x.placa,x.tipo,nOuNull(x.custoKm)!=null?fBRL(x.custoKm)+"/km":"Custo/km: padrão"].filter(Boolean).join(" · "),u?"Odômetro: "+fKm(u.km)+" · "+fData(u.em):"Odômetro: sem registro"]}}
 };
 function renderCadastros(){
-  const tabs=[["locais","Locais"],["setores","Setores"],["solicitantes","Solicitantes"],["equipe","Equipe"],["veiculos","Veículos"],["prestadores","Prestadores"],["rotas","Rotas fixas"],["usuarios","Usuários"],["config","Regras"]]
+  const tabs=[["locais","Locais"],["setores","Setores"],["solicitantes","Solicitantes"],["equipe","Equipe"],["veiculos","Veículos"],["prestadores","Prestadores"],["rotas","Rotas fixas"],["dist","Distâncias"],["usuarios","Usuários"],["config","Regras"]]
     .filter(([k])=>!((k==="veiculos"||k==="rotas")&&S.role==="log"&&!isLog())&&!(k==="prestadores"&&S.role==="log"&&!isMan())&&!(k==="usuarios"&&S.role==="log"&&!isAdmin()));
   if(!tabs.some(t=>t[0]===S.cadTab)) S.cadTab="locais";
   const tab=S.cadTab;
   let h=`<div class="head"><div><h1>Cadastros</h1><p>Listas usadas na abertura das OS. Itens desativados somem dos formulários, mas o histórico continua com o nome. <span class="versao">Versão ${VERSAO}</span></p></div></div>${banner()}
-  <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k==="rotas"?`<span class="c num">${S.recorrencias.filter(x=>x.ativo!==false).length}</span>`:k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
+  <div class="seg" role="group" aria-label="Cadastro">${tabs.map(([k,l])=>`<button type="button" data-ct="${k}" aria-pressed="${tab===k}">${l}${k==="usuarios"?(usuariosPendentes()?`<span class="bdg">${usuariosPendentes()}</span>`:""):k==="rotas"?`<span class="c num">${S.recorrencias.filter(x=>x.ativo!==false).length}</span>`:k==="dist"?`<span class="c num">${(S.distancias||[]).length}</span>`:k!=="config"?`<span class="c num">${S[k].filter(x=>x.ativo!==false).length}</span>`:""}</button>`).join("")}</div>`;
   if(tab==="usuarios"){ app.innerHTML=h+renderUsuarios(); bindCad(); bindUsuarios(); return; }
   if(tab==="rotas"){ app.innerHTML=h+renderRotasFixas(); bindCad(); bindRotasFixas(); return; }
+  if(tab==="dist"){ app.innerHTML=h+renderDistancias(); bindCad(); bindDistancias(); return; }
   if(tab==="config"){
     h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Custos padrão</h2><span class="sub">usados quando o veículo ou a pessoa não têm valor próprio</span></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:66ch">Base do painel de Gestão. Inclua combustível, manutenção, seguro e depreciação no custo por km, e salário com encargos no custo por hora. Valores próprios ficam em Cadastros → Veículos e Equipe.</p>
       <div class="filters"><div class="field"><label for="ckmP">Custo por km (R$)</label><input type="text" inputmode="decimal" id="ckmP" value="${esc(String(S.config.custoKmPadrao||0).replace(".",","))}"${isStaff()?"":" disabled"}></div><div class="field"><label for="chP">Custo por hora da equipe (R$)</label><input type="text" inputmode="decimal" id="chP" value="${esc(String(S.config.custoHoraPadrao||0).replace(".",","))}"${isStaff()?"":" disabled"}></div>${isStaff()?`<button class="btn pri" id="cpOk" type="button">Salvar custos</button>`:""}</div></div></section>`;
@@ -1526,7 +1599,8 @@ function renderCadastros(){
         <p class="err" id="waErr" role="alert" style="margin:8px 0 0"></p>`:""}</div></section>`:"")+(isMan()||!isStaff()?`
       <section class="card" style="margin-top:16px"><div class="card-h"><h2>Prazos da manutenção</h2><span class="sub">contados da abertura da OS</span></div><div class="card-b"><p style="margin:0 0 12px;color:var(--mute);max-width:66ch">Quando a OS não tem um prazo definido, vale o da prioridade. Passou do prazo, a OS pisca em vermelho na TV da manutenção.</p>
         <ul class="pz-l">${MPRIOS.map(([k,l])=>`<li><span class="mp mp-${k}">${l}</span>${k==="urgente"?"Fazer já: até 2 horas":k==="alta"?"No mesmo dia, até 23h59":k==="normal"?"Até 23h59 do 2º dia seguinte":"Até 23h59 do 3º dia seguinte"}</li>`).join("")}</ul></div></section>`:"");
-    app.innerHTML=h;bindCad();return;
+    if(isAdmin())h+=fotosAntigasHTML();
+    app.innerHTML=h;bindCad();bindFotosAntigas();return;
   }
   const C=CAD[tab];let list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||(tab==="locais"?grupoLocal(a)[0]-grupoLocal(b)[0]:0)||sortNome(a,b));
   if(tab==="setores"){const at=gruposSetores(list.filter(x=>x.ativo!==false)).flatMap(g=>g.itens);list=at.concat(list.filter(x=>x.ativo===false))}
@@ -1553,6 +1627,26 @@ async function juntarCadastro(tab,de,para){
   [S.os,S.pedidos,S.manutencoes,S.equipamentos,S.planos,S.solicitantes,S.setores,S.perfis||[]].forEach(arr=>arr.forEach(o=>k.forEach(c=>{if(o[c]===de)o[c]=para})));
   S.os.forEach(o=>(o.paradas||[]).forEach(p=>{if(p.localId===de)p.localId=para}));
   S[tab]=S[tab].filter(x=>x.id!==de);
+}
+/* ---------- fotos antigas: limpeza pela coordenação geral ---------- */
+function fotosAntigasHTML(){const P=S.lfPrev;
+  return `<section class="card" style="margin-top:16px"><div class="card-h"><h2>Fotos antigas</h2><span class="sub">libera espaço no armazenamento</span></div><div class="card-b">
+    <p style="margin:0 0 12px;color:var(--mute);max-width:70ch">Apaga as fotos das OS concluídas ou canceladas há mais de 6 meses. Ficam o histórico, os textos, os nomes e as assinaturas. As OS em aberto não são mexidas. As fotos novas já são guardadas em tamanho reduzido (cerca de 100 KB cada).</p>
+    ${P?`<div class="lf-res"><b class="num">${P.fotos.length}</b> ${P.fotos.length===1?"foto":"fotos"} de ${plural(P.os||0,"OS de logística","OS de logística")}, ${plural(P.manutencoes||0,"manutenção","manutenções")}, ${plural(P.servicos||0,"serviço de veículo","serviços de veículo")} e ${plural(P.rotas||0,"rota")} encerrados antes de ${esc(fData(P.corte))}.</div>`:""}
+    <p class="err" id="lfErr" role="alert"></p><div class="actions">${P&&P.fotos.length?`<button class="btn pri" type="button" id="lfOk">Apagar ${P.fotos.length} ${P.fotos.length===1?"foto":"fotos"}</button><button class="btn ghost" type="button" id="lfX">Cancelar</button>`:`<button class="btn" type="button" id="lfVer">Ver quantas fotos dá para apagar</button>`}</div></div></section>`}
+function bindFotosAntigas(){
+  const ver=$("#lfVer"),ok=$("#lfOk"),x=$("#lfX"),er=$("#lfErr");
+  const msg=e=>/limpar_fotos_antigas|schema cache|Could not find/i.test((e&&e.message)||"")?"Falta rodar o script 27 no Supabase.":"Não foi possível: "+((e&&e.message)||"erro");
+  if(ver)ver.onclick=async()=>{if(S.demo){toast("No modo demonstração não há fotos guardadas.");return}ver.disabled=true;ver.textContent="Procurando…";
+    try{const {data,error}=await sb.rpc("limpar_fotos_antigas",{p_meses:6,p_executar:false});if(error)throw error;S.lfPrev=data;if(!data.fotos.length)toast("Nenhuma foto com mais de 6 meses para apagar.");renderCadastros()}
+    catch(e){console.error(e);ver.disabled=false;ver.textContent="Ver quantas fotos dá para apagar";er.textContent=msg(e)}};
+  if(x)x.onclick=()=>{S.lfPrev=null;renderCadastros()};
+  if(ok)ok.onclick=async()=>{if(ok.dataset.c!=="1"){ok.dataset.c="1";ok.textContent="Confirmar: apagar para sempre?";return}
+    const L=S.lfPrev.fotos.slice();ok.disabled=true;
+    try{for(let i=0;i<L.length;i+=100){ok.textContent="Apagando… "+Math.min(L.length,i+100)+" de "+L.length;const {error}=await sb.storage.from("fotos").remove(L.slice(i,i+100));if(error)throw error}
+      const {error}=await sb.rpc("limpar_fotos_antigas",{p_meses:6,p_executar:true});if(error)throw error;
+      await Promise.allSettled(["os","manutencoes","veiculo_servicos","rotas"].map(carregar));S.lfPrev=null;toast(L.length+" fotos antigas apagadas");renderCadastros()}
+    catch(e){console.error(e);ok.disabled=false;ok.dataset.c="";ok.textContent="Tentar de novo";er.textContent=msg(e)}};
 }
 function bindCad(){
   $$("[data-join]").forEach(b=>b.onclick=()=>{S.cadJoin=b.dataset.join;S.cadEdit=null;renderCadastros()});
@@ -1768,7 +1862,7 @@ function renderRelatorio(){
     <section class="card"><div class="card-h"><h2>Rotas principais</h2></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Rota</th><th class="r">OS</th><th class="r">Execução média</th></tr></thead><tbody>
       ${rotas.map(([x,l])=>{const [a,b]=x.split("|");return `<tr><td><b>${esc(nomeLocal(a))}</b> <span class="arrow">→</span> <b>${esc(nomeLocal(b))}</b></td><td class="r num">${l.length}</td><td class="r num">${fDur(avg(l.filter(o=>o.status==="concluida").map(tExec)))}</td></tr>`}).join("")}</tbody></table></div></section>
     <section class="card"><div class="card-h"><h2>Concluídas com atraso</h2><span class="sub">${A.late.length} OS</span></div><div class="card-b tbl-wrap">${A.late.length?`<table class="t"><thead><tr><th>OS</th><th>Rota</th><th class="r">Atraso</th></tr></thead><tbody>
-      ${A.late.sort((a,b)=>(T(b.concluidoEm)-prazo(b))-(T(a.concluidoEm)-prazo(a))).slice(0,10).map(o=>`<tr><td><button class="lnk num" data-open="${esc(o.id)}" type="button">${codigo(o)}</button></td><td>${esc(nomeLocal(o.origemId))} <span class="arrow">→</span> ${esc(nomeLocal(o.destinoId))}</td><td class="r num">${fDur(T(o.concluidoEm)-prazo(o))}</td></tr>`).join("")}</tbody></table>`:`<p style="color:var(--mute)">Nenhuma OS concluída com atraso. Bom trabalho.</p>`}</div></section></div>`;
+      ${A.late.sort((a,b)=>(T(b.concluidoEm)-prazo(b))-(T(a.concluidoEm)-prazo(a))).slice(0,10).map(o=>`<tr><td><button class="lnk num" data-open="${esc(o.id)}" type="button">${codigo(o)}</button></td><td>${esc(origemTxt(o))} <span class="arrow">→</span> ${esc(destinoTxt(o))}</td><td class="r num">${fDur(T(o.concluidoEm)-prazo(o))}</td></tr>`).join("")}</tbody></table>`:`<p style="color:var(--mute)">Nenhuma OS concluída com atraso. Bom trabalho.</p>`}</div></section></div>`;
   if(isLog()){
     const ps=S.pedidos.filter(p=>mesKey(p.criadoEm)===k);
     if(ps.length){const cv=ps.filter(p=>p.status==="convertido");
@@ -1869,10 +1963,12 @@ const executorOk=X=>X.executor==="terceiro"?!!X.prestadorId:true;
 function filtraM(){
   const f=S.mlf,q=f.q.trim().toLowerCase();
   return manInfra().filter(m=>{
+    if(f.dia){const c=diaCat(m,f.dia,true);if(!c||(f.dcat&&f.dcat!=="tudo"&&c!==f.dcat))return false}
+    else{
     if(f.status==="novos"&&m.status!=="aberto")return false;
     if(f.status==="abertas"&&!MABERTOS.includes(m.status))return false;
     if(f.status==="atrasadas"&&!mAtrasada(m))return false;
-    if(["agendada","em_execucao","aguardando","concluida","cancelada"].includes(f.status)&&m.status!==f.status)return false;
+    if(["agendada","em_execucao","aguardando","concluida","cancelada"].includes(f.status)&&m.status!==f.status)return false;}
     if(f.local&&m.localId!==f.local)return false;
     if(f.cat&&m.categoria!==f.cat)return false;
     if(f.tipo&&m.tipo!==f.tipo)return false;
@@ -1896,7 +1992,8 @@ function renderMOrdens(){
   const L=manInfra(),nFr=S.manutencoes.length-L.length;
   const cnt=k=>k==="todas"?L.length:k==="novos"?L.filter(m=>m.status==="aberto").length:k==="abertas"?L.filter(m=>MABERTOS.includes(m.status)).length:k==="atrasadas"?L.filter(mAtrasada).length:L.filter(m=>m.status===k).length;
   let h=`<div class="head"><div><h1>Chamados e <em>OS</em></h1><p>Chamados abertos pelos setores e ordens de manutenção corretiva e preventiva, da triagem à conclusão com foto.</p></div>${isMan()?`<div class="act"><a class="btn pri" href="#m-nova">Nova OS de manutenção</a></div>`:""}</div>${banner()}${avisoSQL()}
-  <div class="seg" role="group" aria-label="Situação">${segs.map(([k,l])=>`<button type="button" data-mseg="${k}" aria-pressed="${f.status===k}">${l}<span class="c num">${cnt(k)}</span></button>`).join("")}</div>
+  ${diaBarHTML("m",f.dia)}
+  ${f.dia?diaSegsHTML("m",L,f.dia,f.dcat,true):`<div class="seg" role="group" aria-label="Situação">${segs.map(([k,l])=>`<button type="button" data-mseg="${k}" aria-pressed="${f.status===k}">${l}<span class="c num">${cnt(k)}</span></button>`).join("")}</div>`}
   <div class="filters">
     <div class="field grow"><label for="mq">Buscar</label><input type="search" id="mq" placeholder="Número, problema, local, equipamento, técnico…" value="${esc(f.q)}"></div>
     <details class="fx" id="mfx"${f.more||window.innerWidth>760?" open":""}><summary class="btn sm">Filtros${(f.local||f.cat||f.tipo)?" ativos":""}</summary><div class="fx-in">
@@ -1906,16 +2003,18 @@ function renderMOrdens(){
   </div></details></div>`;
   if(!S.demo&&!S.loaded.manutencoes&&!faltaMan()){app.innerHTML=h+`<div class="empty"><h3>Carregando manutenções…</h3></div>`;bindMOrdens();return}
   let list=filtraM();
-  if(f.status!=="concluida"&&f.status!=="cancelada"&&f.status!=="todas") list.sort((a,b)=>({urgente:0,alta:1,normal:2,baixa:3}[a.prioridade]-{urgente:0,alta:1,normal:2,baixa:3}[b.prioridade])||prazoM(a)-prazoM(b));
+  if(f.dia) list=ordenaDia(list,f.dia,true);
+  else if(f.status!=="concluida"&&f.status!=="cancelada"&&f.status!=="todas") list.sort((a,b)=>({urgente:0,alta:1,normal:2,baixa:3}[a.prioridade]-{urgente:0,alta:1,normal:2,baixa:3}[b.prioridade])||prazoM(a)-prazoM(b));
   else list.sort((a,b)=>T(b.criadoEm)-T(a.criadoEm));
   if(nFr&&isFrota()) h+=`<p class="hint" style="margin:0 0 12px">${plural(nFr,"OS de veículo fica","OS de veículo ficam")} em <a href="#f-os">Frota › OS da frota</a>.</p>`;
   if(!L.length) h+=`<div class="empty"><h3>Nenhuma manutenção registrada ainda</h3><p>Os chamados dos setores aparecem aqui assim que são abertos.${isMan()?' Você também pode <a href="#m-nova">registrar uma OS</a> ou criar um <a href="#m-prev">plano preventivo</a>.':""}</p></div>`;
-  else if(!list.length) h+=`<div class="empty"><h3>Nada com esses filtros</h3><p>${f.status==="novos"?"Nenhum chamado esperando triagem.":"Ajuste a situação, o local ou a busca."}</p></div>`;
+  else if(!list.length) h+=`<div class="empty"><h3>Nada com esses filtros</h3><p>${f.dia?"Nada nesta situação em "+esc(diaNome(f.dia).toLowerCase())+". Escolha outro dia ou Todos os dias.":f.status==="novos"?"Nenhum chamado esperando triagem.":"Ajuste a situação, o local ou a busca."}</p></div>`;
   else h+=`<div class="list">${list.slice(0,300).map(mRowHTML).join("")}</div>`;
   app.innerHTML=h;bindMOrdens();
 }
 function bindMOrdens(){
   $$("[data-mseg]").forEach(b=>b.onclick=()=>{S.mlf.status=b.dataset.mseg;renderMOrdens()});
+  bindDiaBar("m",v=>{S.mlf.dia=v;if(!v)S.mlf.dcat="tudo";renderMOrdens()});$$("[data-mdcat]").forEach(b=>b.onclick=()=>{S.mlf.dcat=b.dataset.mdcat;renderMOrdens()});
   let tm;$("#mq").oninput=e=>{clearTimeout(tm);const v=e.target.value;tm=setTimeout(()=>{S.mlf.q=v;renderMOrdens()},220)};
   $("#mfx").ontoggle=e=>{S.mlf.more=e.target.open};
   $("#mLocF").onchange=e=>{S.mlf.local=e.target.value;renderMOrdens()};
@@ -2109,7 +2208,7 @@ function renderMDrawer(){
       ${(A.ck||[]).length?`<div class="field"><span class="lbl req">Checklist da preventiva</span><div class="ck">${A.ck.map((c,i)=>`<div class="ck-r"><span class="ck-n">${esc(c.nome)}</span><span class="ck-b ck3"><button type="button" class="chip" data-mck="${i}" data-v="ok" aria-pressed="${c.r==="ok"}">Feito</button><button type="button" class="chip" data-mck="${i}" data-v="na" aria-pressed="${c.r==="na"}">Não se aplica</button><button type="button" class="chip warn" data-mck="${i}" data-v="pb" aria-pressed="${c.r==="pb"}">Problema</button></span>${c.r==="pb"?`<input type="text" id="mck-o-${i}" class="ck-o" placeholder="Descreva o problema" value="${esc(c.obs||"")}">`:""}</div>`).join("")}</div></div>`:""}
       <div class="fg"><div class="field full"><label for="cDiag">Diagnóstico</label><textarea id="cDiag" data-a="diag" placeholder="Causa do problema">${esc(A.diag||"")}</textarea></div>
       <div class="field full"><label class="req" for="cSol">O que foi feito</label><textarea id="cSol" data-a="sol" placeholder="Ex.: trocado o capacitor e limpos os filtros; testado por 20 minutos">${esc(A.sol||"")}</textarea></div></div>
-      <div class="field"><span class="lbl req">Fotos do serviço pronto</span>${fotosM(A.fotos,true)}${uplHTML("upD","upDg")}</div>
+      <div class="field"><span class="lbl">Fotos do serviço pronto <i class="opc">opcional</i></span>${fotosM(A.fotos,true)}${uplHTML("upD","upDg")}</div>
       ${m.executor!=="terceiro"?`<div class="fg"><div class="field"><label for="cHrs">Horas de trabalho da equipe interna</label><input type="text" inputmode="decimal" id="cHrs" data-a="hrs" value="${esc(A.hrs||"")}" placeholder="Ex.: 1,5"><span class="hint">Tempo de mão de obra, sem as esperas. Entra no custo: ${fBRL((m.equipeIds||[]).reduce((s2,id)=>s2+custoHoraPessoa(id),0))}/h para ${esc(nomeEquipe(m.equipeIds))}.</span></div></div>`:""}
       ${custosHTML()}
       ${sigHTML(A,"Assinatura de quem recebeu o serviço")}
@@ -2233,7 +2332,6 @@ function bindMPanel(m){
         const semR=(A.ck||[]).findIndex(c=>!c.r);if(semR>=0){err.textContent="Responda o checklist: "+A.ck[semR].nome+".";return}
         const semO=(A.ck||[]).findIndex(c=>c.r==="pb"&&!(c.obs||"").trim());if(semO>=0){err.textContent="Descreva o problema em: "+A.ck[semO].nome+".";return}
         if(!(A.sol||"").trim()){err.textContent="Conte o que foi feito.";return}
-        if(!A.fotos.length){err.textContent="Anexe ao menos uma foto do serviço pronto.";return}
         const cs=limpos();if(cs.some(c=>!c.desc)){err.textContent="Descreva cada custo.";return}
         const hv=hrsV();if(Number.isNaN(hv)){err.textContent="Horas de trabalho inválidas. Use vírgula, por exemplo 1,5.";return}
         const temSig=(A.sig||[]).some(st=>st.length>1);if(temSig&&!(A.rec||"").trim()){err.textContent="Informe o nome de quem assinou.";return}
@@ -2474,6 +2572,7 @@ function renderMPainel(){
   <div class="filters"><div class="field"><label for="mfPer">Período</label><select id="mfPer">${optsS(perOpts,S.mf.periodo)}</select></div>
     <div class="field"><label for="mfLoc">Local</label><select id="mfLoc">${opts(ativos(S.locais).filter(l=>l.tipo!=="Fornecedor"),S.mf.local,"Todos")}</select></div>
     <div class="field"><label for="mfCat">Categoria</label><select id="mfCat"><option value="">Todas</option>${optsS(MCATS,S.mf.cat)}</select></div></div>
+  ${diaQuadroHTML(manInfra().filter(m=>(!S.mf.local||m.localId===S.mf.local)&&(!S.mf.cat||m.categoria===S.mf.cat)),S.pdia||hojeK(),true,"#m-ordens")}
   <div class="kpis">
     ${kpi("Chamados no período",val.length,"",prev.length?prev.length+" preventiva"+(prev.length>1?"s":"")+" ("+prevPct+"%)":"Nenhuma preventiva")}
     ${kpi("Aguardando triagem",novos.length,"","Chamados novos agora",novos.length?"alert":"")}
@@ -2511,6 +2610,7 @@ function bindMPainel(){
   const sv=()=>{try{localStorage.setItem("mc-man-f",JSON.stringify(S.mf))}catch(e){}};
   $("#mfPer").onchange=e=>{S.mf.periodo=e.target.value;sv();renderMPainel()};$("#mfLoc").onchange=e=>{S.mf.local=e.target.value;sv();renderMPainel()};$("#mfCat").onchange=e=>{S.mf.cat=e.target.value;sv();renderMPainel()};
   $("#mExp").onclick=()=>exportCSVM(manInfra().filter(inMPainel));
+  bindDiaQuadro(renderMPainel,(k,c)=>{Object.assign(S.mlf,{dia:k,dcat:c,q:"",local:S.mf.local||"",cat:S.mf.cat||""})});bindMOpen();
 }
 function exportCSVM(list){
   const cols=["OS","Situação","Atraso","Tipo","Categoria","Prioridade","Problema","Local","Onde","Setor","Equipamento","Patrimônio","Quem pediu","WhatsApp","Aberto em","Triagem em","Programado para","Prazo","Iniciado em","Concluído em","Atendimento (min)","Solução (min)","Executor","Técnicos / prestador","Aguardando","Diagnóstico","O que foi feito","Custo total (R$)","Itens de custo","Recebido por","Fotos"];
@@ -2777,7 +2877,7 @@ const ICON={mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a
   tool:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8V21h3.2l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/>',
   cam:'<path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/>',gal:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
   pin:'<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',ok:'<path d="M5 12l5 5L20 7"/>',back:'<path d="M15 5l-7 7 7 7"/>',
-  pause:'<path d="M9 5v14M15 5v14"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'};
+  pause:'<path d="M9 5v14M15 5v14"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M12 5v14M5 12h14"/>',play:'<path d="M7 5l12 7-12 7z"/>'};
 ICON.play='<path d="M7 4l13 8-13 8z"/>';
 const ic=(k,cls)=>`<svg class="${cls||"ic"}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 const cienteEm=o=>{const id=meuEquipeId();return id&&o&&o.cientes?o.cientes[id]||null:null};
@@ -2791,7 +2891,7 @@ function minhasMissoes(){
 function feitasHoje(){const id=meuEquipeId();if(!id)return [];const h=dayKey(new Date());
   return S.os.filter(o=>(o.equipeIds||[]).includes(id)&&o.status==="concluida"&&dayKey(o.concluidoEm)===h).map(o=>({k:"log",o}))
     .concat(S.manutencoes.filter(m=>(m.equipeIds||[]).includes(id)&&m.status==="concluida"&&dayKey(m.concluidoEm)===h).map(m=>({k:"man",o:m})))}
-const tituloMs=x=>x.k==="log"?paradasDe(x.o).map(p=>nomeLocal(p.localId)).join(" → "):tituloM(x.o);
+const tituloMs=x=>x.k==="log"?paradasDe(x.o).map(nomeP).join(" → "):tituloM(x.o);
 const subMs=x=>x.k==="log"?(itensResumo(x.o)+(x.o.veiculoId?" · "+nomeVeic(x.o.veiculoId):"")):ondeM(x.o);
 function estadoMs(x){const o=x.o;
   if(o.status==="agendada"&&!cienteEm(o))return {cls:"new",txt:"Nova · confirme que está ciente",acao:"Ver e confirmar"};
@@ -2814,7 +2914,7 @@ function renderMissoes(){
   if(!id){app.innerHTML=h+`<div class="ms-empty">${ic("clock","ic xl")}<h2>Sua conta ainda não está ligada à equipe</h2><p>Avise a coordenação de Facilities para concluir a liberação do seu acesso.</p></div>${sairHTML()}`;bindSairMs();return}
   const L=minhasMissoes();const agora=L.filter(x=>x.ativo),hoje=L.filter(x=>!x.ativo&&x.quando&&dayKey(x.quando)<=dayKey(new Date())),dep=L.filter(x=>!x.ativo&&(!x.quando||dayKey(x.quando)>dayKey(new Date())));
   const F=feitasHoje();
-  h+=menuCampoHTML();
+  h+=rotaCardHTML()+menuCampoHTML();
   if(!L.length) h+=`<div class="ms-empty">${ic("ok","ic xl")}<h2>Nenhuma missão para você agora</h2><p>Quando a coordenação escalar você, a missão aparece aqui na hora.</p></div>`;
   if(agora.length) h+=`<h2 class="ms-sec">Em andamento</h2>${agora.map(msCard).join("")}`;
   if(hoje.length) h+=`<h2 class="ms-sec">Para hoje</h2>${hoje.map(msCard).join("")}`;
@@ -2833,7 +2933,7 @@ function renderCiencia(x){const o=x.o,A=S.ms;
   let h=msHeader(x,x.k==="log"?esc(o.tipo||"")+(o.veiculoId?" · "+esc(nomeVeic(o.veiculoId)):""):(o.tipo==="preventiva"?"Preventiva":"Corretiva")+(o.categoria?" · "+esc(o.categoria):""));
   h+=`<h1 class="ms-h">Nova missão para você</h1><div class="ms-box ci-q">${ic("clock","ic")}<span><b>${esc(quandoTxt(o.agendadoPara))}</b>${x.k==="log"&&o.previstoAte?" · término previsto "+esc(fHora(o.previstoAte)):""}</span></div>`;
   if(x.k==="log"){const ps=paradasDe(o);
-    h+=stepsBar(ps,o)+`<div class="ms-box"><span class="ms-lbl">Roteiro</span>${ps.map((p,i)=>`<p style="margin:4px 0"><b>${i+1}. ${esc(p.tipo==="retirada"?"Retirada":"Entrega")}</b> em ${esc(nomeLocal(p.localId))}${p.detalhe?" · "+esc(p.detalhe):""}</p>`).join("")}</div>`
+    h+=stepsBar(ps,o)+`<div class="ms-box"><span class="ms-lbl">Roteiro</span>${ps.map((p,i)=>`<p style="margin:4px 0"><b>${i+1}. ${esc(p.tipo==="retirada"?"Retirada":"Entrega")}</b> em ${esc(nomeP(p))}${p.detalhe&&p.localId?" · "+esc(p.detalhe):""}</p>`).join("")}</div>`
       +((o.itens||[]).length?`<div class="ms-box"><span class="ms-lbl">O que levar</span><ul class="ms-itens">${o.itens.map(i=>`<li><b class="num">${esc(i.qtd===""||i.qtd==null?"":String(i.qtd).replace(".",","))} ${esc(i.un||"")}</b> ${esc(i.desc||"")}</li>`).join("")}</ul></div>`:"")
       +(o.observacoes?`<div class="ms-box warn"><span class="ms-lbl">Atenção</span>${esc(o.observacoes)}</div>`:"");
   } else {
@@ -2861,13 +2961,13 @@ function msAlvo(){const a=S.routeArg||"";const k=a.slice(0,3),id=a.slice(4);cons
 function fotoCtl(prefixo,fotos,obrig,txt){
   return `<div class="ms-foto${obrig&&!fotos.length?" need":""}"><span class="ms-lbl">${esc(txt)}${obrig?" <i>obrigatória</i>":""}</span>
     ${fotos.length?`<div class="photos">${fotos.map((f,i)=>`<div class="ph"><button type="button" data-zoom="${esc(f.url)}" aria-label="Ampliar foto ${i+1}"><img src="${esc(f.url)}" alt="Foto ${i+1}"></button><button type="button" class="rm" data-msrm="${i}" aria-label="Remover foto">×</button></div>`).join("")}</div>`:""}
-    <div class="ms-fbtn"><label class="ms-big cam">${ic("cam","ic lg")}<span>${fotos.length?"Tirar outra foto":"Tirar foto"}</span><input type="file" accept="image/*" capture="environment" data-msup></label>
-    <label class="ms-big alt">${ic("gal","ic lg")}<span>Galeria</span><input type="file" accept="image/*" multiple data-msup></label></div></div>`;
+    ${fotos.length>=3?`<p class="ms-sub">Máximo de 3 fotos. Remova uma para trocar.</p>`:`<div class="ms-fbtn"><label class="ms-big cam">${ic("cam","ic lg")}<span>${fotos.length?"Tirar outra foto":"Tirar foto"}</span><input type="file" accept="image/*" capture="environment" data-msup></label>
+    <label class="ms-big alt">${ic("gal","ic lg")}<span>Galeria</span><input type="file" accept="image/*" multiple data-msup></label></div>`}</div>`;
 }
-function rotaBtns(localId){const l=byId(S.locais,localId);if(!l||!l.endereco)return "";const e=encodeURIComponent(l.endereco);
+function rotaBtns(localId,endereco){const l=byId(S.locais,localId);const ad=(l&&l.endereco)||endereco;if(!ad)return "";const e=encodeURIComponent(ad);
   return `<div class="ms-nav"><a class="ms-big" href="https://www.google.com/maps/search/?api=1&query=${e}" target="_blank" rel="noopener">${ic("pin","ic lg")}<span>Abrir no Maps</span></a><a class="ms-big" href="https://waze.com/ul?q=${e}&navigate=yes" target="_blank" rel="noopener">${ic("pin","ic lg")}<span>Abrir no Waze</span></a></div>`}
 function stepsBar(ps,o){return `<ol class="ms-steps" aria-label="Paradas">${ps.map((p,i)=>{const f=paradaFeita(o,p,i)||(i===ps.length-1&&o.status==="concluida");const nx=o.status==="em_rota"&&(proximaParada(o)===i||(proximaParada(o)===-1&&i===ps.length-1));
-  return `<li class="${f?"f":nx?"n":""}"><span>${f?ic("ok","ic sm"):i+1}</span><small>${esc(p.tipo==="retirada"?"Retirada":"Entrega")}<br>${esc(nomeLocal(p.localId))}</small></li>`}).join("")}</ol>`}
+  return `<li class="${f?"f":nx?"n":""}"><span>${f?ic("ok","ic sm"):i+1}</span><small>${esc(p.tipo==="retirada"?"Retirada":"Entrega")}<br>${esc(nomeP(p))}</small></li>`}).join("")}</ol>`}
 function msHeader(x,sub){return `<div class="ms-bar"><a class="ms-back" href="#missoes">${ic("back","ic")}Minhas missões</a><span class="ms-cod">${esc(x.k==="log"?codigo(x.o):codM(x.o))}</span></div>${sub?`<p class="ms-sub">${sub}</p>`:""}`}
 function renderMissao(){
   const x=msAlvo();
@@ -2875,7 +2975,7 @@ function renderMissao(){
   const key=x.k+x.o.id+x.o.status+(x.k==="log"?proximaParada(x.o):"");
   if(!(S.ms&&S.ms.fim&&S.ms.id===x.o.id)&&(!S.ms||S.ms.key!==key)){S.ms={key,fotos:[],sig:[],ck:null,busy:false,modo:null}}
   const A=S.ms;const o=x.o;
-  if(A.fim){app.innerHTML=`<div class="ms-fim">${ic("ok","ic xl")}<h1>${esc(A.fim)}</h1><p>Obrigado! A coordenação já está vendo.</p><a class="ms-cta" href="#missoes">Voltar para minhas missões</a></div>`;return}
+  if(A.fim){app.innerHTML=`<div class="ms-fim">${ic("ok","ic xl")}<h1>${esc(A.fim)}</h1><p>Obrigado! A coordenação já está vendo.</p>${A.rota&&byId(S.rotas||[],A.rota)?`<a class="ms-cta" href="#rota/${esc(A.rota)}">Voltar para a rota</a>`:`<a class="ms-cta" href="#missoes">Voltar para minhas missões</a>`}</div>`;return}
   if(o.status==="agendada"&&!cienteEm(o)){renderCiencia(x);return}
   let h="";
   if(x.k==="log"){
@@ -2883,23 +2983,32 @@ function renderMissao(){
     h+=msHeader(x,esc(o.tipo||"")+(o.veiculoId?" · "+esc(nomeVeic(o.veiculoId)):""))+stepsBar(ps,o);
     const itens=(o.itens||[]).length?`<div class="ms-box"><span class="ms-lbl">O que levar</span><ul class="ms-itens">${o.itens.map(i=>`<li><b class="num">${esc(i.qtd===""||i.qtd==null?"":String(i.qtd).replace(".",","))} ${esc(i.un||"")}</b> ${esc(i.desc||"")}</li>`).join("")}</ul></div>`:"";
     const obs=o.observacoes?`<div class="ms-box warn"><span class="ms-lbl">Atenção</span>${esc(o.observacoes)}</div>`:"";
-    if(o.status==="agendada"||o.status==="registrada"){
+    if((o.status==="agendada"||o.status==="registrada")&&o.status==="agendada"&&!A.legado){const mr=minhaRota();
+      h+=`<h1 class="ms-h">${mr?"Incluir na rota "+esc(codR(mr)):"Pronto para sair?"}</h1>${itens}${obs}
+        ${mr?`<div class="ms-box"><span class="ms-lbl">Rota em andamento</span><b>${esc(codR(mr))} · ${esc(nomeVeic(mr.veiculoId))}</b><p style="margin:6px 0 0;color:var(--mute)">${esc(ROTA_ST[mr.status])} · ${plural(osDaRota(mr).length,"OS")} na rota</p></div>`
+          :o.veiculoId?`<div class="ms-box"><span class="ms-lbl">Veículo</span><b>${esc(nomeVeic(o.veiculoId))}</b><p style="margin:6px 0 0;color:var(--mute)">Registre a saída do veículo com o checklist rápido e o km. Depois você escolhe esta e as outras OS que vão juntas.</p></div>`:""}
+        ${(mr&&mr.status==="em_rota")||(!mr&&!o.veiculoId)?horaHTML(A,"Quando você começou?"):""}
+        <p class="err" id="msErr" role="alert"></p>
+        ${mr&&mr.status!=="retorno"?`<button class="ms-cta" id="msRota" type="button">${ic("van","ic lg")}${mr.status==="saida"?"Ir para a rota":"Incluir nesta rota e começar"}</button>`:o.veiculoId?`<button class="ms-cta" id="msSaida" type="button">${ic("van","ic lg")}Sair com o veículo</button>`:`<button class="ms-cta" id="msAPe" type="button">${ic("ok","ic lg")}Começar missão</button>`}`;
+    } else if(o.status==="agendada"||o.status==="registrada"){
       if(!A.ck)A.ck=itensChecklist().map(nome=>({nome,ok:null,obs:""}));
       if(A.km==null){const u=o.veiculoId?ultimoKm(o.veiculoId,o.id):null;A.km=u?String(u.km):""}
       h+=`<h1 class="ms-h">Antes de sair</h1>${itens}${obs}
         ${o.status==="registrada"?`<div class="ms-box warn">A coordenação ainda não confirmou esta missão. Aguarde antes de sair.</div>`:`
         <div class="ms-box"><span class="ms-lbl">Confira o veículo</span>${A.ck.map((c,i)=>`<div class="ms-ck"><span>${esc(c.nome)}</span><span class="ms-ckb"><button type="button" class="${c.ok===true?"on ok":""}" data-mck="${i}" data-v="1">OK</button><button type="button" class="${c.ok===false?"on pb":""}" data-mck="${i}" data-v="0">Problema</button></span>${c.ok===false?`<input type="text" class="ms-in" id="mck-${i}" placeholder="O que está com problema?" value="${esc(c.obs||"")}">`:""}</div>`).join("")}</div>
         ${o.veiculoId?`<div class="ms-box"><label class="ms-lbl" for="msKm">Quilometragem no painel agora</label><input class="ms-in big num" id="msKm" type="number" inputmode="numeric" value="${esc(A.km||"")}" placeholder="Ex.: 124300"></div>`:""}
-        <p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button">${ic("van","ic lg")}Saí para a missão</button>`}`;
+        ${horaHTML(A,"Quando você saiu?")}<p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button">${ic("van","ic lg")}Saí para a missão</button>`}`;
     } else {
       const nx=proximaParada(o);const fin=nx<0;const idx=fin?ps.length-1:nx;const p=ps[idx];const ent=p.tipo==="entrega";
-      h+=`<h1 class="ms-h">${ent?"Entrega":"Retirada"} em ${esc(nomeLocal(p.localId))}</h1><p class="ms-sub">Parada ${idx+1} de ${ps.length}${p.detalhe?" · "+esc(p.detalhe):""}${(byId(S.locais,p.localId)||{}).endereco?"<br>"+esc(byId(S.locais,p.localId).endereco):""}</p>
-        ${rotaBtns(p.localId)}${(byId(S.locais,p.localId)||{}).contato?`<div class="ms-box"><span class="ms-lbl">Contato no local</span>${esc(byId(S.locais,p.localId).contato)}</div>`:""}${idx===0||ent?itens:""}${obs}
-        ${fotoCtl("p",A.fotos,true,ent?"Foto do material entregue":"Foto da mercadoria retirada")}
+      h+=`<h1 class="ms-h">${ent?"Entrega":"Retirada"} em ${esc(nomeP(p))}</h1><p class="ms-sub">Parada ${idx+1} de ${ps.length}${p.detalhe&&p.localId?" · "+esc(p.detalhe):""}${(byId(S.locais,p.localId)||{}).endereco?"<br>"+esc(byId(S.locais,p.localId).endereco):""}</p>
+        ${rotaBtns(p.localId,p.localId?"":p.detalhe)}${(byId(S.locais,p.localId)||{}).contato?`<div class="ms-box"><span class="ms-lbl">Contato no local</span>${esc(byId(S.locais,p.localId).contato)}</div>`:""}${idx===0||ent?itens:""}${obs}
+        ${fotoCtl("p",A.fotos,!!(A.obs||"").trim(),(ent?"Foto do material entregue":"Foto da mercadoria retirada")+((A.obs||"").trim()?"":" (opcional: só se houver problema)"))}
         <div class="ms-box"><label class="ms-lbl" for="msRec">${ent?"Nome de quem recebeu":"Nome de quem entregou a mercadoria"}${ent&&fin?"":" <i>opcional</i>"}</label><input class="ms-in" id="msRec" type="text" value="${esc(A.rec||"")}" autocomplete="off"></div>
-        ${ent?`<div class="ms-box"><span class="ms-lbl">Assinatura de quem recebeu <i>opcional</i></span><div class="sig" id="sigBox"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Peça para assinar aqui com o dedo</span></div><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div>`:""}
-        ${fin&&o.veiculoId?`<div class="ms-box"><label class="ms-lbl" for="msKm">Quilometragem no painel na chegada</label><input class="ms-in big num" id="msKm" type="number" inputmode="numeric" value="${esc(A.km||"")}" placeholder="${o.kmInicial!=null?"Saída: "+o.kmInicial:"Ex.: 124360"}"></div>`:""}
-        <details class="ms-more"${A.obs?" open":""}><summary>Teve algum problema?</summary><textarea class="ms-in" id="msObs" rows="3" placeholder="Ex.: faltou 1 caixa; embalagem avariada">${esc(A.obs||"")}</textarea></details>
+        ${ent?`<div class="ms-box"><span class="ms-lbl">Assinatura de quem recebeu ${fin?"<i>é o comprovante da entrega</i>":"<i>opcional</i>"}</span><div class="sig" id="sigBox"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Peça para assinar aqui com o dedo</span></div><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div>`:""}
+        ${o.rotaId?`<p class="ms-sub">${ic("van","ic sm")} Rota ${esc(codR(byId(S.rotas||[],o.rotaId)||{}))}: o km é registrado no fim da rota.</p>`:""}
+        ${fin&&o.veiculoId&&!o.rotaId?`<div class="ms-box"><label class="ms-lbl" for="msKm">Quilometragem no painel na chegada</label><input class="ms-in big num" id="msKm" type="number" inputmode="numeric" value="${esc(A.km||"")}" placeholder="${o.kmInicial!=null?"Saída: "+o.kmInicial:"Ex.: 124360"}"></div>`:""}
+        <details class="ms-more"${A.obs?" open":""}><summary>Teve algum problema? (avaria, falta)</summary><textarea class="ms-in" id="msObs" rows="3" placeholder="Ex.: faltou 1 caixa; embalagem avariada">${esc(A.obs||"")}</textarea><p class="ms-sub">Com problema relatado, a foto passa a ser obrigatória.</p></details>
+        ${horaHTML(A,fin?"Quando terminou?":ent?"Quando entregou?":"Quando retirou?",ultimoFeito(o))}
         <p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button"${A.busy?" disabled":""}>${ic("ok","ic lg")}${fin?"Finalizar missão":ent?"Confirmar entrega":"Confirmar retirada"}</button>`;
     }
   } else {
@@ -2910,7 +3019,7 @@ function renderMissao(){
     h+=msHeader(x,(o.tipo==="preventiva"?"Preventiva":"Corretiva")+(o.categoria?" · "+esc(o.categoria):""));
     if(o.status==="agendada"){
       h+=`<h1 class="ms-h">${esc(tituloM(o))}</h1>${rotaBtns(o.localId)}${info}${fotoCtl("a",A.fotos,false,"Foto de como você encontrou")}
-        <p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button"${A.busy?" disabled":""}>${ic("tool","ic lg")}Começar serviço</button>`;
+        ${horaHTML(A,"Quando você começou?")}<p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button"${A.busy?" disabled":""}>${ic("tool","ic lg")}Começar serviço</button>`;
     } else if(A.modo==="pausa"){
       h+=`<h1 class="ms-h">Por que precisa parar?</h1><div class="ms-tiles">${ESPERAS.map(e=>`<button type="button" class="ms-tile${A.esp===e?" on":""}" data-esp="${esc(e)}">${esc(e)}</button>`).join("")}</div>
         <div class="ms-box"><label class="ms-lbl" for="msDet">Explique em poucas palavras</label><input class="ms-in" id="msDet" type="text" value="${esc(A.det||"")}" placeholder="Ex.: falta disjuntor 20A"></div>
@@ -2922,12 +3031,12 @@ function renderMissao(){
       h+=`<h1 class="ms-h">Finalizar serviço</h1>
         ${A.ck.length?`<div class="ms-box"><span class="ms-lbl">Checklist</span>${A.ck.map((c,i)=>`<div class="ms-ck"><span>${esc(c.nome)}</span><span class="ms-ckb three"><button type="button" class="${c.r==="ok"?"on ok":""}" data-mck="${i}" data-v="ok">Feito</button><button type="button" class="${c.r==="na"?"on":""}" data-mck="${i}" data-v="na">Não se aplica</button><button type="button" class="${c.r==="pb"?"on pb":""}" data-mck="${i}" data-v="pb">Problema</button></span>${c.r==="pb"?`<input type="text" class="ms-in" id="mck-${i}" placeholder="Qual problema?" value="${esc(c.obs||"")}">`:""}</div>`).join("")}</div>`:""}
         <div class="ms-box"><label class="ms-lbl" for="msSol">O que você fez?</label><textarea class="ms-in" id="msSol" rows="3" placeholder="Ex.: troquei o disjuntor e testei a tomada">${esc(A.sol||"")}</textarea></div>
-        ${fotoCtl("d",A.fotos,true,"Foto do serviço pronto")}
+        ${fotoCtl("d",A.fotos,(A.ck||[]).some(c=>c.r==="pb"),(A.ck||[]).some(c=>c.r==="pb")?"Foto do problema encontrado":"Foto do serviço pronto (opcional)")}
         <div class="ms-box"><span class="ms-lbl">Usou alguma peça ou material? <i>opcional</i></span>${A.pecas.map((c,i)=>`<div class="ms-peca"><input class="ms-in" id="pc-d-${i}" placeholder="Ex.: disjuntor 20A" value="${esc(c.desc||"")}"><input class="ms-in num" id="pc-q-${i}" type="number" inputmode="decimal" min="0" placeholder="Qtd" value="${esc(c.qtd==null?"":c.qtd)}"><button type="button" class="ms-x" data-pcrm="${i}" aria-label="Remover">×</button></div>`).join("")}<button type="button" class="btn sm" id="pcAdd">+ Adicionar peça</button></div>
         <div class="ms-box"><label class="ms-lbl" for="msHrs">Quantas horas trabalhou nisso?</label><div class="ms-hrs"><button type="button" data-hr="-0.5" aria-label="Menos meia hora">−</button><input class="ms-in big num" id="msHrs" type="text" inputmode="decimal" value="${esc(A.hrs||"")}" placeholder="1,5"><button type="button" data-hr="0.5" aria-label="Mais meia hora">+</button></div></div>
         <div class="ms-box"><label class="ms-lbl" for="msRec">Quem conferiu o serviço? <i>opcional</i></label><input class="ms-in" id="msRec" type="text" value="${esc(A.rec||"")}">
           <div class="sig" id="sigBox" style="margin-top:8px"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Assinatura de quem conferiu</span></div><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div>
-        <p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button"${A.busy?" disabled":""}>${ic("ok","ic lg")}Finalizar serviço</button><button class="ms-link" id="msVolta" type="button">Voltar</button>`;
+        ${horaHTML(A,"Quando terminou?",o.iniciadoEm)}<p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button"${A.busy?" disabled":""}>${ic("ok","ic lg")}Finalizar serviço</button><button class="ms-link" id="msVolta" type="button">Voltar</button>`;
     } else {
       h+=`<h1 class="ms-h">${esc(tituloM(o))}</h1>${o.status==="aguardando"?`<div class="ms-box hold"><span class="ms-lbl">Serviço pausado</span>${esc(o.aguardandoMotivo||"")}</div>`:""}${info}
         <div class="ms-two"><button class="ms-cta" id="msFim" type="button">${ic("ok","ic lg")}Terminei o serviço</button>
@@ -2944,22 +3053,28 @@ function redrawMs(){syncMs();const y=window.scrollY;renderMissao();window.scroll
 async function sigUpload(A){if(!(A.sig||[]).some(st=>st.length>1))return null;const b=await sigBlob(A);if(S.demo)return {id:"local",url:URL.createObjectURL(b)};return enviarArquivo(b,"png","image/png")}
 function bindMissao(x){
   const A=S.ms,o=x.o,err=$("#msErr");
-  bindZoom(app);if($("#sigBox"))initSig(A);
+  bindZoom(app);if($("#sigBox"))initSig(A);bindHora(A,redrawMs);
   $$("[data-msrm]").forEach(b=>b.onclick=()=>{A.fotos.splice(+b.dataset.msrm,1);redrawMs()});
   $$("[data-msup]").forEach(up=>up.onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;syncMs();up.parentElement.querySelector("span").textContent="Enviando…";$$("[data-msup]").forEach(z=>z.disabled=true);
-    A.busy=true;const r=await uploadFiles(fs,err);A.busy=false;A.fotos.push(...r);redrawMs()});
+    A.busy=true;const r=await uploadFiles(fs.slice(0,Math.max(0,3-A.fotos.length)),err);A.busy=false;A.fotos.push(...r);redrawMs()});
   $$("[data-mck]").forEach(b=>b.onclick=()=>{syncMs();const c=A.ck[+b.dataset.mck];if(x.k==="log"){c.ok=b.dataset.v==="1";if(c.ok)c.obs=""}else{c.r=b.dataset.v;if(c.r!=="pb")c.obs=""}redrawMs();const f=$("#mck-"+b.dataset.mck);if(f)f.focus()});
   $$("[data-esp]").forEach(b=>b.onclick=()=>{syncMs();A.esp=b.dataset.esp;redrawMs()});
   $$("[data-hr]").forEach(b=>b.onclick=()=>{syncMs();const v=Math.max(0,(Number(numBR(A.hrs))||0)+Number(b.dataset.hr));A.hrs=String(v).replace(".",",");$("#msHrs").value=A.hrs});
   const pa=$("#pcAdd");if(pa)pa.onclick=()=>{syncMs();A.pecas.push({desc:"",qtd:1});redrawMs();const l=$$(".ms-peca input:first-child");if(l.length)l[l.length-1].focus()};
   $$("[data-pcrm]").forEach(b=>b.onclick=()=>{syncMs();A.pecas.splice(+b.dataset.pcrm,1);redrawMs()});
   const fim=$("#msFim");if(fim)fim.onclick=()=>{A.modo="fim";renderMissao()};
+  const sd=$("#msSaida");if(sd)sd.onclick=()=>{S.rt=null;S.rtVeic=o.veiculoId;location.hash="#rota/nova"};
+  const mr=$("#msRota");if(mr)mr.onclick=async()=>{const r=minhaRota();if(!r)return;if(r.status==="saida"){location.hash="#rota/"+r.id;return}
+    let Q;try{Q=horaISO(A,r.inicioEm||r.saidaEm)}catch(e){err.textContent=e.message;return}
+    mr.disabled=true;try{await incluirNaRota(r,o,Q);await salvarRota(r.id,{osIds:[...new Set((r.osIds||[]).concat([o.id]))]});toast("Incluída na rota "+codR(r));S.ms=null;renderMissao()}catch(e){console.error(e);mr.disabled=false;err.textContent=erroRota(e)}};
+  const ap=$("#msAPe");if(ap)ap.onclick=async()=>{let Q;try{Q=horaISO(A)}catch(e){err.textContent=e.message;return}ap.disabled=true;try{await saveOS(o.id,{status:"em_rota",iniciadoEm:Q.iso,atualizadoEm:nowISO(),historico:hist(o,"em_rota","Missão iniciada sem veículo (app de campo)"+Q.nota)});S.ms=null;toast("Missão iniciada");renderMissao()}catch(e){ap.disabled=false;err.textContent=msgErroCampo(e)}};
   const pau=$("#msPau");if(pau)pau.onclick=()=>{A.modo="pausa";renderMissao()};
   const vt=$("#msVolta");if(vt)vt.onclick=()=>{syncMs();A.modo=null;renderMissao()};
   const ret=$("#msRet");if(ret)ret.onclick=async()=>{ret.disabled=true;try{await saveM(o.id,{status:"em_execucao",aguardandoMotivo:null,atualizadoEm:nowISO(),historico:mhist(o,"em_execucao","Serviço retomado pela equipe")});toast("Serviço retomado");S.ms=null;renderMissao()}catch(e){ret.disabled=false;err.textContent=msgErroCampo(e)}};
   const ok=$("#msOk");if(!ok)return;
   ok.onclick=async()=>{syncMs();err.textContent="";if(A.busy){err.textContent="Aguarde a foto terminar de enviar.";return}
-    const now=nowISO();const btn=ok;const txt=btn.innerHTML;const trava=()=>{btn.disabled=true;btn.textContent="Salvando…"};const solta=()=>{btn.disabled=false;btn.innerHTML=txt};
+    let Q;try{Q=A.modo==="pausa"?horaISO(null):horaISO(A,x.k==="log"?(o.status==="agendada"?null:ultimoFeito(o)):A.modo==="fim"?o.iniciadoEm:null)}catch(e){err.textContent=e.message;return}
+    const now=Q.iso,agora=nowISO(),qn=Q.nota;const btn=ok;const txt=btn.innerHTML;const trava=()=>{btn.disabled=true;btn.textContent="Salvando…"};const solta=()=>{btn.disabled=false;btn.innerHTML=txt};
     try{
       if(x.k==="log"&&o.status==="agendada"){
         const sem=A.ck.findIndex(c=>c.ok===null);if(sem>=0){err.textContent="Toque em OK ou Problema em: "+A.ck[sem].nome+".";return}
@@ -2967,36 +3082,37 @@ function bindMissao(x){
         let km=null;if(o.veiculoId){const t=String(A.km||"").trim();if(!t){err.textContent="Informe a quilometragem do painel.";return}km=Math.round(Number(t));if(!isFinite(km)||km<0){err.textContent="Quilometragem inválida.";return}
           const u=ultimoKm(o.veiculoId,o.id);if(u&&km<u.km&&!A.kmOk){A.kmOk=true;err.textContent="O número está menor que o último registrado ("+fKm(u.km)+"). Confira o painel. Se estiver certo, toque de novo.";return}}
         trava();const probs=A.ck.filter(c=>!c.ok).length;
-        await saveOS(o.id,{status:"em_rota",iniciadoEm:now,kmInicial:km,checklist:{itens:A.ck.map(c=>({nome:c.nome,ok:c.ok,obs:(c.obs||"").trim()})),problemas:probs,em:now,por:S.uid||null},atualizadoEm:now,historico:hist(o,"em_rota","Saída do veículo (app de campo)"+(probs?" · checklist com "+probs+" problema"+(probs>1?"s":""):""))});
+        await saveOS(o.id,{status:"em_rota",iniciadoEm:now,kmInicial:km,checklist:{itens:A.ck.map(c=>({nome:c.nome,ok:c.ok,obs:(c.obs||"").trim()})),problemas:probs,em:now,por:S.uid||null},atualizadoEm:agora,historico:hist(o,"em_rota","Saída do veículo (app de campo)"+qn+(probs?" · checklist com "+probs+" problema"+(probs>1?"s":""):""))});
         S.ms=null;toast("Boa viagem! Siga para a primeira parada.");renderMissao();return;
       }
       if(x.k==="log"){
         const ps=JSON.parse(JSON.stringify(paradasDe(o)));const nx=proximaParada(o);const fin=nx<0;const idx=fin?ps.length-1:nx;const p=ps[idx];const ent=p.tipo==="entrega";
-        if(!A.fotos.length){err.textContent="Tire pelo menos uma foto.";return}
         const rec=(A.rec||"").trim();const temSig=(A.sig||[]).some(st=>st.length>1);
+        if((A.obs||"").trim()&&!A.fotos.length){err.textContent="Você relatou um problema: tire uma foto para registrar.";return}
+        if(fin&&ent&&!temSig&&!A.fotos.length){err.textContent="Peça a assinatura de quem recebeu. Se não for possível, tire uma foto da entrega.";return}
         if(fin&&ent&&!rec){err.textContent="Escreva o nome de quem recebeu.";return}
         if(temSig&&!rec){err.textContent="Escreva o nome de quem assinou.";return}
-        let km=null;if(fin&&o.veiculoId){const t=String(A.km||"").trim();if(!t){err.textContent="Informe a quilometragem do painel na chegada.";return}km=Math.round(Number(t));
+        let km=null;if(fin&&o.veiculoId&&!o.rotaId){const t=String(A.km||"").trim();if(!t){err.textContent="Informe a quilometragem do painel na chegada.";return}km=Math.round(Number(t));
           if(!isFinite(km)||km<0){err.textContent="Quilometragem inválida.";return}if(o.kmInicial!=null&&km<o.kmInicial){err.textContent="A chegada ("+fKm(km)+") não pode ser menor que a saída ("+fKm(o.kmInicial)+").";return}
           if(o.kmInicial!=null&&km-o.kmInicial>1500&&!A.kmOk){A.kmOk=true;err.textContent="Deu "+fKm(km-o.kmInicial)+" rodados. Confira o painel. Se estiver certo, toque de novo.";return}}
         trava();let assinatura=null;try{assinatura=await sigUpload(A)}catch(e){solta();err.textContent="Não foi possível enviar a assinatura. Tente de novo.";return}
         Object.assign(p,{status:"feita",feitoEm:now,fotos:A.fotos,assinatura,pessoa:rec,obs:(A.obs||"").trim()});
-        if(fin){await saveOS(o.id,{paradas:ps,status:"concluida",concluidoEm:now,kmFinal:km,conclusao:{fotos:A.fotos,assinatura,recebidoPor:rec,obs:(A.obs||"").trim()},atualizadoEm:now,historico:hist(o,"concluida","Entrega confirmada com foto (app de campo)")});
-          S.ms={key:"fim",id:o.id,fim:"Missão concluída",fotos:[],sig:[]};renderMissao();return}
-        await saveOS(o.id,{paradas:ps,atualizadoEm:now,historico:hist(o,"em_rota",(ent?"Entrega":"Retirada")+" em "+nomeLocal(p.localId)+" registrada com foto (parada "+(idx+1)+", app de campo)")});
+        if(fin){await saveOS(o.id,{paradas:ps,status:"concluida",concluidoEm:now,kmFinal:km,conclusao:{fotos:A.fotos,assinatura,recebidoPor:rec,obs:(A.obs||"").trim()},atualizadoEm:agora,historico:hist(o,"concluida","Entrega confirmada (app de campo)"+qn)});
+          S.ms={key:"fim",id:o.id,fim:"Missão concluída",rota:o.rotaId||null,fotos:[],sig:[]};renderMissao();return}
+        await saveOS(o.id,{paradas:ps,atualizadoEm:agora,historico:hist(o,"em_rota",(ent?"Entrega":"Retirada")+" em "+nomeP(p)+" registrada (parada "+(idx+1)+", app de campo)"+qn)});
         S.ms=null;toast((ent?"Entrega":"Retirada")+" registrada. Siga para a próxima parada.");renderMissao();return;
       }
       if(o.status==="agendada"){trava();
-        await saveM(o.id,{status:"em_execucao",iniciadoEm:now,fotosAntes:(o.fotosAntes||[]).concat(A.fotos),atualizadoEm:now,historico:mhist(o,"em_execucao","Serviço iniciado (app de campo)"+(A.fotos.length?" com foto do antes":""))});
+        await saveM(o.id,{status:"em_execucao",iniciadoEm:now,fotosAntes:(o.fotosAntes||[]).concat(A.fotos),atualizadoEm:agora,historico:mhist(o,"em_execucao","Serviço iniciado (app de campo)"+(A.fotos.length?" com foto do antes":"")+qn)});
         S.ms=null;toast("Serviço iniciado");renderMissao();return}
       if(A.modo==="pausa"){if(!A.esp){err.textContent="Escolha o motivo.";return}trava();const mot=A.esp+((A.det||"").trim()?": "+A.det.trim():"");
-        await saveM(o.id,{status:"aguardando",aguardandoMotivo:mot,atualizadoEm:now,historico:mhist(o,"aguardando",mot+" (app de campo)")});
+        await saveM(o.id,{status:"aguardando",aguardandoMotivo:mot,atualizadoEm:agora,historico:mhist(o,"aguardando",mot+" (app de campo)")});
         S.ms={key:"fim",id:o.id,fim:"Serviço pausado",fotos:[],sig:[]};renderMissao();return}
       if(A.modo==="fim"){
         const sr=(A.ck||[]).findIndex(c=>!c.r);if(sr>=0){err.textContent="Responda o checklist: "+A.ck[sr].nome+".";return}
         const so=(A.ck||[]).findIndex(c=>c.r==="pb"&&!(c.obs||"").trim());if(so>=0){err.textContent="Escreva qual é o problema em: "+A.ck[so].nome+".";return}
         if(!(A.sol||"").trim()){err.textContent="Conte em poucas palavras o que você fez.";return}
-        if(!A.fotos.length){err.textContent="Tire pelo menos uma foto do serviço pronto.";return}
+        if((A.ck||[]).some(c=>c.r==="pb")&&!A.fotos.length){err.textContent="Há problema no checklist: tire uma foto para registrar.";return}
         const ht=String(A.hrs||"").trim();const hrs=ht===""?null:numBR(ht);if(ht!==""&&(hrs===""||hrs<0||hrs>500)){err.textContent="Horas inválidas. Ex.: 1,5";return}
         const rec=(A.rec||"").trim();if((A.sig||[]).some(st=>st.length>1)&&!rec){err.textContent="Escreva o nome de quem assinou.";return}
         trava();let assinatura=null;try{assinatura=await sigUpload(A)}catch(e){solta();err.textContent="Não foi possível enviar a assinatura. Tente de novo.";return}
@@ -3004,12 +3120,35 @@ function bindMissao(x){
         const probs=(A.ck||[]).filter(c=>c.r==="pb").length;
         await saveM(o.id,{status:"concluida",concluidoEm:now,iniciadoEm:o.iniciadoEm||now,solucao:A.sol.trim(),fotosDepois:A.fotos,custos:(o.custos||[]).concat(pecas),horasTrabalho:hrs,assinatura,recebidoPor:rec||null,aguardandoMotivo:null,
           checklist:(A.ck||[]).length?{itens:A.ck.map(c=>({nome:c.nome,r:c.r,obs:(c.obs||"").trim()})),problemas:probs,em:now}:o.checklist||null,
-          atualizadoEm:now,historico:mhist(o,"concluida","Serviço concluído com foto (app de campo)"+(pecas.length?" · "+pecas.length+" peça"+(pecas.length>1?"s":"")+" informada"+(pecas.length>1?"s":""):""))});
+          atualizadoEm:agora,historico:mhist(o,"concluida","Serviço concluído (app de campo)"+qn+(pecas.length?" · "+pecas.length+" peça"+(pecas.length>1?"s":"")+" informada"+(pecas.length>1?"s":""):""))});
         S.ms={key:"fim",id:o.id,fim:"Serviço concluído",fotos:[],sig:[]};renderMissao();return}
     }catch(e){console.error(e);solta();err.textContent=msgErroCampo(e)}
   };
 }
-const msgErroCampo=e=>/equipe de campo|não permitida|row-level/i.test((e&&e.message)||"")?"Esta missão foi alterada pela coordenação. Volte para Minhas missões e abra de novo.":"Não foi possível salvar. Confira a internet e tente de novo.";
+const msgErroCampo=e=>{const m=(e&&e.message)||"";return /horário informado/i.test(m)?m:/equipe de campo|não permitida|row-level/i.test(m)?"Esta missão foi alterada pela coordenação. Volte para Minhas missões e abra de novo.":"Não foi possível salvar. Confira a internet e tente de novo. Se ficou sem sinal, você pode informar o horário certo depois."};
+
+/* ---------- horário informado à mão (celular sem bateria ou sem internet) ----------
+   Q é o estado da tela: Q.qOn (abriu o campo) e Q.quando (valor do datetime-local).
+   Vale até 7 dias para trás, nunca no futuro e nunca antes da etapa anterior. */
+function horaHTML(Q,txt,min){
+  if(!Q.qOn)return `<button type="button" class="ms-link qd-l" id="qdOn">${ic("clock","ic sm")} Aconteceu em outro horário?</button>`;
+  return `<div class="ms-box qd"><label class="ms-lbl" for="qdIn">${esc(txt||"Quando aconteceu?")}</label>
+    <input class="ms-in big num" id="qdIn" type="datetime-local" value="${esc(Q.quando||"")}" max="${esc(toInput(nowISO()))}" min="${esc(toInput(min&&Date.now()-T(min)<7*DIA_MS?min:new Date(Date.now()-7*DIA_MS).toISOString()))}">
+    <span class="hint">Use quando o celular ficou sem bateria ou sem internet. Pode ser até 7 dias atrás${min?", depois de "+esc(fDH(min)):""}. Fica marcado no histórico como horário informado.</span>
+    <button type="button" class="ms-link" id="qdOff">Foi agora</button></div>`}
+function bindHora(Q,redraw){
+  const on=$("#qdOn");if(on)on.onclick=()=>{Q.qOn=true;Q.quando=Q.quando||toInput(nowISO());redraw();const i=$("#qdIn");if(i)i.focus()};
+  const off=$("#qdOff");if(off)off.onclick=()=>{Q.qOn=false;Q.quando="";redraw()};
+  const i=$("#qdIn");if(i)i.oninput=i.onchange=()=>{Q.quando=i.value}}
+// devolve {iso, manual, nota} ou lança erro com mensagem para o usuário
+function horaISO(Q,min){
+  if(!Q||!Q.qOn||!Q.quando)return {iso:nowISO(),manual:false,nota:""};
+  const t=new Date(Q.quando).getTime();if(!isFinite(t))throw new Error("Informe o dia e a hora do horário informado.");
+  if(t>Date.now()+5*60000)throw new Error("O horário informado está no futuro.");
+  if(Date.now()-t>7*DIA_MS)throw new Error("O horário informado tem mais de 7 dias. Fale com a coordenação.");
+  // compara por minuto: quem digita 10:35 para algo feito às 10:35:40 não pode levar erro
+  if(min&&t<Math.floor(T(min)/60000)*60000)throw new Error("O horário informado é antes da etapa anterior ("+fDH(min)+").");
+  const iso=new Date(min?Math.max(t,T(min)):t).toISOString();return {iso,manual:true,nota:" · horário informado: "+fDH(iso)}}
 
 /* =====================================================================
    NOVA OS PASSO A PASSO · uma pergunta por tela
@@ -3076,7 +3215,7 @@ function bindFotosWz(d){$$("[data-msrm]").forEach(b=>b.onclick=()=>{PASSOS_MAN[0
 
 /* ---------- resumo ---------- */
 function resumoWz(){const d=W.d;const L=[];const linha=(i,t,v)=>L.push(`<div class="wz-res"><span><small>${esc(t)}</small><b>${v}</b></span><button type="button" class="ms-link" data-wzgo="${i}">Alterar</button></div>`);
-  if(W.kind==="log"){linha(0,"Sai de",d.ret.map(p=>esc(nomeLocal(p.localId))+(p.detalhe?" · "+esc(p.detalhe):"")).join("<br>"));linha(1,"Vai para",d.ent.map(p=>esc(nomeLocal(p.localId))+(p.detalhe?" · "+esc(p.detalhe):"")).join("<br>"));
+  if(W.kind==="log"){linha(0,"Sai de",d.ret.map(p=>esc(nomeP(p))+(p.detalhe&&p.localId?" · "+esc(p.detalhe):"")).join("<br>"));linha(1,"Vai para",d.ent.map(p=>esc(nomeP(p))+(p.detalhe&&p.localId?" · "+esc(p.detalhe):"")).join("<br>"));
     linha(2,"O que vai",esc(d.oQue||"").replace(/\n/g,"<br>")+"<br><small>carga "+(d.carga==="pesada"?"pesada":"leve")+"</small>"+(d.solicitante?"<br><small>pedido por "+esc(d.solicitante)+"</small>":""));
     linha(3,"Quando e quem vai",esc(d.quando?quandoTxt(d.quando):"Sem data")+"<br>"+esc(d.equipeIds.length?nomeEquipe(d.equipeIds):"Equipe a definir")+" · "+esc(d.veiculoId?nomeVeic(d.veiculoId):"sem veículo"));
     const pronta=d.quando&&d.equipeIds.length&&d.veiculoId;L.push(`<p class="wz-note">${pronta?"A OS entra como <b>agendada</b> e aparece no celular de "+esc(nomeEquipe(d.equipeIds))+".":"A OS fica <b>registrada</b>. Para agendar, defina data, equipe e veículo."}</p>`)}
@@ -3702,8 +3841,9 @@ const manInfra=()=>S.manutencoes.filter(m=>!ehFrotaM(m));
 const osFrota=()=>S.manutencoes.filter(ehFrotaM);
 const F_OS_ST=[["abertas","Em aberto"],["aberto","Novas"],["agendada","Agendadas"],["em_execucao","Em execução"],["aguardando","Aguardando"],["concluida","Concluídas"],["cancelada","Canceladas"],["todas","Todas"]];
 function renderFOs(){
-  const st=S.fost||"abertas",vf=S.fveic||"";
-  const L=osFrota().filter(m=>(!vf||m.veiculoId===vf)&&(st==="todas"||(st==="abertas"?MABERTOS.includes(m.status):m.status===st))).sort((a,b)=>
+  const st=S.fost||"abertas",vf=S.fveic||"",fd=S.fdia||"",fc=S.fdcat||"tudo";
+  const L0=osFrota().filter(m=>(!vf||m.veiculoId===vf)&&(fd?(c=>c&&(fc==="tudo"||c===fc))(diaCat(m,fd,true)):(st==="todas"||(st==="abertas"?MABERTOS.includes(m.status):m.status===st))));
+  const L=fd?ordenaDia(L0,fd,true):L0.sort((a,b)=>
     (MABERTOS.includes(a.status)?0:1)-(MABERTOS.includes(b.status)?0:1)||(({urgente:0,alta:1,normal:2,baixa:3})[a.prioridade||"normal"]-({urgente:0,alta:1,normal:2,baixa:3})[b.prioridade||"normal"])||T(b.criadoEm)-T(a.criadoEm));
   const ab=osFrota().filter(m=>MABERTOS.includes(m.status)),atr=ab.filter(mAtrasada),nov=ab.filter(m=>m.status==="aberto");
   const mes=dayKey(new Date()).slice(0,7),concMes=osFrota().filter(m=>m.status==="concluida"&&String(m.concluidoEm||"").slice(0,7)===mes);
@@ -3718,11 +3858,13 @@ function renderFOs(){
       <div class="field" style="margin-top:10px"><label for="fonTit" class="req">O que precisa ser feito</label><input type="text" id="fonTit" maxlength="160" placeholder="Ex.: Trocar pastilhas de freio" value="${esc(F.tit||"")}"></div>
       <div class="field" style="margin-top:10px"><label for="fonD">Detalhes</label><textarea id="fonD" rows="3" placeholder="Opcional: sintomas, barulho, onde está o veículo, oficina sugerida…">${esc(F.d||"")}</textarea></div>
       <p class="err" id="fonErr" role="alert"></p><div class="actions"><button class="btn pri" type="button" id="fonOk">${F.id?"Salvar":"Abrir OS"}</button><button class="btn ghost" type="button" id="fonX">Cancelar</button></div></div></section>`;
-  h+=`<div class="filters"><div class="field"><label for="fosS">Situação</label><select id="fosS">${optsS(F_OS_ST,st)}</select></div>
+  h+=diaBarHTML("f",fd)+(fd?diaSegsHTML("f",osFrota().filter(m=>!vf||m.veiculoId===vf),fd,fc,true):"");
+  h+=`<div class="filters">${fd?"":`<div class="field"><label for="fosS">Situação</label><select id="fosS">${optsS(F_OS_ST,st)}</select></div>`}
     <div class="field"><label for="ffV">Veículo</label><select id="ffV"><option value="">Todos os veículos</option>${vs.map(v=>`<option value="${esc(v.id)}"${vf===v.id?" selected":""}>${esc(nomeV(v))}</option>`).join("")}</select></div></div>`;
-  h+=L.length?`<div class="list">${L.map(mRowHTML).join("")}</div>`:`<div class="empty"><h3>Nenhuma OS ${st==="abertas"?"em aberto":"nesta situação"}</h3><p>${st==="abertas"?"Tudo em dia com os veículos.":"Mude a situação ou o veículo."}</p></div>`;
+  h+=L.length?`<div class="list">${L.map(mRowHTML).join("")}</div>`:`<div class="empty"><h3>Nenhuma OS ${fd?"neste dia":st==="abertas"?"em aberto":"nesta situação"}</h3><p>${fd?"Escolha outro dia ou Todos os dias.":st==="abertas"?"Tudo em dia com os veículos.":"Mude a situação ou o veículo."}</p></div>`;
   app.innerHTML=h;bindMOpen(app);
-  $("#fosS").onchange=e=>{S.fost=e.target.value;renderFOs()};
+  const fss=$("#fosS");if(fss)fss.onchange=e=>{S.fost=e.target.value;renderFOs()};
+  bindDiaBar("f",v=>{S.fdia=v;if(!v)S.fdcat="tudo";renderFOs()});$$("[data-fdcat]").forEach(b=>b.onclick=()=>{S.fdcat=b.dataset.fdcat;renderFOs()});
   $("#ffV").onchange=e=>{S.fveic=e.target.value||null;renderFOs()};
   const nb=$("#fonB");if(nb)nb.onclick=()=>{S.fon=S.fon?null:{v:S.fveic||""};renderFOs();const t=$("#fonV");if(t)t.focus()};
   if(F){const lerF=()=>({v:$("#fonV").value,t:$("#fonT").value,p:$("#fonP").value,tit:$("#fonTit").value.trim(),d:$("#fonD").value.trim()});
@@ -3753,7 +3895,7 @@ const emgLista=a=>a==="log"?S.os.filter(o=>o.emergencial):a==="man"?manInfra().f
 const emgTodasArea=a=>a==="log"?S.os:a==="man"?manInfra():osFrota();
 const emgK=a=>a==="log"?"log":"man";
 const emgCod=(a,o)=>a==="log"?codigo(o):codM(o);
-const emgTit=(a,o)=>a==="log"?(nomeLocal(o.origemId)+" → "+nomeLocal(o.destinoId)+((o.itens||[])[0]&&o.itens[0].desc?" · "+o.itens[0].desc:"")):tituloM(o);
+const emgTit=(a,o)=>a==="log"?(origemTxt(o)+" → "+destinoTxt(o)+((o.itens||[])[0]&&o.itens[0].desc?" · "+o.itens[0].desc:"")):tituloM(o);
 const podeAvaliar=a=>a==="log"?isLog():a==="man"?isMan():isFrota();
 
 /* ---------- quadro do painel ---------- */
@@ -3807,7 +3949,7 @@ function emgBoxDrawer(k,o){
 function menuCampoHTML(){
   const vs=veicCampo(),pc=vs.filter(v=>prazoConf(v).nivel!=="ok").length,pl=vs.filter(v=>prazoLimpeza(v).nivel!=="ok").length;
   const sub=[pc?plural(pc,"para conferir"):"",pl?plural(pl,"para lavar"):""].filter(Boolean).join(" · ")||"Ver os disponíveis";
-  return `<div class="ms-menu"><a class="ms-mbtn emg" href="#emergencia">${ic("alert","ic lg")}<span><b>Demanda emergencial</b><small>Registrar o que surgiu fora do programado</small></span></a>
+  return `<div class="ms-menu">${ncBtnHTML()}<a class="ms-mbtn emg" href="#emergencia">${ic("alert","ic lg")}<span><b>Demanda emergencial</b><small>Registrar o que surgiu fora do programado</small></span></a>
     ${vs.length?`<a class="ms-mbtn" href="#veiculos">${ic("frota","ic lg")}<span><b>Veículos</b><small>${esc(sub)}</small></span>${pc||pl?`<i class="bdg">${pc+pl}</i>`:""}</a>`:""}</div>`;
 }
 const veicCampo=()=>(typeof veicAtivos==="function"?veicAtivos():S.veiculos.filter(v=>v.ativo!==false)).filter(v=>v.uso!=="Particular do chefe");
@@ -4050,7 +4192,7 @@ function loadDemo(){
   S.solicitantes=[{id:"c1",nome:"Laura Souza",telefone:"(11) 99999-8888",setorId:"s4",ativo:true},{id:"c2",nome:"Marcos Lima",telefone:"(11) 98888-7777",setorId:"s1",ativo:true}];
   S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
     modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];
-  loadDemoMan(); loadDemoFrota(); loadDemoEmg(); loadDemoEfic(); loadDemoPainel();
+  loadDemoMan(); loadDemoFrota(); loadDemoEmg(); loadDemoEfic(); loadDemoPainel(); loadDemoRotas();
   S.relatorios=[{id:pm.getFullYear()+"-"+pad(pm.getMonth()+1),geradoEm:new Date(now-12*86400000).toISOString(),resumo:"Exemplo de fechamento. O volume cresceu puxado por Eventos e Bar, e a rota CD → Mirage concentrou a maior parte das transferências. O tempo de resposta caiu, mas um terço das OS concluídas passou da previsão de término, quase todas em retiradas de fornecedor.",destaques:["Rever a previsão de término das retiradas em fornecedor, que costumam levar mais de 2 h.","Concentrar as entregas CD → Mirage em uma rota fixa pela manhã."]}];
 }
 
@@ -4077,6 +4219,9 @@ function custoOleo(v){const c=nOuNull(v.oleoCusto);if(c!=null)return c;const s=s
 const kmLVeic=(v,carga)=>{const le=nOuNull(v.kmLLeve),pe=nOuNull(v.kmLPesado);return carga==="pesada"?(pe||le):(le||pe)};
 const salarioDe=id=>(S.funcionario_custos||[]).find(x=>x.equipeId===id);
 function custoMissao(o){
+  const pr=partRota(o);
+  if(pr){const c=custoRota(pr.r),s=pr.s,m=v=>v==null?null:v*s;const ex=somaExtras(o.custosExtra);const veic=c.veic*s,eq=c.eq*s;
+    return {km:c.km*s,h:c.h*s,comb:m(c.comb),oleo:m(c.oleo),pneu:m(c.pneu),kml:null,pl:null,detalhado:c.detalhado,veic,eq,ex,total:veic+eq+ex,rota:pr.r,share:s,metodo:pr.metodo}}
   const km=kmRodados(o)||0;const h=o.concluidoEm&&o.iniciadoEm?Math.max(0,tExec(o))/3600000:0;
   const v=o.veiculoId?byId(S.veiculos,o.veiculoId):null;
   let comb=null,oleo=null,pneu=null,kml=null,pl=null;
@@ -4203,8 +4348,8 @@ function renderEficiencia(){
   if(tab==="missoes"&&adm){const L=S.os.filter(o=>o.status==="concluida"&&T(o.concluidoEm)>=a&&T(o.concluidoEm)<b).sort((x,y)=>T(y.concluidoEm)-T(x.concluidoEm));const C=L.map(custoMissao);const sum=k=>C.reduce((s,c)=>s+(c[k]||0),0);const km=sum("km");
     h+=`<div class="kpis">${kpi("Custo total",fBRL(sum("total")),"",plural(L.length,"missão concluída","missões concluídas"),"money-k")}${kpi("Custo médio por missão",L.length?fBRL(sum("total")/L.length):"—","","","money-k")}${kpi("Custo por km",km?fBRL(sum("total")/km):"—","",fNum(km)+" km rodados","money-k")}${kpi("Equipe",fBRL(sum("eq")),"",sum("total")?fNum(sum("eq")/sum("total")*100)+"% do custo":"","money-k")}</div>
       <div class="ef-comp">${[["Equipe (salário por hora)",sum("eq")],["Combustível",sum("comb")],["Óleo e filtro",sum("oleo")],["Pneus",sum("pneu")],["Veículo (custo por km do cadastro)",C.filter(c=>!c.detalhado).reduce((s,c)=>s+c.veic,0)],["Extras (pedágio, estacionamento…)",sum("ex")]].filter(x=>x[1]>0).map(([l,v])=>`<div><span>${esc(l)}</span><b class="num">${fBRL(v)}</b></div>`).join("")}</div>
-      <section class="card"><div class="card-h"><h2>Custo de cada missão</h2><span class="sub">da mais recente para a mais antiga</span></div><div class="card-b tbl-wrap">${L.length?`<table class="t"><thead><tr><th>OS</th><th>Concluída</th><th>Trajeto</th><th>Carga</th><th class="r">Km</th><th class="r">Tempo</th><th class="r">Equipe</th><th class="r">Combustível</th><th class="r">Óleo</th><th class="r">Pneus</th><th class="r">Extras</th><th class="r">Total</th><th class="r">R$/km</th></tr></thead><tbody>
-      ${L.map((o,i)=>{const c=C[i];const d=v=>v!=null&&v>0?fBRL(v):"—";return `<tr><td><button type="button" class="lnk" data-efo="${esc(o.id)}">${esc(codigo(o))}</button></td><td class="num">${esc(fData(o.concluidoEm))}</td><td>${esc(rotaTxt(o))}</td><td>${o.carga==="pesada"?"Pesada":"Leve"}</td><td class="r num">${c.km?fNum(c.km):"—"}</td><td class="r num">${fHrs(c.h)}</td><td class="r num">${d(c.eq)}</td><td class="r num">${c.detalhado?d(c.comb):`<small title="Veículo sem consumo cadastrado: usa o custo por km">${d(c.veic)}*</small>`}</td><td class="r num">${d(c.oleo)}</td><td class="r num">${d(c.pneu)}</td><td class="r num">${d(c.ex)}</td><td class="r num"><b>${fBRL(c.total)}</b></td><td class="r num">${c.km?fBRL(c.total/c.km):"—"}</td></tr>`}).join("")}</tbody></table>`:`<p class="fr-none">Nenhuma missão concluída no período.</p>`}</div></section>
+      <section class="card"><div class="card-h"><h2>Custo de cada missão</h2><span class="sub">da mais recente para a mais antiga</span></div><div class="card-b tbl-wrap">${L.length?`<table class="t"><thead><tr><th>OS</th><th>Concluída</th><th>Trajeto</th><th>Carga</th><th>Rota</th><th class="r">Km</th><th class="r">Tempo</th><th class="r">Equipe</th><th class="r">Combustível</th><th class="r">Óleo</th><th class="r">Pneus</th><th class="r">Extras</th><th class="r">Total</th><th class="r">R$/km</th></tr></thead><tbody>
+      ${L.map((o,i)=>{const c=C[i];const d=v=>v!=null&&v>0?fBRL(v):"—";return `<tr><td><button type="button" class="lnk" data-efo="${esc(o.id)}">${esc(codigo(o))}</button></td><td class="num">${esc(fData(o.concluidoEm))}</td><td>${esc(rotaTxt(o))}</td><td>${o.carga==="pesada"?"Pesada":"Leve"}</td><td>${c.rota?esc(codR(c.rota))+" · "+fNum(c.share*100)+"%":"—"}</td><td class="r num">${c.km?fNum(c.km,1):"—"}</td><td class="r num">${fHrs(c.h)}</td><td class="r num">${d(c.eq)}</td><td class="r num">${c.detalhado?d(c.comb):`<small title="Veículo sem consumo cadastrado: usa o custo por km">${d(c.veic)}*</small>`}</td><td class="r num">${d(c.oleo)}</td><td class="r num">${d(c.pneu)}</td><td class="r num">${d(c.ex)}</td><td class="r num"><b>${fBRL(c.total)}</b></td><td class="r num">${c.km?fBRL(c.total/c.km):"—"}</td></tr>`}).join("")}</tbody></table>`:`<p class="fr-none">Nenhuma missão concluída no período.</p>`}</div></section>
       <section class="card"><div class="card-h"><h2>Como o custo é calculado</h2></div><div class="card-b ef-como">
         <p><b>Equipe:</b> tempo da missão × custo por hora de cada pessoa escalada. Custo por hora = salário × (1 + encargos) ÷ horas trabalhadas no mês.</p>
         <p><b>Combustível:</b> km da missão ÷ km por litro do veículo (vazio/leve ou carregado/pesado, conforme a carga) × preço do litro do último lançamento.</p>
@@ -4275,55 +4420,94 @@ const TVI={pin:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 
 const tvi=(k,c)=>`<svg class="${c||"tvi"}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TVI[k]}</svg>`;
 const avatares=ids=>(ids||[]).slice(0,3).map(id=>{const p=byId(S.equipe,id);return `<span class="tv-av" title="${esc(p?p.nome:"")}">${esc(iniciais(p?p.nome:"?"))}</span>`}).join("")+((ids||[]).length>3?`<span class="tv-av mais">+${ids.length-3}</span>`:"");
 function consumoPrazo(m){const ini=T(m.criadoEm),fim=prazoM(m);if(!isFinite(ini)||!isFinite(fim)||fim<=ini)return null;return Math.max(0,Math.min(1,(Date.now()-ini)/(fim-ini)))}
-function tvCard(m,k){const pz=prazoFalta(m);const late=k!=="feita"&&m.status!=="concluida"&&pz.late;const pr=m.prioridade||"normal";const c=consumoPrazo(m);
-  const nivel=late?"r":c==null?"":c>=.85?"r":c>=.6?"a":"g";
-  const eq=(m.equipeIds||[]).length?nomeEquipe(m.equipeIds):"";
-  return `<article class="tv-c p-${pr}${late?" atr":""}${m.status==="aguardando"?" hold":""}" data-tvc>
-    <div class="tv-c1"><span class="tv-cod num">${esc(codM(m))}</span><span class="tv-p p-${pr}">${PRIO_COR[pr]||"Média"}</span>${m.emergencial?`<span class="tv-p emg">Emergência</span>`:""}${m.tipo==="preventiva"?`<span class="tv-p prev">Preventiva</span>`:""}${m.categoria?`<span class="tv-cat">${esc(m.categoria)}</span>`:""}</div>
-    <h4 class="tv-t">${esc(tituloCurto(m))}</h4>
-    <p class="tv-l">${tvi("pin")}<span>${esc(ondeM(m)||"Local não informado")}</span></p>
-    ${k==="fazer"?`<div class="tv-pz ${nivel}">${c!=null?`<div class="tv-bar"><i style="width:${Math.round((late?1:c)*100)}%"></i></div>`:""}<span class="tv-pzt">${late?tvi("alerta"):tvi("clock")}${esc(pz.txt)}</span></div>
-      ${m.executor==="terceiro"?`<p class="tv-q">Prestador · ${esc(m.prestadorId&&nomePrest(m.prestadorId)!=="—"?nomePrest(m.prestadorId):"a definir")}</p>`:eq?`<p class="tv-q">Indicado · ${esc(eq)}</p>`:""}`
-    :k==="exec"?`<div class="tv-eq">${avatares(m.equipeIds)}<b>${esc(eq||"Equipe")}</b></div>
-      <div class="tv-pz ${m.status==="aguardando"?"a":late?"r":""}"><span class="tv-pzt">${m.status==="aguardando"?tvi("alerta")+"Pausada · "+esc(m.aguardandoMotivo||""):tvi("run")+"Em execução há "+esc(desde(m.iniciadoEm))}</span>${late?`<span class="tv-tag r">Prazo vencido</span>`:""}</div>`
-    :`<div class="tv-eq">${avatares(m.equipeIds)}<b>${esc(eq||executorTxt(m))}</b></div>
-      <div class="tv-pz g"><span class="tv-pzt">${tvi("ok")}Finalizada às ${esc(fHora(m.concluidoEm))}${dayKey(m.concluidoEm)!==dayKey(new Date())?" de ontem":""}</span>${isFinite(prazoM(m))&&T(m.concluidoEm)>prazoM(m)?`<span class="tv-tag a">Fora do prazo</span>`:""}</div>`}
-  </article>`}
+/* TV estilo painel de aeroporto: quadro escuro, linhas que viram página a cada 12 s,
+   finalizadas ao lado e letreiro correndo embaixo. */
+const TV_PG_MS=12000;let tvPgTimer=null,tvClockTimer=null;const tvT0=Date.now();
+function tvSit(m){const late=prazoFalta(m).late;
+  if(late)return {k:"atr",t:"Atrasada",s:m.status==="em_execucao"?"em execução":m.status==="aguardando"?"pausada":"esperando início"};
+  if(m.status==="em_execucao")return {k:"exe",t:"Em execução",s:"há "+desde(m.iniciadoEm)};
+  if(m.status==="aguardando")return {k:"pau",t:"Pausada",s:m.aguardandoMotivo||""};
+  return {k:"agu",t:"Aguardando",s:m.status==="agendada"?"programada":"na fila"}}
+function tvResp(m){if(m.executor==="terceiro"){const n=m.prestadorId?nomePrest(m.prestadorId):"";return "Prestador"+(n&&n!=="—"?" · "+n:"")}
+  return (m.equipeIds||[]).length?nomeEquipe(m.equipeIds):"A definir"}
+function tvLinha(m){const pr=m.prioridade||"normal",st=tvSit(m),pz=prazoFalta(m);const extra=[m.categoria,m.emergencial?"Emergência":"",m.tipo==="preventiva"?"Preventiva":""].filter(Boolean).join(" · ");
+  return `<div class="tvb-r p-${pr} s-${st.k}" data-tvr>
+    <span class="c-pr"><i aria-hidden="true"></i>${esc(PRIO_COR[pr]||"Média")}</span>
+    <span class="c-os num">${esc(codM(m))}</span>
+    <span class="c-sv"><b>${esc(tituloCurto(m))}</b>${extra?`<small>${esc(extra)}</small>`:""}</span>
+    <span class="c-lc">${esc(ondeM(m)||"Local não informado")}</span>
+    <span class="c-rp${(m.equipeIds||[]).length||m.executor==="terceiro"?"":" vz"}">${esc(tvResp(m))}</span>
+    <span class="c-pz num${pz.late?" lt":pz.perto?" perto":""}">${esc(pz.txt)}</span>
+    <span class="c-st"><b>${esc(st.t)}</b>${st.s?`<small>${esc(st.s)}</small>`:""}</span></div>`}
+function tvFeita(m){const ok=!isFinite(prazoM(m))||T(m.concluidoEm)<=prazoM(m);
+  return `<li data-tvf><span class="f-h num">${esc(fHora(m.concluidoEm))}${dayKey(m.concluidoEm)!==dayKey(new Date())?"<small>ontem</small>":""}</span>
+    <span class="f-t"><b><span class="num">${esc(codM(m))}</span> · ${esc(tituloCurto(m))}</b><small>${esc((m.equipeIds||[]).length?nomeEquipe(m.equipeIds):executorTxt(m))}</small></span>
+    <span class="f-s ${ok?"ok":"fp"}">${ok?"No prazo":"Fora do prazo"}</span></li>`}
+function tvTicker(P){const it=[];
+  P.exec.filter(m=>m.status==="em_execucao").forEach(m=>it.push(`<b>${esc(codM(m))}</b> ${esc(tituloCurto(m))} · ${esc(nomeEquipe(m.equipeIds)||"equipe")} · em execução há ${esc(desde(m.iniciadoEm))}`));
+  P.exec.filter(m=>m.status==="aguardando").forEach(m=>it.push(`<b>${esc(codM(m))}</b> pausada · ${esc(m.aguardandoMotivo||"aguardando")}`));
+  P.feitas.slice(0,6).forEach(m=>it.push(`<b>${esc(codM(m))}</b> finalizada às ${esc(fHora(m.concluidoEm))} · ${esc(tituloCurto(m))}`));
+  const atr=P.aFazer.concat(P.exec).filter(m=>prazoFalta(m).late);if(atr.length)it.unshift(`<b class="r">${atr.length} ${atr.length>1?"OS atrasadas":"OS atrasada"}</b> ${esc(atr.slice(0,4).map(codM).join(", "))}`);
+  if(!it.length)it.push("Facilities Grupo Monte Carlo · Central de Manutenção");
+  return it}
 function renderMTv(){
   if(!podeDesenhar())return;
-  const P=osPainelMan();const atrF=P.aFazer.filter(m=>prazoFalta(m).late).length,atrE=P.exec.filter(m=>prazoFalta(m).late).length,atr=atrF+atrE;
-  const noPz=P.feitas.filter(m=>isFinite(prazoM(m))&&T(m.concluidoEm)<=prazoM(m)).length;const pct=P.feitas.length?Math.round(noPz/P.feitas.length*100):null;
-  const grupos=["urgente","alta","normal","baixa"].map(k=>[k,P.aFazer.filter(m=>(m.prioridade||"normal")===k)]).filter(g=>g[1].length);
+  const P=osPainelMan();const late=m=>prazoFalta(m).late;
+  const L=P.aFazer.concat(P.exec).sort((a,b)=>(late(b)-late(a))||(PRIO_ORD[a.prioridade]??2)-(PRIO_ORD[b.prioridade]??2)||prazoM(a)-prazoM(b));
+  const atr=L.filter(late).length;const pausa=P.exec.filter(m=>m.status==="aguardando").length;
+  const noPz=P.feitas.filter(m=>!isFinite(prazoM(m))||T(m.concluidoEm)<=prazoM(m)).length;const pct=P.feitas.length?Math.round(noPz/P.feitas.length*100):null;
   const agora=new Date();const atual=S.demo?agora:new Date(S.ultimaAtual||agora);
-  const kpi2=(ico,l,v,sub,cls)=>`<div class="tv-k ${cls||""}"><span class="tv-ki">${tvi(ico)}</span><div><span class="tv-kl">${l}</span><b class="num">${v}</b><small>${sub}</small></div></div>`;
-  let h=`<div class="tv">
+  const k=(v,l,cls)=>`<div class="tvk ${cls||""}"><b class="num">${v}</b><span>${l}</span></div>`;
+  const tk=tvTicker(P);const tkH=tk.map(x=>`<span>${x}</span>`).join("");const dur=Math.max(30,Math.round(tk.join(" ").replace(/<[^>]+>/g,"").length/7));
+  app.innerHTML=`<div class="tv tvx">
   <header class="tv-h">
-    <svg class="tv-diag" viewBox="0 0 600 140" preserveAspectRatio="xMaxYMin slice" aria-hidden="true"><line x1="240" y1="0" x2="600" y2="300" stroke="#C7932D" stroke-opacity=".18" stroke-width="1.4"/><line x1="360" y1="0" x2="600" y2="200" stroke="#C7932D" stroke-opacity=".18" stroke-width="1.4"/><line x1="470" y1="0" x2="600" y2="108" stroke="#C7932D" stroke-opacity=".14" stroke-width="1.4"/></svg>
+    <svg class="tv-diag" viewBox="0 0 600 140" preserveAspectRatio="xMaxYMin slice" aria-hidden="true"><line x1="240" y1="0" x2="600" y2="300" stroke="#C7932D" stroke-opacity=".2" stroke-width="1.4"/><line x1="360" y1="0" x2="600" y2="200" stroke="#C7932D" stroke-opacity=".2" stroke-width="1.4"/><line x1="470" y1="0" x2="600" y2="108" stroke="#C7932D" stroke-opacity=".15" stroke-width="1.4"/></svg>
     <img class="tv-logo" src="assets/logo-assinatura.svg" alt="Monte Carlo">
     <span class="tv-sep" aria-hidden="true"></span>
     <div class="tv-tit"><h1>Central de <em>Manutenção</em></h1><p>${esc((t=>t.charAt(0).toUpperCase()+t.slice(1))(agora.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})))}</p></div>
-    <div class="tv-live"><i aria-hidden="true"></i><span>Ao vivo</span><small>atualizado ${esc(fHora(atual.toISOString()))}</small></div>
-    <div class="tv-clock num">${fHora(agora.toISOString())}</div>
+    <div class="tv-live"><span><i aria-hidden="true"></i>Ao vivo</span><small>atualizado ${esc(fHora(atual.toISOString()))}</small></div>
+    <div class="tv-clock num" id="tvClock">${fHora(agora.toISOString())}<small>${String(agora.getSeconds()).padStart(2,"0")}</small></div>
     ${S.role!=="tv"?`<a class="tv-x" href="#m-ordens">Sair da TV</a>`:""}
   </header>
-  <div class="tv-kpis">
-    ${kpi2("fila","A fazer",P.aFazer.length,grupos.map(([k,l])=>l.length+" "+PRIO_COR[k].toLowerCase()).join(" · ")||"fila vazia")}
-    ${kpi2("run","Em execução",P.exec.length,P.exec.filter(m=>m.status==="aguardando").length?P.exec.filter(m=>m.status==="aguardando").length+" pausada(s)":"equipe em serviço")}
-    ${kpi2("alerta","Atrasadas",atr,atr?(atrF?atrF+" na fila":"")+(atrF&&atrE?" · ":"")+(atrE?atrE+" em execução":""):"tudo dentro do prazo",atr?"alerta":"ok")}
-    ${kpi2("ok","Finalizadas",P.feitas.length,"últimas 24 horas")}
-    ${kpi2("meta","No prazo",pct==null?"—":pct+"%",P.feitas.length?noPz+" de "+P.feitas.length+" em 24 h":"sem finalizadas em 24 h",pct==null?"":pct>=90?"ok":pct<75?"alerta":"")}
+  <div class="tvk-row">
+    ${k(P.aFazer.length,"aguardando início")}${k(P.exec.length-pausa,"em execução","exe")}${k(pausa,"pausadas",pausa?"pau":"")}${k(atr,atr===1?"atrasada":"atrasadas",atr?"atr":"ok")}${k(P.feitas.length,"finalizadas em 24 h","fin")}${k(pct==null?"—":pct+"%","no prazo em 24 h",pct==null?"":pct>=90?"fin":pct<75?"atr":"")}
   </div>
-  <div class="tv-cols">
-    <section class="tv-col fazer"><div class="tv-ch"><h2>A fazer</h2><span class="tv-n num">${P.aFazer.length}</span></div><div class="tv-b">${grupos.length?grupos.map(([k,l])=>`<h3 class="tv-g p-${k}"><i aria-hidden="true"></i>${PRIO_COR[k]}<small>${esc(MPRAZO_TXT[k])}</small><span class="num">${l.length}</span></h3>${l.map(m=>tvCard(m,"fazer")).join("")}`).join(""):`<p class="tv-v">${tvi("ok","tvi lg")}Nenhuma OS esperando</p>`}</div><p class="tv-mais" hidden></p></section>
-    <section class="tv-col exec"><div class="tv-ch"><h2>Em execução</h2><span class="tv-n num">${P.exec.length}</span></div><div class="tv-b">${P.exec.length?P.exec.map(m=>tvCard(m,"exec")).join(""):`<p class="tv-v">${tvi("run","tvi lg")}Ninguém em serviço agora</p>`}</div><p class="tv-mais" hidden></p></section>
-    <section class="tv-col feita"><div class="tv-ch"><h2>Finalizadas</h2><small>24 h</small><span class="tv-n num">${P.feitas.length}</span></div><div class="tv-b">${P.feitas.length?P.feitas.map(m=>tvCard(m,"feita")).join(""):`<p class="tv-v">${tvi("ok","tvi lg")}Nada finalizado nas últimas 24 horas</p>`}</div><p class="tv-mais" hidden></p></section>
-  </div>${S.demo?"":`<button class="tv-out" id="tvSair" type="button">Sair</button>`}</div>`;
-  app.innerHTML=h;
-  $$(".tv-col").forEach(col=>{const b=col.querySelector(".tv-b"),mais=col.querySelector(".tv-mais");const lim=b.getBoundingClientRect().bottom;let n=0;
-    b.querySelectorAll("[data-tvc]").forEach(c=>{if(c.getBoundingClientRect().bottom>lim+1){c.style.visibility="hidden";n++}});
-    if(n){mais.hidden=false;mais.textContent="+ "+n+(n>1?" OS que não cabem na tela":" OS que não cabe na tela")}});
+  <div class="tvx-main">
+    <section class="tvb" aria-label="Ordens em aberto">
+      <div class="tvb-top"><h2>Ordens em aberto</h2><span class="tvb-pg num" id="tvPg"></span></div>
+      <div class="tvb-hd" aria-hidden="true"><span>Prioridade</span><span>OS</span><span>Serviço</span><span>Local</span><span>Responsável</span><span>Prazo</span><span>Situação</span></div>
+      <div class="tvb-body">${L.length?L.map(tvLinha).join(""):`<p class="tvb-v">${tvi("ok","tvi lg")}Nenhuma OS em aberto. Tudo em dia.</p>`}</div>
+      <div class="tvb-prog" aria-hidden="true"><i id="tvProg"></i></div>
+    </section>
+    <aside class="tvf" aria-label="Finalizadas nas últimas 24 horas">
+      <div class="tvb-top"><h2>Finalizadas</h2><span class="tvb-pg">últimas 24 h</span></div>
+      ${P.feitas.length?`<ul class="tvf-l">${P.feitas.map(tvFeita).join("")}</ul><p class="tvf-mais" hidden></p>`:`<p class="tvb-v">${tvi("clock","tvi lg")}Nada finalizado nas últimas 24 horas</p>`}
+    </aside>
+  </div>
+  <div class="tvt" aria-hidden="true"><span class="tvt-lb">${tvi("run")}Agora</span><div class="tvt-w"><div class="tvt-in" style="animation-duration:${dur}s;animation-delay:-${((Date.now()-tvT0)/1000)%dur}s">${tkH}${tkH}</div></div></div>
+  ${S.demo?"":`<button class="tv-out" id="tvSair" type="button">Sair</button>`}</div>`;
+  tvPaginar(false);
+  // finalizadas: esconde o que não cabe
+  const fl=$(".tvf-l");if(fl){const lim=fl.getBoundingClientRect().bottom;let n=0;$$("[data-tvf]",fl).forEach(li=>{if(li.getBoundingClientRect().bottom>lim+1){li.hidden=true;n++}});
+    const fm=$(".tvf-mais");if(n&&fm){fm.hidden=false;fm.textContent="+ "+n+" finalizada"+(n>1?"s":"")}}
   const sx=$("#tvSair");if(sx)sx.onclick=sair;
-  if(!tvTimer)tvTimer=setInterval(()=>{if(S.route!=="m-tv"){clearInterval(tvTimer);tvTimer=null;return}renderMTv()},30000);
+  const vivo=()=>{if(S.route!=="m-tv"){clearInterval(tvTimer);clearInterval(tvPgTimer);clearInterval(tvClockTimer);tvTimer=tvPgTimer=tvClockTimer=null;return false}return true};
+  if(!tvTimer)tvTimer=setInterval(()=>{if(vivo())renderMTv()},30000);
+  if(!tvPgTimer)tvPgTimer=setInterval(()=>{if(!vivo())return;if((S.tvPgs||1)>1){S.tvPg=((S.tvPg||0)+1)%S.tvPgs;tvPaginar(true)}},TV_PG_MS);
+  if(!tvClockTimer)tvClockTimer=setInterval(()=>{if(!vivo())return;const c=$("#tvClock");if(!c)return;const d=new Date();c.innerHTML=fHora(d.toISOString())+"<small>"+String(d.getSeconds()).padStart(2,"0")+"</small>"},1000);
+}
+function tvPaginar(anim){
+  const body=$(".tvb-body");if(!body)return;const rows=$$("[data-tvr]",body);const pg=$("#tvPg"),prog=$("#tvProg");
+  rows.forEach(r=>{r.hidden=false;r.classList.remove("flip")});
+  $$(".tvb-r.vz",body).forEach(x=>x.remove());
+  if(!rows.length||window.innerWidth<900){S.tvPgs=1;S.tvPg=0;if(pg)pg.textContent=rows.length?plural(rows.length,"ordem","ordens"):"";if(prog)prog.parentElement.hidden=true;return}
+  const gap=parseFloat(getComputedStyle(body).rowGap)||0;const rh=rows[0].offsetHeight+gap;const per=Math.max(1,Math.floor((body.clientHeight+gap)/rh));
+  const pgs=Math.ceil(rows.length/per);S.tvPgs=pgs;S.tvPg=(S.tvPg||0)%pgs;
+  rows.forEach((r,i)=>{const on=Math.floor(i/per)===S.tvPg;r.hidden=!on;if(on&&anim){r.style.animationDelay=(i%per)*70+"ms";r.classList.add("flip")}});
+  // completa o quadro com linhas vazias, como o painel do aeroporto
+  const nv=rows.filter(r=>!r.hidden).length;for(let i=nv;i<per;i++){const z=document.createElement("div");z.className="tvb-r vz";z.setAttribute("aria-hidden","true");z.innerHTML="<span></span><span>—</span>";body.appendChild(z)}
+  if(pg)pg.textContent=pgs>1?"Página "+(S.tvPg+1)+" de "+pgs+" · "+plural(rows.length,"ordem","ordens"):plural(rows.length,"ordem","ordens");
+  if(prog){prog.parentElement.hidden=pgs<2;prog.style.animation="none";void prog.offsetWidth;prog.style.animation="tvProg "+TV_PG_MS+"ms linear"}
 }
 
 /* ---------- celular da manutenção ---------- */
@@ -4349,16 +4533,17 @@ function renderMFila(){
 function pessoasMan(m){const cat=m.categoria||"";const eq=S.equipe.filter(p=>p.ativo!==false&&areaDe(p)!=="logistica").sort(sortNome);
   const ind=cat?eq.filter(p=>(p.especialidades||[]).includes(cat)):[];return {ind,outros:eq.filter(p=>!ind.includes(p))}}
 function chipPessoa(p,sel){return `<button type="button" class="chip big" data-px="${esc(p.id)}" aria-pressed="${sel.includes(p.id)}"><b>${esc(p.nome)}</b>${(p.especialidades||[]).length?`<small>${esc(p.especialidades.join(", "))}</small>`:p.funcao?`<small>${esc(p.funcao)}</small>`:""}</button>`}
-async function oficinaAcao(m,acao,pessoas,texto,fotos){
-  if(S.demo){const now=nowISO();const nm=pessoas?nomeEquipe(pessoas):"";
+async function oficinaAcao(m,acao,pessoas,texto,fotos,quando){
+  if(S.demo){const now=quando||nowISO();const nm=pessoas?nomeEquipe(pessoas):"";
     const H=(st,nota)=>(m.historico||[]).concat([{s:st,em:now,nota}]);
-    if(acao==="iniciar")Object.assign(m,{status:"em_execucao",executor:"interno",equipeIds:pessoas,iniciadoEm:m.iniciadoEm||now,triadoEm:m.triadoEm||now,historico:H("em_execucao","Iniciada por "+nm)});
+    if(acao==="iniciar")Object.assign(m,{status:"em_execucao",executor:"interno",equipeIds:pessoas,iniciadoEm:m.iniciadoEm||now,triadoEm:m.triadoEm||now,historico:H("em_execucao","Iniciada por "+nm+(quando?" · horário informado: "+fDH(quando):""))});
     if(acao==="equipe")Object.assign(m,{equipeIds:pessoas,historico:H(m.status,"Equipe: "+nm)});
     if(acao==="pausar")Object.assign(m,{status:"aguardando",aguardandoMotivo:texto,historico:H("aguardando",texto)});
     if(acao==="retomar")Object.assign(m,{status:"em_execucao",aguardandoMotivo:null,historico:H("em_execucao","Retomada")});
-    if(acao==="finalizar")Object.assign(m,{status:"concluida",concluidoEm:now,solucao:texto,fotosDepois:fotos||[],aguardandoMotivo:null,horasTrabalho:Math.round((Date.now()-T(m.iniciadoEm||now))/36000)/100,historico:H("concluida","Finalizada no celular da manutenção")});
+    if(acao==="finalizar")Object.assign(m,{status:"concluida",concluidoEm:now,solucao:texto,fotosDepois:fotos||[],aguardandoMotivo:null,horasTrabalho:Math.round((T(now)-T(m.iniciadoEm||now))/36000)/100,historico:H("concluida","Finalizada no celular da manutenção"+(quando?" · horário informado: "+fDH(quando):""))});
     return m}
-  const {data,error}=await sb.rpc("oficina_acao",{p_id:m.id,p_acao:acao,p_pessoas:pessoas||null,p_texto:texto||null,p_fotos:fotos||null});
+  const arg={p_id:m.id,p_acao:acao,p_pessoas:pessoas||null,p_texto:texto||null,p_fotos:fotos||null};if(quando)arg.p_quando=quando;
+  const {data,error}=await sb.rpc("oficina_acao",arg);
   if(error)throw error;const o=fromDb(data);localUpsertM(m.id,o);return byId(S.manutencoes,m.id)}
 function renderMExec(){
   if(!podeDesenhar())return;
@@ -4378,23 +4563,25 @@ function renderMExec(){
     ${P.ind.length?`<p class="fl-g">Especialistas em ${esc(m.categoria)}</p><div class="chips">${P.ind.map(p=>chipPessoa(p,X.sel)).join("")}</div><p class="fl-g">Outros</p>`:""}<div class="chips">${P.outros.map(p=>chipPessoa(p,X.sel)).join("")||`<span class="hint">Nenhuma pessoa da manutenção cadastrada.</span>`}</div></div>`};
   if(m.status==="concluida"){h+=`<div class="ms-box"><span class="ms-lbl">Feito por</span><b>${esc(nomeEquipe(m.equipeIds)||"—")}</b>${m.solucao?`<p style="margin:6px 0 0;white-space:pre-line">${esc(m.solucao)}</p>`:""}</div>`}
   else if(m.executor==="terceiro"&&!ex){h+=`<div class="ms-box warn">Esta OS é de prestador: ${esc(nomePrest(m.prestadorId)||"a definir")}. A coordenação acompanha.</div>`}
-  else if(!ex){h+=escolher()+`<p class="err" id="oxErr" role="alert"></p><button class="ms-cta" type="button" id="oxIni">${ic("play","ic")}Iniciar o serviço</button>`}
-  else if(X.modo==="fim"){h+=`<div class="ms-box"><span class="ms-lbl">O que foi feito? <i>obrigatório</i></span><textarea id="oxTxt" class="ms-in" rows="3" placeholder="Ex.: troquei o sifão e testei, sem vazamento">${esc(X.txt)}</textarea></div>${fotoCtl("ox",X.fotos,false,"Foto do serviço pronto (opcional)")}<p class="err" id="oxErr" role="alert"></p><button class="ms-cta" type="button" id="oxFim">${ic("ok","ic")}Finalizar a OS</button><button class="ms-cta sec" type="button" id="oxVolta">Voltar</button>`}
+  else if(!ex){h+=escolher()+horaHTML(X,"Quando começaram?")+`<p class="err" id="oxErr" role="alert"></p><button class="ms-cta" type="button" id="oxIni">${ic("play","ic")}Iniciar o serviço</button>`}
+  else if(X.modo==="fim"){h+=`<div class="ms-box"><span class="ms-lbl">O que foi feito? <i>obrigatório</i></span><textarea id="oxTxt" class="ms-in" rows="3" placeholder="Ex.: troquei o sifão e testei, sem vazamento">${esc(X.txt)}</textarea></div>${fotoCtl("ox",X.fotos,false,"Foto do serviço pronto (opcional)")}${horaHTML(X,"Quando terminaram?",m.iniciadoEm)}<p class="err" id="oxErr" role="alert"></p><button class="ms-cta" type="button" id="oxFim">${ic("ok","ic")}Finalizar a OS</button><button class="ms-cta sec" type="button" id="oxVolta">Voltar</button>`}
   else if(X.modo==="pausa"){h+=`<div class="ms-box"><span class="ms-lbl">Por que vai parar?</span><textarea id="oxTxt" class="ms-in" rows="2" placeholder="Ex.: falta peça, local fechado">${esc(X.txt)}</textarea></div><p class="err" id="oxErr" role="alert"></p><button class="ms-cta hold" type="button" id="oxPausa">Pausar</button><button class="ms-cta sec" type="button" id="oxVolta">Voltar</button>`}
   else if(X.modo==="equipe"){h+=escolher()+`<p class="err" id="oxErr" role="alert"></p><button class="ms-cta" type="button" id="oxEq">Salvar quem está fazendo</button><button class="ms-cta sec" type="button" id="oxVolta">Voltar</button>`}
   else{h+=`<div class="ms-box"><span class="ms-lbl">Fazendo</span><b>${esc(nomeEquipe(m.equipeIds))}</b><p style="margin:6px 0 0;color:var(--mute)">Desde ${esc(fHora(m.iniciadoEm))} · há ${esc(desde(m.iniciadoEm))}</p></div><p class="err" id="oxErr" role="alert"></p>
     ${m.status==="aguardando"?`<button class="ms-cta" type="button" id="oxRet">${ic("play","ic")}Retomar o serviço</button>`:`<button class="ms-cta" type="button" id="oxGoFim">${ic("ok","ic")}Finalizar a OS</button><button class="ms-cta sec" type="button" id="oxGoPausa">Preciso parar</button>`}
     <button class="ms-cta sec" type="button" id="oxGoEq">Mudar quem está fazendo</button>`}
   app.innerHTML=h;
-  const err=$("#oxErr");const go=modo=>{X.modo=modo;X.txt="";renderMExec();window.scrollTo(0,document.body.scrollHeight)};
+  const err=$("#oxErr");const go=modo=>{X.modo=modo;X.txt="";X.qOn=false;X.quando="";renderMExec();window.scrollTo(0,document.body.scrollHeight)};
   const run=async(btn,fn)=>{if(!btn)return;btn.onclick=async()=>{err.textContent="";btn.disabled=true;try{await fn();}catch(e){console.error(e);btn.disabled=false;err.textContent=(e&&e.message&&/[a-zà-ú]{4}/i.test(e.message)?e.message:"Não foi possível salvar. Verifique a internet.")}}};
   $$("[data-px]").forEach(b=>b.onclick=()=>{const id=b.dataset.px;X.sel=X.sel.includes(id)?X.sel.filter(x=>x!==id):X.sel.concat([id]);b.setAttribute("aria-pressed",X.sel.includes(id))});
   const tx=$("#oxTxt");if(tx)tx.addEventListener("input",()=>{X.txt=tx.value});
-  run($("#oxIni"),async()=>{if(!X.sel.length)throw new Error("Escolha quem vai fazer.");await oficinaAcao(m,"iniciar",X.sel);toast(codM(m)+" iniciada");S.ox=null;renderMExec()});
+  bindHora(X,()=>{const y=window.scrollY;renderMExec();window.scrollTo(0,y)});
+  const qx=min=>{const q=horaISO(X,min);return q.manual?q.iso:null};
+  run($("#oxIni"),async()=>{if(!X.sel.length)throw new Error("Escolha quem vai fazer.");await oficinaAcao(m,"iniciar",X.sel,null,null,qx());toast(codM(m)+" iniciada");S.ox=null;renderMExec()});
   run($("#oxEq"),async()=>{if(!X.sel.length)throw new Error("Escolha quem está fazendo.");await oficinaAcao(m,"equipe",X.sel);toast("Equipe atualizada");X.modo=null;renderMExec()});
   run($("#oxRet"),async()=>{await oficinaAcao(m,"retomar");toast("Serviço retomado");renderMExec()});
   run($("#oxPausa"),async()=>{if(!X.txt.trim())throw new Error("Diga por que vai parar.");await oficinaAcao(m,"pausar",null,X.txt.trim());toast(codM(m)+" pausada");X.modo=null;renderMExec()});
-  run($("#oxFim"),async()=>{if(!X.txt.trim())throw new Error("Diga o que foi feito.");await oficinaAcao(m,"finalizar",null,X.txt.trim(),X.fotos);toast(codM(m)+" finalizada");S.ox=null;location.hash="#m-fila"});
+  run($("#oxFim"),async()=>{if(!X.txt.trim())throw new Error("Diga o que foi feito.");await oficinaAcao(m,"finalizar",null,X.txt.trim(),X.fotos,qx(m.iniciadoEm));toast(codM(m)+" finalizada");S.ox=null;location.hash="#m-fila"});
   const gf=$("#oxGoFim");if(gf)gf.onclick=()=>go("fim");const gp=$("#oxGoPausa");if(gp)gp.onclick=()=>go("pausa");const ge=$("#oxGoEq");if(ge)ge.onclick=()=>{X.sel=(m.equipeIds||[]).slice();go("equipe")};
   const vt=$("#oxVolta");if(vt)vt.onclick=()=>{X.modo=null;renderMExec()};
   $$("[data-msrm]").forEach(b=>b.onclick=()=>{X.fotos.splice(+b.dataset.msrm,1);renderMExec()});
@@ -4404,6 +4591,265 @@ function renderMExec(){
 function loadDemoPainel(){
   const esp=[["Elétrica","Gerador / energia"],["Hidráulica","Civil / alvenaria"],["Ar-condicionado","Refrigeração"],["Pintura","Marcenaria"],["Manutenção geral"]];let i=0;
   S.equipe.forEach(p=>{if(areaDe(p)!=="logistica"){p.especialidades=esp[i%esp.length];i++}});
+}
+
+/* =====================================================================
+   ROTAS DA LOGÍSTICA · saída, início, fim e devolução do veículo
+   Várias OS no mesmo percurso dividem um custo só.
+   ===================================================================== */
+const CK_SAIDA=["Pneus","Combustível","Limpeza","Luzes e setas","Avarias (lataria e vidros)","Documentos do veículo"];
+const ROTA_ST={saida:"Veículo retirado",em_rota:"Em rota",retorno:"Voltando",devolvida:"Devolvida",cancelada:"Cancelada"};
+const codR=r=>"R-"+String(r&&r.numero||0).padStart(4,"0");
+const rotaAberta=r=>r&&["saida","em_rota","retorno"].includes(r.status);
+function minhaRota(){const id=meuEquipeId();if(!id)return null;return (S.rotas||[]).filter(r=>rotaAberta(r)&&(r.equipeIds||[]).includes(id)).sort((a,b)=>T(b.saidaEm)-T(a.saidaEm))[0]||null}
+const osDaRota=r=>r?S.os.filter(o=>o.rotaId===r.id||(r.osIds||[]).includes(o.id)).filter((o,i,a)=>a.indexOf(o)===i):[];
+function distKm(a,b){if(!a||!b)return null;if(a===b)return 0;const d=(S.distancias||[]).find(x=>(x.localA===a&&x.localB===b)||(x.localA===b&&x.localB===a));return d?Number(d.km):null}
+function pesoOS(o){const ps=paradasDe(o).map(p=>p.localId).filter(Boolean);if(ps.length<2)return null;let s=0;for(let i=1;i<ps.length;i++){const d=distKm(ps[i-1],ps[i]);if(d==null)return null;s+=d}return s>0?s:null}
+function rateio(r){const L=osDaRota(r).filter(o=>o.status!=="cancelada");const out={};if(!L.length)return {out,metodo:""};
+  const pd=L.map(pesoOS);let metodo="distancia",w=pd;
+  if(pd.some(x=>x==null)){metodo="paradas";w=L.map(o=>Math.max(1,paradasDe(o).length))}
+  const tot=w.reduce((s,x)=>s+x,0)||1;L.forEach((o,i)=>out[o.id]=w[i]/tot);return {out,metodo}}
+const rotaKm=r=>{const f=r.kmDevolucao!=null?r.kmDevolucao:r.kmFim;return f!=null&&r.kmSaida!=null&&f>=r.kmSaida?f-r.kmSaida:null};
+const rotaHoras=r=>{const f=r.devolvidoEm||r.fimEm;return f&&r.saidaEm?Math.max(0,T(f)-T(r.saidaEm))/3600000:0};
+function custoRota(r){const km=rotaKm(r)||0,h=rotaHoras(r);const v=r.veiculoId?byId(S.veiculos,r.veiculoId):null;const L=osDaRota(r);
+  const pesada=L.some(o=>o.carga==="pesada");let comb=null,oleo=null,pneu=null;
+  if(v){const kml=kmLVeic(v,pesada?"pesada":"leve"),pl=precoLitro(v.id,r.saidaEm);if(kml&&pl!=null)comb=km/kml*pl;
+    const oc=custoOleo(v);if(oc!=null)oleo=km*oc/(Number(v.oleoIntervaloKm)||10000);
+    if(nOuNull(v.pneuCusto)!=null&&Number(v.pneuVidaKm)>0)pneu=km*Number(v.pneuCusto)/Number(v.pneuVidaKm)}
+  const detalhado=comb!=null||oleo!=null||pneu!=null;const veic=detalhado?(comb||0)+(oleo||0)+(pneu||0):(r.veiculoId?km*custoKmVeic(r.veiculoId):0);
+  const pessoas=[...new Set((r.equipeIds||[]).concat(...L.map(o=>o.equipeIds||[])))];const eq=h*pessoas.reduce((s,id)=>s+custoHoraPessoa(id),0);
+  const ex=L.reduce((s,o)=>s+somaExtras(o.custosExtra),0);
+  return {km,h,comb,oleo,pneu,detalhado,veic,eq,ex,total:veic+eq+ex,pessoas,pesada}}
+function partRota(o){if(!o.rotaId)return null;const r=byId(S.rotas||[],o.rotaId);if(!r||rotaKm(r)==null)return null;const R=rateio(r);const s=R.out[o.id];return s==null?null:{r,s,metodo:R.metodo}}
+
+/* ---------- equipe de campo ---------- */
+function rotaCardHTML(){const r=minhaRota();const id=meuEquipeId();
+  const minhas=S.os.filter(o=>(o.equipeIds||[]).includes(id)&&o.status==="agendada"&&!o.rotaId);
+  if(!r){if(!minhas.some(o=>o.veiculoId))return "";return `<a class="ms-rota" href="#rota/nova">${ic("van","ic lg")}<span><b>Sair com o veículo</b><small>Checklist rápido e km do painel. Depois você escolhe as OS da rota.</small></span><span class="ms-go">›</span></a>`}
+  const L=osDaRota(r),feitas=L.filter(o=>o.status==="concluida").length;
+  const prox=r.status==="saida"?"Começar a rota":r.status==="em_rota"?(L.length&&feitas===L.length?"Terminar a rota":"Ver a rota · "+feitas+" de "+L.length+" feitas"):"Devolver o veículo";
+  return `<a class="ms-rota on" href="#rota/${esc(r.id)}">${ic("van","ic lg")}<span><b>${esc(codR(r))} · ${esc(nomeVeic(r.veiculoId))}</b><small>${esc(ROTA_ST[r.status])} desde ${esc(fHora(r.saidaEm))}</small></span><span class="ms-go">${esc(prox)} ›</span></a>`}
+async function salvarRota(id,dados){
+  if(S.demo){let r=id?byId(S.rotas,id):null;if(!r){r=Object.assign({id:novoId(),numero:(S.rotas||[]).reduce((m,x)=>Math.max(m,x.numero||0),0)+1,status:"saida",saidaEm:nowISO(),checklist:{},osIds:[]},dados);S.rotas.unshift(r)}else Object.assign(r,dados);
+    if(dados.status==="em_rota"&&!r.inicioEm)r.inicioEm=nowISO();if(dados.status==="retorno"&&!r.fimEm)r.fimEm=nowISO();if(dados.status==="devolvida"&&!r.devolvidoEm)r.devolvidoEm=nowISO();
+    const v=byId(S.veiculos,r.veiculoId),k=Math.max(r.kmDevolucao||0,r.kmFim||0,r.kmInicio||0,r.kmSaida||0);if(v&&k&&(v.kmAtual==null||k>v.kmAtual))v.kmAtual=k;return r}
+  const q=id?sb.from("rotas").update(toDb(dados)).eq("id",id):sb.from("rotas").insert(toDb(dados));
+  const {data,error}=await q.select().single();if(error)throw error;const r=fromDb(data);
+  const i=(S.rotas||[]).findIndex(x=>x.id===r.id);if(i>=0)S.rotas[i]=r;else (S.rotas=S.rotas||[]).unshift(r);return r}
+async function incluirNaRota(r,o,Q){const now=nowISO();const ini=Q&&Q.manual?Q.iso:now;
+  if(o.status==="agendada"&&!cienteEm(o))await marcarCiente({k:"log",o});
+  await saveOS(o.id,{status:"em_rota",iniciadoEm:o.iniciadoEm||ini,rotaId:r.id,atualizadoEm:now,historico:hist(o,"em_rota","Saiu na rota "+codR(r)+(r.veiculoId?" com "+nomeVeic(r.veiculoId):"")+" (app de campo)"+((Q&&Q.nota)||""))})}
+function erroRota(e){const m=(e&&e.message)||"";return /rotas_veiculo_aberta/.test(m)?"Este veículo já está em outra rota aberta. Fale com a coordenação.":/rotas_check/.test(m)?"O km não pode ser menor que o anterior.":/schema cache|Could not find|does not exist/.test(m)?"Falta rodar o script 26 no Supabase.":/Failed to fetch|NetworkError|network/i.test(m)?"Sem internet. Confira a conexão e toque de novo.":"Não foi possível salvar. "+m}
+function renderRota(){
+  if(!podeDesenhar())return;
+  const arg=S.routeArg||"";const meu=meuEquipeId();
+  const bar=`<div class="ms-bar"><a class="ms-back" href="#missoes">${ic("back","ic")}Minhas missões</a></div>`;
+  if(arg==="nova"){const ab=minhaRota();if(ab){location.hash="#rota/"+ab.id;return}
+    if(!S.rt||S.rt.k!=="nova"){const prox=S.os.filter(o=>(o.equipeIds||[]).includes(meu)&&o.status==="agendada"&&o.veiculoId).sort((a,b)=>(T(a.agendadoPara)||9e15)-(T(b.agendadoPara)||9e15))[0];
+      const vid=(S.rtVeic&&byId(S.veiculos,S.rtVeic)?S.rtVeic:null)||(prox&&prox.veiculoId)||"";const u=vid?ultimoKm(vid):null;
+      S.rt={k:"nova",vid,ck:CK_SAIDA.map(nome=>({nome,ok:null,obs:""})),km:u?String(u.km):"",fotos:[]}}
+    const A=S.rt;const emUso=new Set((S.rotas||[]).filter(rotaAberta).map(r=>r.veiculoId));
+    let h=bar+`<h1 class="ms-h">Sair com o veículo</h1><p class="ms-sub">Confira o veículo e anote o km do painel.</p>
+      <div class="ms-box"><span class="ms-lbl">Veículo</span><div class="ms-tiles">${veicCampo().map(v=>`<button type="button" class="ms-tile${A.vid===v.id?" on":""}" data-rv="${esc(v.id)}"${emUso.has(v.id)?" disabled":""}><b>${esc(v.nome)}</b><small>${esc(v.placa||"")}${emUso.has(v.id)?" · em uso":""}</small></button>`).join("")}</div></div>
+      <div class="ms-box"><span class="ms-lbl">Checklist rápido</span><button type="button" class="ms-cta sec" id="rtTudo" style="margin:4px 0 10px">${ic("ok","ic")}Tudo OK</button>
+        ${A.ck.map((c,i)=>`<div class="ms-ck"><span>${esc(c.nome)}</span><span class="ms-ckb"><button type="button" class="${c.ok===true?"on ok":""}" data-rck="${i}" data-v="1">OK</button><button type="button" class="${c.ok===false?"on pb":""}" data-rck="${i}" data-v="0">Problema</button></span>${c.ok===false?`<input type="text" class="ms-in" id="rck-${i}" placeholder="O que está com problema?" value="${esc(c.obs||"")}">`:""}</div>`).join("")}</div>
+      ${A.ck.some(c=>c.ok===false)?fotoCtl("rt",A.fotos,true,"Foto do problema"):""}
+      <div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel agora</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}" placeholder="Ex.: 124300"></div>
+      ${horaHTML(A,"Quando você saiu?")}<p class="err" id="rtErr" role="alert"></p><button class="ms-cta" id="rtOk" type="button">${ic("van","ic lg")}Saí com o veículo</button>`;
+    app.innerHTML=`<div class="ms-wrap">${h}</div>`;
+    const sync=()=>{const k=$("#rtKm");if(k)A.km=k.value;A.ck.forEach((c,i)=>{const e=$("#rck-"+i);if(e)c.obs=e.value})};
+    $$("[data-rv]").forEach(b=>b.onclick=()=>{sync();A.vid=b.dataset.rv;const u=ultimoKm(A.vid);A.km=u?String(u.km):"";renderRota()});
+    $("#rtTudo").onclick=()=>{sync();A.ck.forEach(c=>{c.ok=true;c.obs=""});renderRota()};
+    bindHora(A,()=>{sync();const y=window.scrollY;renderRota();window.scrollTo(0,y)});
+    $$("[data-msrm]").forEach(b=>b.onclick=()=>{sync();A.fotos.splice(+b.dataset.msrm,1);renderRota()});
+    $$("[data-msup]").forEach(up=>up.onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;sync();up.parentElement.querySelector("span").textContent="Enviando…";$$("[data-msup]").forEach(z=>z.disabled=true);
+      A.busy=true;const rr=await uploadFiles(fs.slice(0,Math.max(0,3-A.fotos.length)),$("#rtErr"));A.busy=false;A.fotos.push(...rr);renderRota()});
+    $$("[data-rck]").forEach(b=>b.onclick=()=>{sync();const c=A.ck[+b.dataset.rck];c.ok=b.dataset.v==="1";if(c.ok)c.obs="";renderRota();const f=$("#rck-"+b.dataset.rck);if(f)f.focus()});
+    $("#rtOk").onclick=async()=>{sync();const err=$("#rtErr");err.textContent="";
+      if(!A.vid){err.textContent="Escolha o veículo.";return}
+      const sem=A.ck.findIndex(c=>c.ok===null);if(sem>=0){err.textContent="Toque em OK ou Problema em: "+A.ck[sem].nome+". Se estiver tudo certo, toque em Tudo OK.";return}
+      const so=A.ck.findIndex(c=>c.ok===false&&!(c.obs||"").trim());if(so>=0){err.textContent="Escreva qual é o problema em: "+A.ck[so].nome+".";return}
+      if(A.busy){err.textContent="Aguarde a foto terminar de enviar.";return}
+      if(A.ck.some(c=>c.ok===false)&&!A.fotos.length){err.textContent="Tire uma foto do problema para a frota ver.";return}
+      const km=Math.round(Number(String(A.km).trim()));if(!String(A.km).trim()||!isFinite(km)||km<0){err.textContent="Informe o km do painel.";return}
+      let Q;try{Q=horaISO(A)}catch(e){err.textContent=e.message;return}
+      const u=ultimoKm(A.vid);if(u&&km<u.km&&!A.kmOk){A.kmOk=true;err.textContent="O km está menor que o último registrado ("+fKm(u.km)+"). Confira o painel. Se estiver certo, toque de novo.";return}
+      const probs=A.ck.filter(c=>!c.ok).length;const b=$("#rtOk");b.disabled=true;b.textContent="Salvando…";
+      try{const r=await salvarRota(null,{veiculoId:A.vid,equipeIds:[meu],kmSaida:km,saidaEm:Q.iso,obs:Q.manual?"Saída"+Q.nota:null,checklist:{itens:A.ck.map(c=>({nome:c.nome,ok:c.ok,obs:(c.obs||"").trim()})),problemas:probs,fotos:probs?A.fotos:[],em:Q.iso}});
+        S.rt=null;toast(probs?"Saída registrada. O problema foi enviado para a frota.":"Saída registrada. Agora escolha as OS da rota.");location.hash="#rota/"+r.id}
+      catch(e){console.error(e);b.disabled=false;b.innerHTML=ic("van","ic lg")+"Saí com o veículo";err.textContent=erroRota(e)}};
+    return}
+  const r=byId(S.rotas||[],arg);
+  if(!r){app.innerHTML=`<div class="ms-wrap">${bar}<div class="ms-empty"><h2>Rota não encontrada</h2><a class="btn pri" href="#missoes">Voltar</a></div></div>`;return}
+  if(!S.rt||S.rt.k!==r.id+r.status)S.rt={k:r.id+r.status,sel:null,km:""};const A=S.rt;
+  const L=osDaRota(r);const livres=S.os.filter(o=>(o.equipeIds||[]).includes(meu)&&o.status==="agendada"&&!o.rotaId).sort((a,b)=>(T(a.agendadoPara)||9e15)-(T(b.agendadoPara)||9e15));
+  const linhaOS=o=>`<button type="button" class="ms-ro ${o.status}" data-ro="${esc(o.id)}"><span class="ms-ro-c num">${esc(codigo(o))}</span><span class="ms-ro-t">${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(itensResumo(o))}</small></span><span class="ms-ro-s">${o.status==="concluida"?ic("ok","ic sm")+"Feita":"Fazer ›"}</span></button>`;
+  let h=`<div class="ms-bar"><a class="ms-back" href="#missoes">${ic("back","ic")}Minhas missões</a><span class="ms-cod">${esc(codR(r))}</span></div>
+    <p class="ms-sub">${esc(nomeVeic(r.veiculoId))} · ${esc(ROTA_ST[r.status])}</p>
+    <ol class="ms-steps rt" aria-label="Etapas da rota">${[["saida","Saída",r.kmSaida],["em_rota","Início",r.kmInicio],["retorno","Fim",r.kmFim],["devolvida","Devolução",r.kmDevolucao]].map(([k,l,km],i)=>{const f=km!=null;const at=!f&&["saida","em_rota","retorno","devolvida"].indexOf(r.status)+1===i;return `<li class="${f?"f":at?"n":""}"><span>${f?ic("ok","ic sm"):i+1}</span><small>${l}<br>${f?fKm(km):"—"}</small></li>`}).join("")}</ol>`;
+  const err=`<p class="err" id="rtErr" role="alert"></p>`;
+  if(r.status==="saida"){if(A.sel==null)A.sel=livres.filter(o=>!o.veiculoId||o.veiculoId===r.veiculoId).filter(o=>!o.agendadoPara||dayKey(o.agendadoPara)<=dayKey(new Date())).map(o=>o.id);if(!A.km)A.km=String(r.kmSaida!=null?r.kmSaida:"");
+    h+=`<h1 class="ms-h">Começar a rota</h1><div class="ms-box"><span class="ms-lbl">Quais OS vão juntas nesta rota?</span>${livres.length?livres.map(o=>`<label class="ms-chk"><input type="checkbox" data-rsel="${esc(o.id)}"${A.sel.includes(o.id)?" checked":""}><span><b>${esc(codigo(o))}</b> ${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(quandoTxt(o.agendadoPara))} · ${esc(itensResumo(o))}</small></span></label>`).join(""):`<p class="hint">Nenhuma OS programada para você. Fale com a coordenação.</p>`}</div>
+      <div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel no início da rota</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">Na saída: ${esc(fKm(r.kmSaida))}</span></div>
+      ${horaHTML(A,"Quando a rota começou?",r.saidaEm)}${err}<button class="ms-cta" id="rtOk" type="button">${ic("van","ic lg")}Começar a rota</button>`}
+  else if(r.status==="em_rota"){const pend=L.filter(o=>o.status!=="concluida");
+    h+=`<h1 class="ms-h">${pend.length?"Rota em andamento":"Tudo feito! Termine a rota"}</h1><div class="ms-box"><span class="ms-lbl">OS desta rota · ${L.length-pend.length} de ${L.length} feitas</span>${L.map(linhaOS).join("")||`<p class="hint">Nenhuma OS na rota.</p>`}</div>
+      ${livres.length?`<details class="ms-more"${A.add?" open":""}><summary>Incluir outra OS nesta rota</summary>${livres.map(o=>`<button type="button" class="ms-ro add" data-radd="${esc(o.id)}"><span class="ms-ro-c num">${esc(codigo(o))}</span><span class="ms-ro-t">${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(quandoTxt(o.agendadoPara))}</small></span><span class="ms-ro-s">+ Incluir</span></button>`).join("")}</details>`:""}
+      ${ncBtnHTML("Pediram outro serviço no trajeto? Ele entra nesta rota.")}
+      ${pend.length?`${err}<p class="ms-sub" style="text-align:center">Toque em cada OS para registrar retirada e entrega. Quando todas estiverem feitas, aparece o botão para terminar a rota.</p>`:`<div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel no fim da rota</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">No início: ${esc(fKm(r.kmInicio))}</span></div>${horaHTML(A,"Quando a rota terminou?",r.inicioEm)}${err}<button class="ms-cta" id="rtOk" type="button">${ic("ok","ic lg")}Terminei a rota</button>`}`}
+  else if(r.status==="retorno"){
+    h+=`<h1 class="ms-h">Devolver o veículo</h1><div class="ms-box"><span class="ms-lbl">Rota terminada às ${esc(fHora(r.fimEm))}</span>${L.map(linhaOS).join("")}</div>
+      <div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel na devolução</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">No fim da rota: ${esc(fKm(r.kmFim))} · a hora da devolução é registrada sozinha</span></div>
+      ${horaHTML(A,"Quando devolveu o veículo?",r.fimEm)}${err}<button class="ms-cta" id="rtOk" type="button">${ic("ok","ic lg")}Devolvi o veículo</button>`}
+  else{const km=rotaKm(r);h+=`<div class="ms-fim" style="padding-top:12px">${ic("ok","ic xl")}<h1>Rota encerrada</h1><p>${esc(fKm(km||0))} rodados · ${L.length} OS · devolvida às ${esc(fHora(r.devolvidoEm))}</p><a class="ms-cta" href="#missoes">Voltar para minhas missões</a></div>`}
+  app.innerHTML=`<div class="ms-wrap">${h}</div>`;
+  $$("[data-ro]").forEach(b=>b.onclick=()=>{location.hash="#missao/log_"+b.dataset.ro});
+  $$("[data-rsel]").forEach(c=>c.onchange=()=>{const id=c.dataset.rsel;A.sel=c.checked?A.sel.concat([id]):A.sel.filter(x=>x!==id)});
+  const kmI=$("#rtKm");if(kmI)kmI.oninput=()=>{A.km=kmI.value};
+  bindHora(A,()=>{const y=window.scrollY;renderRota();window.scrollTo(0,y)});
+  $$("[data-radd]").forEach(b=>b.onclick=async()=>{const o=byId(S.os,b.dataset.radd);if(!o)return;b.disabled=true;
+    try{await incluirNaRota(r,o);await salvarRota(r.id,{osIds:[...new Set((r.osIds||[]).concat([o.id]))]});toast(codigo(o)+" incluída na rota");S.rt=null;renderRota()}catch(e){console.error(e);b.disabled=false;const er=$("#rtErr");if(er)er.textContent=erroRota(e);else toast(erroRota(e))}});
+  const ok=$("#rtOk");if(!ok)return;
+  ok.onclick=async()=>{const er=$("#rtErr");er.textContent="";const km=Math.round(Number(String(A.km).trim()));
+    if(!String(A.km).trim()||!isFinite(km)||km<0){er.textContent="Informe o km do painel.";return}
+    const ant=r.status==="saida"?r.kmSaida:r.status==="em_rota"?r.kmInicio:r.kmFim;
+    if(ant!=null&&km<ant){er.textContent="O km ("+fKm(km)+") não pode ser menor que o anterior ("+fKm(ant)+").";return}
+    if(ant!=null&&km-ant>800&&!A.kmOk){A.kmOk=true;er.textContent="Deu "+fKm(km-ant)+" nesta etapa. Confira o painel. Se estiver certo, toque de novo.";return}
+    let Q;try{Q=horaISO(A,r.status==="saida"?r.saidaEm:r.status==="em_rota"?r.inicioEm:r.fimEm)}catch(e){er.textContent=e.message;return}
+    const ob=Q.manual?{obs:((r.obs||"")+"\n"+({saida:"Início",em_rota:"Fim",retorno:"Devolução"}[r.status])+Q.nota).trim()}:{};
+    const t=ok.innerHTML;ok.disabled=true;ok.textContent="Salvando…";
+    try{
+      if(r.status==="saida"){if(!A.sel.length){throw new Error("__sel")}
+        const sel=A.sel.map(id=>byId(S.os,id)).filter(Boolean);
+        await salvarRota(r.id,Object.assign({status:"em_rota",kmInicio:km,inicioEm:Q.iso,osIds:sel.map(o=>o.id)},ob));
+        for(const o of sel)await incluirNaRota(r,o,Q);
+        toast("Rota começada com "+plural(sel.length,"OS","OS")+". Boa viagem!")}
+      else if(r.status==="em_rota"){await salvarRota(r.id,Object.assign({status:"retorno",kmFim:km,fimEm:Q.iso},ob));toast("Rota terminada. Ao chegar, registre a devolução.")}
+      else{await salvarRota(r.id,Object.assign({status:"devolvida",kmDevolucao:km,devolvidoEm:Q.iso},ob));toast("Veículo devolvido. Obrigado!")}
+      S.rt=null;renderRota();window.scrollTo(0,0)}
+    catch(e){console.error(e);ok.disabled=false;ok.innerHTML=t;er.textContent=e.message==="__sel"?"Marque ao menos uma OS para esta rota.":erroRota(e)}};
+}
+
+/* ---------- equipe de campo: nova OS pedida no caminho ----------
+   No trajeto alguém pede outro serviço e a coordenação pode não estar
+   disponível. O motorista cria a OS (unidade ou endereço escrito) e,
+   se estiver em rota, ela já entra na rota. A coordenação revisa depois. */
+function ncBtnHTML(sub){return `<a class="ms-mbtn nc" href="#campo-os">${ic("plus","ic lg")}<span><b>Nova OS no caminho</b><small>${esc(sub||"Pediram outro serviço durante a missão? Registre aqui.")}</small></span></a>`}
+function renderNovaCampo(){
+  if(!podeDesenhar())return;pararMic();
+  const bar=`<div class="ms-bar"><a class="ms-back" href="#missoes">${ic("back","ic")}Minhas missões</a><span class="ms-cod">Nova OS</span></div>`;
+  if(!meuEquipeId()){app.innerHTML=`<div class="ms-wrap">${bar}<div class="ms-empty"><h2>Sua conta ainda não está ligada à equipe</h2><p>Avise a coordenação de Facilities.</p></div></div>`;return}
+  if(!S.nc)S.nc={o:"",oe:"",d:"",de:"",q:"",carga:"leve",ped:"",tel:"",obs:"",naRota:true};const A=S.nc;
+  const r=minhaRota();const rOk=r&&["saida","em_rota"].includes(r.status);
+  if(A.fim){const f=A.fim;app.innerHTML=`<div class="ms-fim">${ic("ok","ic xl")}<h1>${esc(f.cod)} criada</h1>
+      <p>${f.status==="em_rota"?"Ela já está na sua rota. Faça a retirada e a entrega como nas outras.":f.rota?"Ela aparece na lista quando você começar a rota.":"Ela ficou nas suas missões. A coordenação também já está vendo."}</p>
+      ${f.status==="em_rota"?`<a class="ms-cta" href="#missao/log_${esc(f.id)}">Abrir a missão</a>`:""}<a class="ms-cta${f.status==="em_rota"?" sec":""}" href="#missoes" style="margin-top:10px">Voltar para minhas missões</a></div>`;
+    $$(".ms-cta").forEach(x=>x.addEventListener("click",()=>{S.nc=null}));return}
+  const locs=ativos(S.locais).slice().sort((x,y)=>{const ix=ORDEM_SIGLA.indexOf(x.sigla),iy=ORDEM_SIGLA.indexOf(y.sigla);return ((x.tipo==="Fornecedor")-(y.tipo==="Fornecedor"))||(ix<0?99:ix)-(iy<0?99:iy)||sortNome(x,y)});
+  const lugar=(k,lbl)=>{const v=A[k],ve=A[k+"e"];return `<label class="ms-lbl" for="nc${k}">${lbl}</label><select class="ms-in" id="nc${k}"><option value="">Escolha…</option>${locs.map(l=>`<option value="${esc(l.id)}"${v===l.id?" selected":""}>${esc(l.nome)}${l.tipo==="Fornecedor"?" (fornecedor)":""}</option>`).join("")}<option value="__end"${v==="__end"?" selected":""}>Outro endereço (escrever)</option></select>
+    ${v==="__end"?`<input class="ms-in" id="nc${k}e" type="text" maxlength="200" autocomplete="street-address" placeholder="Rua, número, bairro e cidade" value="${esc(ve||"")}" style="margin-top:8px">${micBtn("nc"+k+"e")}`:""}`};
+  app.innerHTML=`<div class="ms-wrap">${bar}<h1 class="ms-h">Nova OS no caminho</h1><p class="ms-sub">Pediram outro serviço durante a missão e a coordenação não está disponível? Registre aqui. A coordenação revisa depois.</p>${dicaMic()}
+    <div class="ms-box">${lugar("o","De onde sai")}<div style="height:12px"></div>${lugar("d","Para onde vai")}</div>
+    <div class="ms-box"><label class="ms-lbl" for="ncq">O que levar <i>um item por linha</i></label><textarea class="ms-in" id="ncq" rows="3" placeholder="Ex.: 3 caixas de copos&#10;1 freezer">${esc(A.q)}</textarea>${micBtn("ncq")}
+      <span class="ms-lbl" style="margin-top:12px">Carga</span><div class="ms-tiles two"><button type="button" class="ms-tile${A.carga!=="pesada"?" on":""}" data-ncc="leve"><b>Leve</b><small>caixas, sacolas</small></button><button type="button" class="ms-tile${A.carga==="pesada"?" on":""}" data-ncc="pesada"><b>Pesada</b><small>móveis, equipamentos</small></button></div></div>
+    <div class="ms-box"><label class="ms-lbl" for="ncp">Quem pediu</label><input class="ms-in" id="ncp" type="text" maxlength="120" placeholder="Nome e setor" value="${esc(A.ped)}">${micBtn("ncp")}
+      <label class="ms-lbl" for="nct" style="margin-top:10px">Telefone de quem pediu <i>opcional</i></label><input class="ms-in num" id="nct" type="tel" inputmode="tel" placeholder="(11) 99999-9999" value="${esc(A.tel)}">
+      <label class="ms-lbl" for="ncx" style="margin-top:10px">Observação <i>opcional</i></label><input class="ms-in" id="ncx" type="text" maxlength="300" placeholder="Ex.: falar com a Ana na portaria" value="${esc(A.obs)}"></div>
+    ${rOk?`<div class="ms-box"><span class="ms-lbl">Rota ${esc(codR(r))} · ${esc(nomeVeic(r.veiculoId))}</span><div class="fr-opts"><button type="button" class="fr-opt${A.naRota?" on":""}" data-ncr="1"><b>${r.status==="em_rota"?"Incluir na rota e já fazer":"Levar nesta rota"}</b><small>${r.status==="em_rota"?"Entra na rota agora, no mesmo veículo":"Aparece para marcar quando você começar a rota"}</small></button><button type="button" class="fr-opt${!A.naRota?" on":""}" data-ncr="0"><b>Fazer depois</b><small>Fica nas suas missões, sem rota</small></button></div></div>`:""}
+    <p class="err" id="ncErr" role="alert"></p><button class="ms-cta" id="ncOk" type="button"${A.busy?" disabled":""}>${ic("plus","ic lg")}${A.busy?"Criando…":"Criar a OS"}</button></div>`;
+  const val=id=>{const e=$("#"+id);return e?e.value:null};
+  const guarda=()=>{[["o","nco"],["oe","ncoe"],["d","ncd"],["de","ncde"],["q","ncq"],["ped","ncp"],["tel","nct"],["obs","ncx"]].forEach(([k,id])=>{const v=val(id);if(v!=null)A[k]=v})};
+  ["nco","ncd"].forEach(id=>{const s=$("#"+id);if(s)s.onchange=()=>{guarda();renderNovaCampo();if(s.value==="__end"){const e=$("#"+id+"e");if(e)e.focus()}}});
+  $$("[data-ncc]").forEach(b=>b.onclick=()=>{guarda();A.carga=b.dataset.ncc;renderNovaCampo()});
+  $$("[data-ncr]").forEach(b=>b.onclick=()=>{guarda();A.naRota=b.dataset.ncr==="1";renderNovaCampo()});
+  $("#ncOk").onclick=async()=>{pararMic();guarda();const er=$("#ncErr");er.textContent="";
+    const oe=A.o==="__end"?A.oe.trim():"",de=A.d==="__end"?A.de.trim():"";
+    const falta=!A.o?"Escolha de onde sai.":A.o==="__end"&&oe.length<5?"Escreva o endereço de onde sai.":!A.d?"Escolha para onde vai.":A.d==="__end"&&de.length<5?"Escreva o endereço para onde vai.":
+      A.o===A.d&&A.o!=="__end"?"Origem e destino são o mesmo lugar.":!A.q.trim()?"Diga o que vai levar.":!A.ped.trim()?"Diga quem pediu.":"";
+    if(falta){er.textContent=falta;return}
+    const p={origem_id:A.o!=="__end"?A.o:null,origem_endereco:oe||null,destino_id:A.d!=="__end"?A.d:null,destino_endereco:de||null,o_que:A.q.trim(),carga:A.carga,
+      pedido_por:A.ped.trim(),telefone:A.tel.trim()||null,obs:A.obs.trim()||null,rota_id:rOk&&A.naRota?r.id:null,ja_comecar:true};
+    A.busy=true;const b=$("#ncOk");b.disabled=true;b.textContent="Criando…";
+    try{const x=await criarOSCampo(p);A.busy=false;A.fim={id:x.id,cod:"OS-"+String(x.numero).padStart(4,"0"),status:x.status,rota:!!p.rota_id};renderNovaCampo();window.scrollTo(0,0)}
+    catch(e){console.error(e);A.busy=false;b.disabled=false;b.innerHTML=ic("plus","ic lg")+"Criar a OS";const m=(e&&e.message)||"";
+      er.textContent=/criar_os_campo|schema cache|Could not find/i.test(m)?"Falta rodar o script 28 no Supabase.":/Failed to fetch|NetworkError|network/i.test(m)?"Sem internet. Seus dados continuam aqui: toque de novo quando o sinal voltar.":m||"Não foi possível criar."}};
+}
+async function criarOSCampo(p){
+  if(!S.demo){const {data,error}=await sb.rpc("criar_os_campo",{p});if(error)throw error;await carregar("os");if(data.status==="em_rota")await carregar("rotas");return data}
+  const r=p.rota_id?byId(S.rotas,p.rota_id):null;const eq=meuEquipeId(),agora=nowISO();const st=r&&r.status==="em_rota"?"em_rota":"agendada";
+  const n=Math.max(0,...S.os.map(o=>Number(o.numero)||0))+1,id=novoId();
+  S.os.unshift({id,numero:n,status:st,tipo:"Pedido no caminho",prioridade:"normal",carga:p.carga,solicitante:p.pedido_por,solicitanteTelefone:(p.telefone||"").replace(/\D/g,"")||null,canal:"Pedido no caminho (campo)",solicitadoEm:agora,
+    origemId:p.origem_id,destinoId:p.destino_id,origemDetalhe:p.origem_endereco||"",destinoDetalhe:p.destino_endereco||"",itens:p.o_que.split("\n").map(l=>l.trim()).filter(Boolean).map(desc=>({desc,qtd:"",un:""})),
+    agendadoPara:agora,agendadaEm:agora,equipeIds:[eq],veiculoId:r?r.veiculoId:null,observacoes:p.obs||"",iniciadoEm:st==="em_rota"?agora:null,rotaId:st==="em_rota"?r.id:null,cientes:{[eq]:agora},criadaNoCampo:true,custosExtra:[],
+    historico:[{s:st,em:agora,por:S.uid||null,nota:"Criada no caminho por "+(S.meName||"equipe")+" · pedido por "+p.pedido_por+(st==="em_rota"?" · incluída na rota "+codR(r):"")}],criadoEm:agora});
+  if(st==="em_rota")r.osIds=(r.osIds||[]).concat([id]);return {id,numero:n,status:st}}
+
+/* ---------- coordenação: rotas do dia ---------- */
+function renderRotasDia(){
+  if(!podeDesenhar())return;
+  const dia=S.rdDia||dayKey(new Date());const R=(S.rotas||[]).filter(r=>r.status!=="cancelada"&&dayKey(r.saidaEm)===dia).sort((a,b)=>T(a.saidaEm)-T(b.saidaEm));
+  const C=R.map(custoRota);const tot=k=>C.reduce((s,c)=>s+(c[k]||0),0);const nOS=R.reduce((s,r)=>s+osDaRota(r).length,0);
+  const soltas=S.os.filter(o=>o.status==="concluida"&&!o.rotaId&&dayKey(o.concluidoEm)===dia);const cs=soltas.reduce((s,o)=>s+custoMissao(o).total,0);
+  const adm=isAdmin();
+  let h=`<div class="head"><div><h1>Rotas</h1><p>Cada rota é um uso do veículo, da saída à devolução. As OS feitas juntas dividem o custo do mesmo percurso, sem somar duas vezes.</p></div></div>${banner()}${aviso26()}
+    <div class="filters"><div class="field"><label for="rdDia">Dia</label><input type="date" id="rdDia" value="${esc(dia)}"></div><div class="field"><span class="lbl">&nbsp;</span><div class="chips"><button type="button" class="chip" data-rdd="-1">Dia anterior</button><button type="button" class="chip" data-rdd="0">Hoje</button></div></div></div>
+    <div class="kpis">${kpi("Rotas",R.length,"",plural(nOS,"OS feita junto","OS feitas juntas"))}${kpi("Km rodados",fNum(tot("km")),"km","da saída à devolução")}${kpi("Horas de veículo fora",fHrs(tot("h")),"","")}${adm?kpi("Custo do dia",fBRL(tot("total")+cs),"",soltas.length?"inclui "+plural(soltas.length,"OS sem rota"):"rotas do dia","money-k"):""}</div>`;
+  if(!R.length)h+=`<div class="empty"><h3>Nenhuma rota neste dia</h3><p>As rotas aparecem quando o motorista registra a saída do veículo no celular.</p></div>`;
+  R.forEach((r,i)=>{const c=C[i];const L=osDaRota(r);const RT=rateio(r);
+    h+=`<section class="card rtd"><div class="card-h"><h2>${esc(codR(r))} · ${esc(nomeVeic(r.veiculoId))}</h2><span class="sub">${esc(nomeEquipe(r.equipeIds))} · <b class="st-${r.status}">${esc(ROTA_ST[r.status])}</b></span></div><div class="card-b">
+      <ol class="rd-steps">${[["Saída",r.saidaEm,r.kmSaida],["Início",r.inicioEm,r.kmInicio],["Fim",r.fimEm,r.kmFim],["Devolução",r.devolvidoEm,r.kmDevolucao]].map(([l,t,k])=>`<li class="${k!=null?"f":""}"><b>${l}</b><span class="num">${t?fHora(t):"—"}</span><small class="num">${k!=null?fKm(k):"—"}</small></li>`).join("")}</ol>
+      ${r.obs?`<p class="hint" style="margin:0 0 8px;white-space:pre-line">${ic("clock","ic sm")} ${esc(r.obs)}</p>`:""}
+      ${r.checklist&&r.checklist.problemas?`<p class="rd-ck">Checklist de saída com ${plural(r.checklist.problemas,"problema")}: ${esc((r.checklist.itens||[]).filter(x=>!x.ok).map(x=>x.nome+(x.obs?" ("+x.obs+")":"")).join(", "))}${r.manutencaoId?` · <button type="button" class="lnk" data-mopen="${esc(r.manutencaoId)}">OS da frota</button>`:""}</p>`:""}
+      <table class="t"><thead><tr><th>OS</th><th>Trajeto</th><th>Carga</th><th>Situação</th><th class="r">Parte da rota</th><th class="r">Km</th>${adm?`<th class="r">Custo</th>`:""}</tr></thead><tbody>
+      ${L.map(o=>{const s=RT.out[o.id];const km=c.km&&s!=null?c.km*s:null;return `<tr><td><button type="button" class="lnk" data-open="${esc(o.id)}">${esc(codigo(o))}</button></td><td>${esc(rotaTxt(o))}</td><td>${o.carga==="pesada"?"Pesada":"Leve"}</td><td>${esc(ST[o.status]||o.status)}</td><td class="r num">${s!=null?fNum(s*100)+"%":"—"}</td><td class="r num">${km!=null?fNum(km,1):"—"}</td>${adm?`<td class="r num">${s!=null&&rotaKm(r)!=null?fBRL(custoMissao(o).total):"—"}</td>`:""}</tr>`}).join("")||`<tr><td colspan="7">Nenhuma OS na rota ainda.</td></tr>`}
+      </tbody></table>
+      <p class="hint" style="margin:10px 0 0">${RT.metodo==="distancia"?"Custo dividido pela distância de cada OS.":RT.metodo==="paradas"?"Custo dividido pelo número de paradas: falta cadastrar a distância entre alguma das unidades (Cadastros › Distâncias).":""}${rotaKm(r)!=null?` · ${fKm(c.km)} e ${fHrs(c.h)} no total`+(adm?` · custo da rota ${fBRL(c.total)}`:""):" · o custo aparece quando o veículo for devolvido"}</p>
+      ${isLog()&&rotaAberta(r)?`<div class="actions" style="margin-top:8px"><button class="btn sm ghost" type="button" data-rcanc="${esc(r.id)}">Cancelar rota</button></div>`:""}</div></section>`});
+  app.innerHTML=h;
+  $("#rdDia").onchange=e=>{S.rdDia=e.target.value||null;renderRotasDia()};
+  $$("[data-rdd]").forEach(b=>b.onclick=()=>{const d=b.dataset.rdd==="0"?new Date():new Date(T(dia+"T12:00:00")-DIA_MS);S.rdDia=dayKey(d);renderRotasDia()});
+  $$("[data-open]").forEach(b=>b.onclick=()=>openOS(b.dataset.open));$$("[data-mopen]").forEach(b=>b.onclick=()=>openM(b.dataset.mopen));
+  $$("[data-rcanc]").forEach(b=>b.onclick=async()=>{if(b.dataset.c!=="1"){b.dataset.c="1";b.textContent="Confirmar cancelamento?";return}try{await salvarRota(b.dataset.rcanc,{status:"cancelada"});toast("Rota cancelada");renderRotasDia()}catch(e){toast(erroRota(e))}});
+}
+const aviso26=()=>!S.demo&&S.missing&&S.missing.rotas?`<div class="banner"><b>Falta um passo no Supabase.</b> Rode o arquivo <code>supabase/26_rotas.sql</code> no SQL Editor para ativar as rotas.</div>`:"";
+
+/* ---------- cadastro das distâncias ---------- */
+function renderDistancias(){
+  const us=ativos(S.locais).slice().sort(sortNome);const de=S.dsDe&&byId(S.locais,S.dsDe)?S.dsDe:(us[0]||{}).id;const pode=isLog()||isFrota();
+  const n=(S.distancias||[]).length;
+  return `<section class="card"><div class="card-h"><h2>Distâncias entre as unidades</h2><span class="sub">${plural(n,"trajeto cadastrado","trajetos cadastrados")}</span></div><div class="card-b">
+    <p style="margin:0 0 12px;color:var(--mute);max-width:70ch">Usadas para dividir o custo quando várias OS são feitas na mesma rota: cada OS fica com a parte proporcional ao trajeto dela. Cadastre uma vez, em km, o caminho mais usado. A volta (B → A) vale o mesmo.</p>
+    ${aviso26()}<div class="filters"><div class="field"><label for="dsDe">Saindo de</label><select id="dsDe">${us.map(l=>`<option value="${esc(l.id)}"${l.id===de?" selected":""}>${esc(l.nome)}</option>`).join("")}</select></div></div>
+    <div class="ds-grid">${us.filter(l=>l.id!==de).map(l=>{const d=distKm(de,l.id);return `<label class="ds-row"><span>${esc(l.nome)}</span><input type="text" inputmode="decimal" data-ds="${esc(l.id)}" value="${d!=null?esc(String(d).replace(".",",")):""}" placeholder="km"${pode?"":" disabled"}><small>km</small></label>`}).join("")}</div>
+    ${pode?`<p class="err" id="dsErr" role="alert"></p><div class="actions"><button class="btn pri" type="button" id="dsOk">Salvar distâncias</button></div>`:""}</div></section>`}
+function bindDistancias(){
+  const s=$("#dsDe");if(s)s.onchange=e=>{S.dsDe=e.target.value;renderCadastros()};
+  const ok=$("#dsOk");if(!ok)return;
+  ok.onclick=async()=>{const de=$("#dsDe").value,er=$("#dsErr");er.textContent="";const up=[],del=[];
+    for(const i of $$("[data-ds]")){const t=i.value.trim();const ex=(S.distancias||[]).find(x=>(x.localA===de&&x.localB===i.dataset.ds)||(x.localB===de&&x.localA===i.dataset.ds));
+      if(!t){if(ex)del.push(ex);continue}const v=numBR(t);if(v===""||!(v>0)||v>=5000){er.textContent="Distância inválida para "+nomeLocal(i.dataset.ds)+". Use só o número em km, ex.: 12,5.";i.focus();return}
+      if(!ex||Number(ex.km)!==v)up.push({ex,a:de,b:i.dataset.ds,km:v})}
+    if(!up.length&&!del.length){toast("Nada mudou");return}
+    ok.disabled=true;ok.textContent="Salvando…";
+    try{if(S.demo){up.forEach(u=>{if(u.ex)u.ex.km=u.km;else S.distancias.push({id:novoId(),localA:u.a,localB:u.b,km:u.km})});S.distancias=S.distancias.filter(x=>!del.includes(x))}
+      else{for(const u of up){const q=u.ex?sb.from("distancias").update({km:u.km,atualizado_em:nowISO()}).eq("id",u.ex.id):sb.from("distancias").insert({local_a:u.a,local_b:u.b,km:u.km});const {error}=await q;if(error)throw error}
+        if(del.length){const {error}=await sb.from("distancias").delete().in("id",del.map(x=>x.id));if(error)throw error}await carregar("distancias")}
+      toast("Distâncias salvas");renderCadastros()}
+    catch(e){console.error(e);ok.disabled=false;ok.textContent="Salvar distâncias";er.textContent=erroRota(e)}};
+}
+function loadDemoRotas(){
+  S.rotas=[];S.distancias=[];const us=ativos(S.locais);
+  for(let i=0;i<us.length;i++)for(let j=i+1;j<us.length;j++)S.distancias.push({id:"ds"+i+"_"+j,localA:us[i].id,localB:us[j].id,km:Math.round((4+((i*7+j*13)%27)+((i+j)%3)*.5)*10)/10});
+  // rotas dos últimos dias: OS concluídas do mesmo veículo no mesmo dia foram feitas juntas
+  const L0=S.os.filter(o=>o.status==="concluida"&&o.veiculoId&&o.concluidoEm&&Date.now()-T(o.concluidoEm)<8*DIA_MS);
+  const g={};L0.forEach(o=>{const k=o.veiculoId+"|"+dayKey(o.concluidoEm);(g[k]=g[k]||[]).push(o)});let n=0;
+  Object.values(g).filter(L=>L.length>=2).sort((a,b)=>T(b[0].concluidoEm)-T(a[0].concluidoEm)).slice(0,6).forEach(L=>{n++;L=L.slice(0,3);
+    const fim=Math.max(...L.map(o=>T(o.concluidoEm)))+900000;const ini=Math.min(...L.map(o=>T(o.iniciadoEm)||T(o.concluidoEm)-3*3600000))-1200000;
+    const kmT=L.reduce((s,o)=>s+(o.kmFinal!=null&&o.kmInicial!=null?o.kmFinal-o.kmInicial:15),0);const k0=Math.min(...L.map(o=>o.kmInicial!=null?o.kmInicial:99999999));const ks=k0<99999999?k0-4:40000;
+    const kr=Math.round(kmT*.72);const r={id:"rt"+n,numero:n,veiculoId:L[0].veiculoId,equipeIds:[...new Set([].concat(...L.map(o=>o.equipeIds||[])))].slice(0,2),status:"devolvida",
+      saidaEm:new Date(ini).toISOString(),kmSaida:ks,checklist:{itens:CK_SAIDA.map(nome=>({nome,ok:true})),problemas:0},inicioEm:new Date(ini+600000).toISOString(),kmInicio:ks+3,
+      fimEm:new Date(fim-600000).toISOString(),kmFim:ks+3+kr,devolvidoEm:new Date(fim).toISOString(),kmDevolucao:ks+6+kr,osIds:L.map(o=>o.id)};
+    S.rotas.push(r);L.forEach(o=>{o.rotaId=r.id;o.kmInicial=null;o.kmFinal=null})});
 }
 
 /* ---------- Início ---------- */
