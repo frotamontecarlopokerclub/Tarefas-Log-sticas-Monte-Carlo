@@ -513,3 +513,11 @@ Não precisa rodar nada no Supabase.
 
 ## Atualização 46 · TV mais sóbria
 Não precisa rodar nada no Supabase. A TV da manutenção ficou só com as cores do Monte Carlo (preto, marsala, dourado e bege), sem selos coloridos. O vermelho aparece apenas no que está atrasado, com um aviso discreto. Dentro do sistema (menu Painel TV), o quadro fica mais compacto para caber na tela do computador.
+
+## App Android (APK, sem loja)
+O app abre o sistema da Vercel em tela cheia, com o ícone do Facilities MC. Câmera, microfone, assinatura e login funcionam como no Chrome, e as atualizações do sistema chegam sozinhas, sem instalar o APK de novo.
+- `android/`: projeto do app (pacote `br.com.grupomontecarlo.facilities`).
+- `.github/workflows/apk.yml`: o GitHub monta e assina o APK sozinho.
+- `.well-known/assetlinks.json`: prova que o app é do site, para abrir sem barra de endereço.
+- `.vercelignore`: a Vercel não publica as pastas do app.
+- **A chave de assinatura (arquivo .keystore) e a senha NÃO vão para o GitHub.** Elas ficam nos segredos do repositório e numa cópia guardada com a coordenação. Sem a mesma chave, um APK novo não instala por cima do antigo.
