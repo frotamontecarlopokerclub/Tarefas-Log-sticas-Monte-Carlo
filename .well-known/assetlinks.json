@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.grupomontecarlo.facilities",
+      "sha256_cert_fingerprints": ["A7:85:B4:B4:24:89:AE:0C:08:F2:A8:D5:FF:7B:DD:70:4F:DA:7C:DB:D1:BC:61:5F:85:45:4E:73:E8:56:96:A6"]
+    }
+  }
+]
