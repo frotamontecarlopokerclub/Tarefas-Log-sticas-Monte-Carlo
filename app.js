@@ -98,7 +98,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=49;console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=49;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -445,7 +445,7 @@ const pendentes=()=>S.pedidos.filter(x=>x.status==="aguardando").length;
 const chamadosNovos=()=>isMan()?manInfra().filter(m=>m.status==="aberto").length:0;
 const frotaNovas=()=>isFrota()?osFrota().filter(m=>m.status==="aberto").length:0;
 const usuariosPendentes=()=>isAdmin()?(S.perfis||[]).filter(p=>p.papel==="pendente").length:0;
-function buildNav(){{const rv=$("#rodapeV");if(rv)rv.textContent="Versão "+VERSAO}
+function buildNav(){
   const c=navCfg(),pd=pendentes(),up=usuariosPendentes(),cn=chamadosNovos(),fn=frotaNovas(),bd=r=>r==="f-os"&&fn?`<span class="bdg" title="OS da frota aguardando agendamento">${fn}</span>`:r==="pedidos"&&pd?`<span class="bdg">${pd}</span>`:r==="m-ordens"&&cn?`<span class="bdg" title="Chamados aguardando triagem">${cn}</span>`:r==="cadastros"&&up?`<span class="bdg" title="Usuários aguardando liberação">${up}</span>`:"";
   const sw=$("#areaSw");if(sw){const ap=areasPermitidas();const fa=S.area!=="frota"&&ap.includes("frota")&&!frotaSemScript()?alertasFrota().filter(a=>a.nivel==="alto").length:0;const bA={log:S.area!=="log"?pd:0,man:S.area!=="man"?cn:0,frota:fa+(S.area!=="frota"?frotaNovas():0)};
     sw.innerHTML=S.role&&S.role!=="campo"&&ap.length>1?ap.map(a=>`<button type="button" data-area="${a}" aria-pressed="${S.area===a}">${{log:"Logística",man:"Manutenção",frota:"Frota"}[a]}${bA[a]?` <span class="bdg"${a==="frota"?' title="Itens da frota vencidos ou atrasados"':""}>${bA[a]}</span>`:""}</button>`).join(""):"";

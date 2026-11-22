@@ -1219,3 +1219,9 @@ body.tvmode .rodape{display:none}
 .tv-cred{flex:none;text-align:center;padding:.45em 1em;font-size:.72em;color:#8E7F73;background:#090504;border-top:1px solid rgba(201,162,83,.14)}
 .tv-cred b{color:#C9A253;font-weight:600}
 @media (max-width:900px){.tv-cred{font-size:11px;line-height:1.5}}
+/* rodapé sobre fundo escuro (login e telas de acesso) */
+body.auth .rodape{position:relative;z-index:1;color:#D9CDBB;border-top-color:rgba(201,162,83,.35);background:rgba(14,6,5,.72);max-width:none;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+body.auth .rodape b{color:#E8C27A}
+body.auth .rodape a{color:#F3EBDD;border-bottom-color:rgba(232,194,122,.6)}
+body.auth .rodape span{color:#B3A397}
+body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
