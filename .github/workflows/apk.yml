@@ -1,3 +1,8 @@
+# Gera o APK Android do Facilities MC (app que abre o sistema da Vercel em tela cheia).
+# Roda sozinho quando a pasta android muda, ou pelo botão "Run workflow" na aba Actions.
+# Precisa de 2 segredos no GitHub (Settings > Secrets and variables > Actions):
+#   ANDROID_KEYSTORE_BASE64  -> conteúdo do arquivo chave-base64.txt
+#   ANDROID_KEYSTORE_SENHA   -> a senha da chave
 name: Gerar APK Android
 
 on:
@@ -62,3 +67,45 @@ jobs:
           name: Facilities MC Android 1.0.${{ github.run_number }}
           body: APK do Facilities MC. Baixe o arquivo facilities-mc.apk e instale no celular.
           files: facilities-mc.apk
+
+  # Teste automático: instala o APK num celular virtual (emulador Android),
+  # abre o app e guarda o registro do sistema. Se o app travar, o erro aparece aqui.
+  teste:
+    needs: apk
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Baixar o APK
+        uses: actions/download-artifact@v4
+        with:
+          name: facilities-mc-apk
+
+      - name: Liberar o emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Abrir o app no celular virtual
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: |
+            adb install -r facilities-mc.apk
+            adb logcat -c
+            adb shell monkey -p br.com.grupomontecarlo.facilities -c android.intent.category.LAUNCHER 1
+            sleep 30
+            adb logcat -d > logcat.txt || true
+            grep -n -A40 "FATAL EXCEPTION" logcat.txt || echo "RESULTADO - o app abriu sem travar no celular virtual"
+            adb shell dumpsys activity activities | grep -i "ResumedActivity" || true
+
+      - name: Guardar o registro do teste
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teste-logcat
+          path: logcat.txt
+          if-no-files-found: ignore
