@@ -1191,3 +1191,16 @@ body:not(.tvmode) .tv{height:calc(100vh - 150px);min-height:620px;border-radius:
 .top-in,main{max-width:2400px}
 @media (min-width:900px){.gut{padding-left:max(clamp(16px,2.4vw,48px),env(safe-area-inset-left,0px));padding-right:max(clamp(16px,2.4vw,48px),env(safe-area-inset-right,0px))}}
 .card-h select.emg-per{width:auto;min-width:180px;margin-left:auto;flex:none}
+
+/* ---------- v48: gestão por área e traslado de funcionários ---------- */
+:root{--versao-css:"48"}
+.wz-kind{margin-bottom:16px}
+.wz-pax{max-width:260px}
+.wz-pax input{text-align:center}
+.chart .sb-fro{fill:#7A1A10}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .chart .sb-fro{fill:#C2564A}}
+:root[data-theme="dark"] .chart .sb-fro{fill:#C2564A}
+/* menu com muitas opções (frota da coordenação): mais compacto para caber */
+@media (min-width:1025px){.nav.dense{gap:2px}.nav.dense a{padding:8px 9px;font-size:13px;white-space:nowrap}.nav.dense .btn-new{padding:8px 12px}}
+@media (min-width:1025px) and (max-width:1380px){.nav.dense a{padding:7px 7px;font-size:12.5px}.nav.dense .btn-new{padding:7px 10px}}
+@media (min-width:1025px) and (max-width:1240px){.nav.dense{flex-wrap:wrap;justify-content:flex-end;row-gap:4px}}
