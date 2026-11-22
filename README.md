@@ -530,3 +530,6 @@ Não precisa rodar nada no Supabase.
 - **Gestão separada:** em Logística, a Gestão mostra só a logística; em Manutenção, só a manutenção; e a Frota ganhou a sua Gestão (OS da frota, serviços lançados e combustível por veículo, custo por km). Resumo para a gerência, PDF e CSV também saem só da área aberta.
 - **Traslado de funcionários:** na Nova OS da logística, escolha **Traslado de funcionários** no primeiro passo. As paradas viram **Embarque** e **Desembarque**, e em vez de itens você informa quantas pessoas vão (e, se quiser, o nome de cada uma). No celular o motorista só confirma o embarque e o desembarque: sem foto e sem assinatura.
 - Menu da Frota mais compacto para caber na tela.
+
+## Atualização 49 · Crédito no rodapé
+Não precisa rodar nada no Supabase. Rodapé em todas as telas (e numa linha discreta no fim da TV da manutenção): "Idealizado e desenvolvido por Anderson TB · Facilities Grupo Monte Carlo · Coordenação de Logística e Frota · Tel. (11) 92588-6004", com o número da versão.

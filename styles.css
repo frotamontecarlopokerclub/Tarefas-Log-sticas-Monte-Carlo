@@ -1204,3 +1204,18 @@ body:not(.tvmode) .tv{height:calc(100vh - 150px);min-height:620px;border-radius:
 @media (min-width:1025px){.nav.dense{gap:2px}.nav.dense a{padding:8px 9px;font-size:13px;white-space:nowrap}.nav.dense .btn-new{padding:8px 12px}}
 @media (min-width:1025px) and (max-width:1380px){.nav.dense a{padding:7px 7px;font-size:12.5px}.nav.dense .btn-new{padding:7px 10px}}
 @media (min-width:1025px) and (max-width:1240px){.nav.dense{flex-wrap:wrap;justify-content:flex-end;row-gap:4px}}
+
+/* ---------- v49: rodapé com o crédito do sistema ---------- */
+:root{--versao-css:"49"}
+main{padding-bottom:28px}
+.rodape{max-width:2400px;margin:0 auto;padding-top:18px;padding-bottom:28px;border-top:1px solid var(--line);text-align:center;color:var(--mute);font-size:12.5px;line-height:1.6}
+.rodape p{margin:0}
+.rodape b{color:var(--ink);font-weight:700}
+.rodape a{color:inherit;font-weight:600;text-decoration:none;border-bottom:1px solid var(--line-strong)}
+.rodape span{color:var(--faint)}
+@media (max-width:1024px){.rodape{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}}
+body.campo .rodape{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+body.tvmode .rodape{display:none}
+.tv-cred{flex:none;text-align:center;padding:.45em 1em;font-size:.72em;color:#8E7F73;background:#090504;border-top:1px solid rgba(201,162,83,.14)}
+.tv-cred b{color:#C9A253;font-weight:600}
+@media (max-width:900px){.tv-cred{font-size:11px;line-height:1.5}}
