@@ -55,8 +55,8 @@ android {
     namespace "br.com.grupomontecarlo.facilities"
     defaultConfig {
         applicationId "br.com.grupomontecarlo.facilities"
-        minSdkVersion 24
-        targetSdkVersion 36
+        minSdkVersion 21
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0.0"
 
@@ -152,7 +152,7 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled true
+            minifyEnabled false
         }
     }
     compileOptions {
@@ -208,6 +208,6 @@ repositories {
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     
-        implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+        implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
     
 }
