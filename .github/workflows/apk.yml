@@ -1,0 +1,64 @@
+name: Gerar APK Android
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar o Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Numerar a versão do app
+        working-directory: android
+        run: |
+          sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/" app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" app/build.gradle
+
+      - name: Montar o APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Assinar o APK
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_SENHA: ${{ secrets.ANDROID_KEYSTORE_SENHA }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_SENHA" ]; then echo "::error::Faltam os segredos ANDROID_KEYSTORE_BASE64 e ANDROID_KEYSTORE_SENHA"; exit 1; fi
+          echo "$KS_B64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/chave.keystore"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/alinhado.apk"
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/chave.keystore" --ks-key-alias facilitiesmc \
+            --ks-pass env:KS_SENHA --key-pass env:KS_SENHA --out facilities-mc.apk "$RUNNER_TEMP/alinhado.apk"
+          "$BT/apksigner" verify --print-certs facilities-mc.apk
+          rm -f "$RUNNER_TEMP/chave.keystore"
+
+      - name: Guardar o APK (aba Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: facilities-mc-apk
+          path: facilities-mc.apk
+
+      - name: Publicar o APK (aba Releases)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Facilities MC Android 1.0.${{ github.run_number }}
+          body: APK do Facilities MC. Baixe o arquivo facilities-mc.apk e instale no celular.
+          files: facilities-mc.apk
