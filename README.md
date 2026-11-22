@@ -521,3 +521,6 @@ O app abre o sistema da Vercel em tela cheia, com o ícone do Facilities MC. Câ
 - `.well-known/assetlinks.json`: prova que o app é do site, para abrir sem barra de endereço.
 - `.vercelignore`: a Vercel não publica as pastas do app.
 - **A chave de assinatura (arquivo .keystore) e a senha NÃO vão para o GitHub.** Elas ficam nos segredos do repositório e numa cópia guardada com a coordenação. Sem a mesma chave, um APK novo não instala por cima do antigo.
+
+## Atualização 47 · Tela cheia no computador
+Não precisa rodar nada no Supabase. No computador o sistema passa a ocupar a largura toda da tela (antes parava em 1280 px), com margens laterais que crescem conforme o monitor. No celular nada muda.
