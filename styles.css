@@ -1225,3 +1225,10 @@ body.auth .rodape b{color:#E8C27A}
 body.auth .rodape a{color:#F3EBDD;border-bottom-color:rgba(232,194,122,.6)}
 body.auth .rodape span{color:#B3A397}
 body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+
+/* ---------- v50: registrar etapas depois (sem bateria / sem internet) ---------- */
+:root{--versao-css:"50"}
+.ms-box.qd.auto{border-width:2px;border-color:var(--gold-ink,#A87420);background:var(--warn-surface,#FFF7E6)}
+.qd-av{margin:0 0 10px;font-size:14px;line-height:1.45;color:var(--ink)}
+.ms-antes{display:flex;gap:6px;align-items:flex-start;margin:-4px 0 10px;font-size:13px}
+.qd-pan input{max-width:280px}

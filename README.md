@@ -533,3 +533,9 @@ Não precisa rodar nada no Supabase.
 
 ## Atualização 49 · Crédito no rodapé
 Não precisa rodar nada no Supabase. Rodapé em todas as telas (e numa linha discreta no fim da TV da manutenção): "Idealizado e desenvolvido por Anderson TB · Facilities Grupo Monte Carlo · Coordenação de Logística e Frota · Tel. (11) 92588-6004", com o número da versão.
+
+## Atualização 50 · Registrar etapas depois (sem bateria ou sem internet)
+Não precisa rodar nada no Supabase.
+- **Celular da equipe:** quando a etapa anterior (ou o horário marcado) já passou há mais de 2 horas, o campo **"Quando aconteceu?"** já abre sozinho em cada etapa (saída, início da rota, retirada/embarque, entrega/desembarque, fim da rota, devolução, início e fim da manutenção), com o aviso "Está registrando depois?". Missões de dias anteriores aparecem em **De dias anteriores**. Vale até 7 dias para trás.
+- **Coordenação (computador):** ao registrar a saída, uma parada, a conclusão da OS de logística, ou iniciar e concluir uma OS de manutenção pela própria OS, há o campo **Quando** (até 60 dias para trás). Assim a coordenação lança tudo depois, no horário certo, quando a equipe não conseguiu.
+- Nunca aceita horário no futuro nem antes da etapa anterior. O histórico marca "horário informado".
