@@ -1232,3 +1232,12 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-av{margin:0 0 10px;font-size:14px;line-height:1.45;color:var(--ink)}
 .ms-antes{display:flex;gap:6px;align-items:flex-start;margin:-4px 0 10px;font-size:13px}
 .qd-pan input{max-width:280px}
+
+/* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
+:root{--versao-css:"51"}
+.btn.danger-t{color:var(--s-late)}
+.imp-ex{margin:0 0 14px;max-width:560px}
+.imp-ex .t td,.imp-ex .t th{padding:6px 10px}
+.imp-t tr.imp-err td{background:var(--danger-surface)}
+.imp-t tr.imp-dup td{background:var(--warn-surface)}
+.imp-e{color:var(--s-late)}.imp-d{color:var(--gold-ink)}.imp-ok{color:var(--s-ok);font-weight:600}

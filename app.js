@@ -98,7 +98,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=50;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=51;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1040,7 +1040,7 @@ function renderDrawer(){
   let panel="";
   if(A&&A.t==="iniciar") panel=`<div class="panel" id="pan"><h3>Iniciar rota · saída do veículo</h3>${checklistPanelHTML(A)}<div class="fg">
       <div class="field"><label class="${o.veiculoId?"req":""}" for="kmI">Km inicial (odômetro na saída)</label><input type="number" id="kmI" inputmode="numeric" min="0" value="${esc(A.kmI==null?"":A.kmI)}" placeholder="${o.veiculoId?"Ex.: 124300":"Sem veículo definido"}">
-        <span class="hint">${(()=>{const u=o.veiculoId?ultimoKm(o.veiculoId,o.id):null;return u?"Último registro deste veículo: "+fKm(u.km)+" ("+codigo(u.os)+", "+fDH(u.em)+")":o.veiculoId?"Primeiro registro deste veículo":""})()}</span></div></div>
+        <span class="hint">${(()=>{const u=o.veiculoId?ultimoKm(o.veiculoId,o.id):null;return u?"Último registro deste veículo: "+fKm(u.km)+" ("+kmOrigem(u)+(u.em?", "+fDH(u.em):"")+")":o.veiculoId?"Primeiro registro deste veículo":""})()}</span></div></div>
       <p class="hint" style="margin:0">As fotos são tiradas em cada parada: na retirada, a mercadoria; na entrega, o material entregue a quem recebeu.</p>
       ${quandoPanHTML(A,"Quando saiu")}
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk">Confirmar saída</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
@@ -1242,7 +1242,7 @@ function bindPanel(o){
         const km=kmTxt===""?null:Math.round(Number(kmTxt));
         if(km!=null&&(!isFinite(km)||km<0)){err.textContent="Km inicial inválido.";return}
         const u=o.veiculoId?ultimoKm(o.veiculoId,o.id):null;
-        if(km!=null&&u&&km<u.km&&!A.kmOk){A.kmOk=true;err.textContent="O km informado ("+fKm(km)+") é menor que o último registro do veículo ("+fKm(u.km)+" na "+codigo(u.os)+"). Confira o odômetro. Se estiver certo, toque em Confirmar saída de novo.";return}
+        if(km!=null&&u&&km<u.km&&!A.kmOk){A.kmOk=true;err.textContent="O km informado ("+fKm(km)+") é menor que o último registro do veículo ("+fKm(u.km)+", "+kmOrigem(u)+"). Confira o odômetro. Se estiver certo, toque em Confirmar saída de novo.";return}
         let Q;try{Q=quandoPan(A)}catch(e){err.textContent=e.message;return}
         btn.disabled=true;const probs=A.ck.filter(c=>!c.ok).length;
         const checklist={itens:A.ck.map(c=>({nome:c.nome,ok:c.ok,obs:(c.obs||"").trim()})),problemas:probs,em:Q.iso,por:S.uid||null};
@@ -1444,13 +1444,18 @@ function linksRota(localId){
 
 /* ---------- QUILOMETRAGEM ---------- */
 function kmRodados(o){if(o.rotaId){const pr=partRota(o);if(pr)return Math.round(rotaKm(pr.r)*pr.s*10)/10}return (o.kmFinal!=null&&o.kmInicial!=null&&o.kmFinal>=o.kmInicial)?o.kmFinal-o.kmInicial:null}
+// km corrigido: registros anteriores à correção não contam mais
+const kmCorte=v=>v&&v.kmCorrigidoEm?T(v.kmCorrigidoEm):null;
+const kmValeT=(cut,t)=>cut==null||(!!t&&T(t)>=cut);
 function ultimoKm(veiculoId,excetoId){
-  let best=null;
-  (S.rotas||[]).forEach(r=>{if(r.veiculoId!==veiculoId)return;[[r.kmDevolucao,r.devolvidoEm],[r.kmFim,r.fimEm],[r.kmInicio,r.inicioEm],[r.kmSaida,r.saidaEm]].forEach(([k,t])=>{if(k!=null&&(!best||k>best.km))best={km:Number(k),em:t,rota:r}})});
+  const v=byId(S.veiculos||[],veiculoId),cut=kmCorte(v);
+  let best=cut!=null&&nOuNull(v.kmAtual)!=null?{km:Number(v.kmAtual),em:v.kmCorrigidoEm,correcao:true}:null;
+  (S.rotas||[]).forEach(r=>{if(r.veiculoId!==veiculoId)return;[[r.kmDevolucao,r.devolvidoEm],[r.kmFim,r.fimEm],[r.kmInicio,r.inicioEm],[r.kmSaida,r.saidaEm]].forEach(([k,t])=>{if(k!=null&&kmValeT(cut,t)&&(!best||k>best.km))best={km:Number(k),em:t,rota:r}})});
   S.os.forEach(o=>{if(o.veiculoId!==veiculoId||o.id===excetoId)return;
-    [[o.kmFinal,o.concluidoEm],[o.kmInicial,o.iniciadoEm]].forEach(([k,t])=>{if(k!=null&&k!==""&&(!best||k>best.km))best={km:Number(k),em:t,os:o}})});
+    [[o.kmFinal,o.concluidoEm],[o.kmInicial,o.iniciadoEm]].forEach(([k,t])=>{if(k!=null&&k!==""&&kmValeT(cut,t)&&(!best||k>best.km))best={km:Number(k),em:t,os:o}})});
   return best;
 }
+const kmOrigem=u=>u.os?codigo(u.os):u.rota?"rota "+codR(u.rota):u.correcao?"correção de km":"registro";
 const fKm=n=>n==null||n===""?"—":Number(n).toLocaleString("pt-BR")+" km";
 /* ---------- WHATSAPP ---------- */
 function soDigitos(t){return String(t||"").replace(/\D/g,"")}
@@ -1636,7 +1641,7 @@ function renderCadastros(){
   h+=`<section class="card"><div class="card-h"><h2>${C.t}</h2><span class="sub">${esc(C.desc)}</span></div><div class="card-b">
     ${isStaff()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
     ${list.length?list.map((x,ix)=>cabCad(tab,list,ix)+(ed===x.id?editor(x,x.id):S.cadJoin===x.id?juntarHTML(tab,x):`<div class="cad-row${x.ativo===false?" off":""}"><span class="n">${esc(x.nome)}${x.ativo===false?` <span style="color:var(--faint);font-weight:500">desativado</span>`:""}</span><span class="m">${esc((C.m(x)[0])||"")}</span><span class="m">${esc((C.m(x)[1])||"")}</span>
-      ${isStaff()?`<span class="actions"><button class="btn sm ghost" data-ed="${esc(x.id)}" type="button">Editar</button><button class="btn sm ghost" data-tg="${esc(x.id)}" type="button">${x.ativo===false?"Reativar":"Desativar"}</button>${(tab==="locais"||tab==="setores")&&(isAdmin()||S.demo)?`<button class="btn sm ghost" data-join="${esc(x.id)}" type="button" title="Juntar com outro cadastro repetido">Juntar com…</button>`:""}</span>`:"<span></span>"}</div>`)).join(""):`<p style="color:var(--mute)">Nenhum cadastro ainda.</p>`}
+      ${isStaff()?`<span class="actions"><button class="btn sm ghost" data-ed="${esc(x.id)}" type="button">Editar</button><button class="btn sm ghost" data-tg="${esc(x.id)}" type="button">${x.ativo===false?"Reativar":"Desativar"}</button>${(tab==="locais"||tab==="setores")&&(isAdmin()||S.demo)?`<button class="btn sm ghost" data-join="${esc(x.id)}" type="button" title="Juntar com outro cadastro repetido">Juntar com…</button>`:""}${isAdmin()||S.demo?`<button class="btn sm ghost danger-t" data-cdel="${esc(x.id)}" type="button" title="Excluir cadastro feito por engano">Excluir</button>`:""}</span>`:"<span></span>"}</div>${S.cadDel&&S.cadDel.id===x.id?excluirCadHTML(tab,x):""}`)).join(""):`<p style="color:var(--mute)">Nenhum cadastro ainda.</p>`}
   </div></section>`;
   app.innerHTML=h;bindCad();
 }
@@ -1647,6 +1652,28 @@ function juntarHTML(tab,x){const outros=S[tab].filter(y=>y.id!==x.id&&y.ativo!==
   return `<div class="cad-join"><p><b>Juntar “${esc(tab==="setores"?nomeSetor(x.id):x.nome)}” com outro ${nome}${tab==="setores"&&x.localId?" do mesmo local":""}</b><br>Tudo o que está ligado a “${esc(x.nome)}” (OS, pedidos, chamados, equipamentos, usuários e rotas fixas) passa para o ${nome} escolhido. Depois, “${esc(x.nome)}” é apagado. Não dá para desfazer.</p>
     <div class="filters"><div class="field grow"><label for="jn-sel">Fica com</label><select id="jn-sel"><option value="">Escolha o ${nome} certo…</option>${outros.map(y=>`<option value="${esc(y.id)}">${esc(tab==="setores"?nomeSetor(y.id):y.nome)}${tab==="locais"&&y.tipo?" · "+esc(y.tipo):""}</option>`).join("")}</select></div>
     <button class="btn danger" type="button" data-joinok="${esc(x.id)}">Juntar</button><button class="btn ghost" type="button" data-joinx>Cancelar</button></div><p class="err" id="jn-err" role="alert"></p></div>`}
+/* ---------- excluir cadastro feito por engano ---------- */
+const USO_LBL={os:["OS de logística","OS de logística"],pedidos:["pedido","pedidos"],manutencoes:["OS de manutenção ou frota","OS de manutenção ou frota"],rotas:["rota","rotas"],recorrencias:["rota fixa","rotas fixas"],
+  equipamentos:["equipamento","equipamentos"],planos:["plano de preventiva","planos de preventiva"],setores:["setor","setores"],solicitantes:["solicitante","solicitantes"],perfis:["usuário","usuários"],
+  veiculo_abastecimentos:["abastecimento","abastecimentos"],veiculo_servicos:["serviço do veículo","serviços do veículo"],veiculo_conferencias:["conferência","conferências"],emergencias:["demanda emergencial","demandas emergenciais"],
+  equipe:["pessoa da equipe","pessoas da equipe"],locais:["local","locais"],veiculos:["veículo","veículos"],prestadores:["prestador","prestadores"],funcionario_custos:["custo de funcionário","custos de funcionário"],distancias:["distância","distâncias"]};
+const usoTxt=u=>Object.entries(u||{}).map(([t,n])=>{const l=USO_LBL[t]||[t,t];return n+" "+(n===1?l[0]:l[1])}).join(", ");
+function usosDemo(tab,id){const u={};const conta=(nome,arr)=>{const n=(arr||[]).filter(x=>!(nome===tab&&x.id===id)&&JSON.stringify(x).includes(id)).length;if(n)u[nome]=n};
+  [["os",S.os],["pedidos",S.pedidos],["manutencoes",S.manutencoes],["rotas",S.rotas],["recorrencias",S.recorrencias],["equipamentos",S.equipamentos],["planos",S.planos],["setores",S.setores],["solicitantes",S.solicitantes],
+   ["veiculo_abastecimentos",S.veiculo_abastecimentos],["veiculo_servicos",S.veiculo_servicos],["veiculo_conferencias",S.veiculo_conferencias],["equipe",S.equipe],["locais",S.locais],["veiculos",S.veiculos],["prestadores",S.prestadores]].forEach(([n,a])=>conta(n,a));
+  return {total:Object.values(u).reduce((s,n)=>s+n,0),usos:u}}
+async function excluirCad(tab,id,executar){
+  if(S.demo){const r=usosDemo(tab,id);if(executar&&!r.total){S[tab]=S[tab].filter(x=>x.id!==id);if(tab==="locais")S.distancias=(S.distancias||[]).filter(d=>d.localA!==id&&d.localB!==id);return Object.assign(r,{apagado:true})}return Object.assign(r,{apagado:false})}
+  const {data,error}=await sb.rpc("excluir_cadastro",{p_tabela:CAD[tab].col,p_id:id,p_executar:!!executar});if(error)throw error;
+  if(data&&data.apagado)await Promise.all([CAD[tab].col].concat(tab==="locais"?["distancias"]:[]).map(carregar));return data}
+function excluirCadHTML(tab,x){const D=S.cadDel;const nm=tab==="setores"?nomeSetor(x.id):x.nome;
+  if(!D.res)return `<div class="cad-join"><p>Conferindo se “${esc(nm)}” está em uso…</p></div>`;
+  if(D.res.erro)return `<div class="cad-join"><p class="err" style="margin:0">${esc(D.res.erro)}</p><div class="actions"><button class="btn ghost" type="button" data-cdelx>Fechar</button></div></div>`;
+  if(D.res.total>0)return `<div class="cad-join"><p><b>“${esc(nm)}” não pode ser excluído porque já está em uso:</b> ${esc(usoTxt(D.res.usos))}.<br>Para não perder o histórico, <b>desative</b> o cadastro (ele some dos formulários e o histórico fica com o nome)${tab==="locais"||tab==="setores"?" ou use <b>Juntar com…</b> se ele for repetido":""}.</p>
+    <div class="actions">${x.ativo!==false?`<button class="btn" type="button" data-tg="${esc(x.id)}">Desativar</button>`:""}${tab==="locais"||tab==="setores"?`<button class="btn" type="button" data-join="${esc(x.id)}">Juntar com…</button>`:""}<button class="btn ghost" type="button" data-cdelx>Fechar</button></div></div>`;
+  return `<div class="cad-join"><p><b>Excluir “${esc(nm)}”?</b> Ele não está ligado a nenhuma OS, rota ou outro registro. Não dá para desfazer.</p>
+    <div class="actions"><button class="btn danger" type="button" data-cdelok="${esc(x.id)}">Excluir de vez</button><button class="btn ghost" type="button" data-cdelx>Cancelar</button></div><p class="err" id="cdErr" role="alert"></p></div>`}
+const msgExcl=e=>/excluir_cadastro|schema cache|Could not find/i.test((e&&e.message)||"")?"Falta rodar o script 29 no Supabase.":(e&&e.message)||"Não foi possível conferir.";
 async function juntarCadastro(tab,de,para){
   if(!S.demo){const {error}=await sb.rpc("juntar_cadastro",{tabela:tab,de,para});if(error)throw error;await Promise.all([tab,"locais","setores","os","pedidos","manutencoes","equipamentos","planos","solicitantes","perfis","recorrencias"].filter((v,i,a)=>a.indexOf(v)===i).map(carregar));return}
   const k=tab==="locais"?["origemId","destinoId","localId"]:["setorId"];
@@ -1675,13 +1702,19 @@ function bindFotosAntigas(){
     catch(e){console.error(e);ok.disabled=false;ok.dataset.c="";ok.textContent="Tentar de novo";er.textContent=msg(e)}};
 }
 function bindCad(){
-  $$("[data-join]").forEach(b=>b.onclick=()=>{S.cadJoin=b.dataset.join;S.cadEdit=null;renderCadastros()});
+  $$("[data-cdel]").forEach(b=>b.onclick=async()=>{const id=b.dataset.cdel;S.cadDel={id,res:null};S.cadEdit=null;S.cadJoin=null;renderCadastros();
+    try{S.cadDel.res=await excluirCad(S.cadTab,id,false)}catch(e){console.error(e);S.cadDel.res={erro:msgExcl(e)}}if(S.cadDel&&S.cadDel.id===id)renderCadastros()});
+  $$("[data-cdelx]").forEach(b=>b.onclick=()=>{S.cadDel=null;renderCadastros()});
+  $$("[data-cdelok]").forEach(b=>b.onclick=async()=>{const id=b.dataset.cdelok;const x=byId(S[S.cadTab],id);b.disabled=true;b.textContent="Excluindo…";
+    try{const r=await excluirCad(S.cadTab,id,true);if(r.apagado){S.cadDel=null;toast("“"+((x&&x.nome)||"Cadastro")+"” excluído");renderCadastros()}else{S.cadDel.res=r;renderCadastros()}}
+    catch(e){console.error(e);b.disabled=false;b.textContent="Excluir de vez";const er=$("#cdErr");if(er)er.textContent=msgExcl(e)}});
+  $$("[data-join]").forEach(b=>b.onclick=()=>{S.cadJoin=b.dataset.join;S.cadEdit=null;S.cadDel=null;renderCadastros()});
   $$("[data-joinx]").forEach(b=>b.onclick=()=>{S.cadJoin=null;renderCadastros()});
   $$("[data-joinok]").forEach(b=>b.onclick=async()=>{const para=$("#jn-sel").value;const er=$("#jn-err");if(!para){er.textContent="Escolha com qual cadastro juntar.";return}
     b.disabled=true;b.textContent="Juntando…";const de=b.dataset.joinok;const nm=(byId(S[S.cadTab],de)||{}).nome,nm2=(byId(S[S.cadTab],para)||{}).nome;
     try{await juntarCadastro(S.cadTab,de,para);S.cadJoin=null;toast("“"+nm+"” juntado com “"+nm2+"”");renderCadastros()}
     catch(e){console.error(e);b.disabled=false;b.textContent="Juntar";er.textContent=/juntar_cadastro|schema cache|Could not find/i.test(e.message||"")?"Rode o script 13 no Supabase para juntar cadastros.":"Não foi possível juntar: "+(e.message||"erro")}});
-  $$("[data-ct]").forEach(b=>b.onclick=()=>{S.cadTab=b.dataset.ct;S.cadEdit=null;renderCadastros()});
+  $$("[data-ct]").forEach(b=>b.onclick=()=>{S.cadTab=b.dataset.ct;S.cadEdit=null;S.cadDel=null;renderCadastros()});
   const tol=$("#tolOk");if(tol)tol.onclick=async()=>{const v=Math.max(0,Number($("#tol").value)||0);
     try{ if(S.demo){S.config.toleranciaMin=v}else{ const {error}=await sb.from("config").update({tolerancia_min:v}).eq("id",1); if(error)throw error; S.config.toleranciaMin=v; } toast("Tolerância salva");}catch(e){toast("Não foi possível salvar.")}};
   const cko=$("#ckOk");if(cko)cko.onclick=async()=>{const itens=$("#ckTxt").value.split("\n").map(x=>x.trim()).filter(Boolean);if(!itens.length){toast("Informe ao menos um item.");return}
@@ -1706,7 +1739,7 @@ function bindCad(){
   const nb=$("[data-new]");if(nb)nb.onclick=()=>{if(S.cadTab==="veiculos"){location.hash="#veiculo-editar/novo";return}S.cadEdit="__new";renderCadastros();const f=$("#ce-nome");if(f)f.focus()};
   $$("[data-ed]").forEach(b=>b.onclick=()=>{if(S.cadTab==="veiculos"){location.hash="#veiculo-editar/"+b.dataset.ed;return}S.cadEdit=b.dataset.ed;renderCadastros()});
   $$("[data-cx]").forEach(b=>b.onclick=()=>{S.cadEdit=null;renderCadastros()});
-  $$("[data-tg]").forEach(b=>b.onclick=async()=>{const x=byId(S[S.cadTab],b.dataset.tg);const on=x.ativo===false;
+  $$("[data-tg]").forEach(b=>b.onclick=async()=>{const x=byId(S[S.cadTab],b.dataset.tg);const on=x.ativo===false;S.cadDel=null;
     try{ if(S.demo){x.ativo=on;renderCadastros()} else { const {error}=await sb.from(CAD[S.cadTab].col).update({ativo:on}).eq("id",x.id); if(error)throw error; await carregar(CAD[S.cadTab].col); renderCadastros(); } }catch(e){toast("Não foi possível alterar.")}});
   $$("[data-form]").forEach(f=>f.onsubmit=async e=>{e.preventDefault();const C=CAD[S.cadTab];const d={};C.f.forEach(([k,,t])=>d[k]=t==="multi"?$$("#ce-"+k+" [data-mv]").filter(b=>b.getAttribute("aria-pressed")==="true").map(b=>b.dataset.mv):$("#ce-"+k).value.trim());
     if(!d.nome){toast("Informe o nome.");return}
@@ -2707,7 +2740,7 @@ function dadosArea(k,ar){
   const porV={};const V=id=>porV[id]=porV[id]||{os:0,serv:0,comb:0,km:0,litros:0,nOs:0};
   os.forEach(m=>{const x=V(m.veiculoId);x.os+=custoTotal(m);x.nOs++});
   sv.forEach(s=>{V(s.veiculoId).serv+=Number(s.custo)||0});
-  ab.forEach(a=>{const c=abastCalc(a);const x=V(a.veiculoId);x.comb+=c.valor;x.litros+=c.litros;x.km+=c.km||0});
+  ab.forEach(a=>{const c=abastCalc(a);const x=V(a.veiculoId);x.comb+=c.valor;x.litros+=c.litros;x.km+=c.km||0;if(c.km&&c.litros){x.kmLit=(x.kmLit||0)+c.km;x.lLit=(x.lLit||0)+c.litros}});
   Object.values(porV).forEach(x=>x.total=x.os+x.serv+x.comb);
   const tot=f=>Object.values(porV).reduce((s,x)=>s+x[f],0);
   const pz=os.filter(m=>isFinite(prazoM(m)));
@@ -2745,7 +2778,7 @@ function pontosArea(A,B,ar){
     if(atual&&!frotaSemScript()){const al=alertasFrota().filter(a=>a.nivel==="alto");if(al.length)P.push({n:2,t:`${al.length} pendência${al.length>1?"s":""} vencida${al.length>1?"s":""} na frota (conferência, óleo, revisão ou limpeza).`})}
     let maior=null;Object.keys(A.porV).forEach(id=>{const a=A.porV[id].total,b=B.porV[id]?B.porV[id].total:0;const d=a-b;if(d>300&&(b===0||d/b>.3)&&(!maior||d>maior.d))maior={id,d,a,b}});
     if(maior)P.push({n:1,t:`Maior aumento: ${nomeVid(maior.id)}, +${fBRL(maior.d)} (${fBRL(maior.b)} → ${fBRL(maior.a)}).`});
-    Object.keys(A.porV).forEach(id=>{const x=A.porV[id];const v=byId(S.veiculos,id);const ref=v?kmLVeic(v):null;if(x.km&&x.litros&&ref){const kl=x.km/x.litros;if(kl<ref*.85)P.push({n:1,t:`${nomeV(v)}: consumo de ${kl.toFixed(1).replace(".",",")} km/l, ${Math.round((1-kl/ref)*100)}% pior que o esperado (${String(ref).replace(".",",")} km/l).`})}});
+    Object.keys(A.porV).forEach(id=>{const x=A.porV[id];const v=byId(S.veiculos,id);const ref=v?kmLVeic(v):null;if(x.kmLit&&x.lLit&&ref){const kl=x.kmLit/x.lLit;if(kl<ref*.85)P.push({n:1,t:`${nomeV(v)}: consumo de ${kl.toFixed(1).replace(".",",")} km/l, ${Math.round((1-kl/ref)*100)}% pior que o esperado (${String(ref).replace(".",",")} km/l).`})}});
   }
   return P.sort((a,b)=>b.n-a.n);
 }
@@ -3470,9 +3503,10 @@ const lavDias=v=>Math.max(1,Number(v.lavagemDias)||7),higDias=v=>Math.max(1,Numb
 const dataMs=d=>new Date(String(d).slice(0,10)+"T12:00:00").getTime();
 
 function kmVeic(v){
-  const c=[nOuNull(v.kmAtual),nOuNull(v.kmInicial)];
+  const cut=kmCorte(v);
+  const c=[nOuNull(v.kmAtual)];if(cut==null)c.push(nOuNull(v.kmInicial));
   const u=typeof ultimoKm==="function"?ultimoKm(v.id):null;if(u)c.push(u.km);
-  confsDe(v.id).forEach(x=>c.push(nOuNull(x.km)));servsDe(v.id).forEach(x=>c.push(nOuNull(x.km)));
+  confsDe(v.id).forEach(x=>{if(kmValeT(cut,x.feitoEm))c.push(nOuNull(x.km))});servsDe(v.id).forEach(x=>{if(kmValeT(cut,x.feitoEm?dtServ(x):x.criadoEm))c.push(nOuNull(x.km))});
   const k=c.filter(x=>x!=null);return k.length?Math.max(...k):null;
 }
 function prazoConf(v){
@@ -3584,10 +3618,19 @@ function renderVeiculo(){
         <div class="actions"><a class="btn sm${c.nivel!=="ok"?" pri":""}" href="#conferir/${esc(v.id)}">Conferir</a></div></div>
       ${blocoServ(v,"oleo")}${blocoServ(v,"revisao")}${blocoLimp(v)}
       ${(()=>{const u=abastDe(v.id)[0];const c=u?abastCalc(u):null;const ref=kmLVeic(v);const pc=c&&c.kmL&&ref?c.kmL/ref*100:null;
-        return `<div class="fr-sit ${pc==null?"":pc>=90?"ok":pc>=80?"medio":"alto"}"><h3>Combustível</h3><p class="fr-big">${c&&c.kmL?esc(fKmL(c.kmL)):"—"}</p>${u?`<p>Último lançamento: ${esc(fDia(String(u.periodoIni).slice(0,10)))} a ${esc(fDia(String(u.periodoFim).slice(0,10)))}</p><p>${esc(fNum(c.litros,1))} l · ${esc(fBRL(c.valor))}${c.rKm!=null?" · "+esc(fBRL(c.rKm))+"/km":""}</p>`:`<p>Nenhum lançamento.</p>`}<p>${ref?"Esperado: "+esc(fKmL(ref))+(pc!=null?" · "+fNum(pc)+"% do esperado":""):"Cadastre o consumo esperado em Editar cadastro."}</p>
+        return `<div class="fr-sit ${pc==null?"":pc>=90?"ok":pc>=80?"medio":"alto"}"><h3>Combustível</h3><p class="fr-big">${c&&c.kmL?esc(fKmL(c.kmL)):"—"}</p>${u?`<p>Último lançamento: ${esc(fDia(String(u.periodoIni).slice(0,10)))} a ${esc(fDia(String(u.periodoFim).slice(0,10)))}</p><p>${u.litros!=null&&u.litros!==""?esc(fNum(c.litros,1))+" l · ":""}${esc(fBRL(c.valor))}${c.rKm!=null?" · "+esc(fBRL(c.rKm))+"/km":""}</p>`:`<p>Nenhum lançamento.</p>`}<p>${ref?"Esperado: "+esc(fKmL(ref))+(pc!=null?" · "+fNum(pc)+"% do esperado":""):"Cadastre o consumo esperado em Editar cadastro."}</p>
           ${isFrota()?`<div class="actions"><a class="btn sm" href="#f-comb/${esc(v.id)}">Lançar combustível</a></div>`:""}</div>`})()}
-      <div class="fr-sit"><h3>Quilometragem</h3><p class="fr-big num">${km!=null?esc(fKm(km)):"—"}</p><p>Atualiza sozinha pela conferência, pelos serviços e pelo km final das rotas.</p>${v.kmInicial!=null?`<p>Km inicial no cadastro: ${esc(fKm(v.kmInicial))}</p>`:""}</div>
+      <div class="fr-sit"><h3>Quilometragem</h3><p class="fr-big num">${km!=null?esc(fKm(km)):"—"}</p><p>Atualiza sozinha pela conferência, pelos serviços e pelo km final das rotas.</p>${v.kmInicial!=null?`<p>Km inicial no cadastro: ${esc(fKm(v.kmInicial))}</p>`:""}${v.kmCorrigidoEm?`<p>Corrigido em ${esc(fDH(v.kmCorrigidoEm))}</p>`:""}
+        ${isFrota()||isAdmin()?`<div class="actions"><button class="btn sm" type="button" id="kmCorr">Corrigir km</button></div>`:""}</div>
     </div>`;
+  if(S.kmCorr&&S.kmCorr.id===v.id){const K=S.kmCorr;const hist=(v.kmCorrecoes||[]).slice().reverse();
+    h+=`<section class="card fr-form" id="kmCorrBox"><div class="card-h"><h2>Corrigir a quilometragem</h2><span class="sub">${esc(nomeV(v))}</span></div><div class="card-b">
+      <p style="margin:0 0 12px;color:var(--mute);max-width:72ch">Use quando o km foi cadastrado ou lançado errado. O km informado passa a valer a partir de agora. Os registros antigos continuam no histórico, mas deixam de contar para o km atual do veículo.</p>
+      <div class="filters"><div class="field"><label>Km que o sistema mostra hoje</label><input type="text" value="${esc(km!=null?fKm(km):"—")}" disabled></div>
+        <div class="field"><label for="kcKm" class="req">Km certo (olhe no painel do veículo)</label><input type="number" id="kcKm" inputmode="numeric" min="0" placeholder="Ex.: 52340" value="${esc(K.km||"")}"></div>
+        <div class="field grow"><label for="kcMot" class="req">Motivo</label><input type="text" id="kcMot" maxlength="300" placeholder="Ex.: cadastrado com um zero a mais" value="${esc(K.mot||"")}"></div></div>
+      ${hist.length?`<p class="hint" style="margin:10px 0 0">Correções anteriores: ${hist.slice(0,5).map(x=>esc(fDH(x.em)+": "+(x.de!=null?fKm(x.de):"—")+" → "+fKm(x.para)+(x.quem?" ("+x.quem+")":"")+(x.motivo?" · "+x.motivo:""))).join("<br>")}</p>`:""}
+      <p class="err" id="kcErr" role="alert"></p><div class="actions"><button class="btn pri" type="button" id="kcOk">Salvar km correto</button><button class="btn ghost" type="button" id="kcX">Cancelar</button></div></div></section>`}
   if(fs)h+=`<section class="card fr-form"><div class="card-h"><h2>Registrar ${esc(SERV_LBL[fs.tipo].toLowerCase())}</h2></div><div class="card-b"><div class="filters">
       <div class="field"><label for="vsTipo">Serviço</label><select id="vsTipo">${optsS(Object.entries(SERV_LBL).filter(x=>x[0]!=="lavagem"),fs.tipo)}</select></div>
       <div class="field"><label for="vsKm" class="req">Km no painel</label><input type="number" id="vsKm" inputmode="numeric" min="0" value="${esc(fs.km!=null?fs.km:km!=null?km:"")}"></div>
@@ -3611,7 +3654,19 @@ function renderVeiculo(){
       ${ss.length?`<ul class="fr-hist">${ss.slice(0,20).map(x=>`<li><span><b>${esc(x.tipo==="lavagem"?LAV_LBL[x.detalhe]||"Lavagem":SERV_LBL[x.tipo]||x.tipo)}</b> ${esc(fDia(x.feitoEm))}${x.km!=null?" · "+esc(fKm(x.km)):""}${x.oficina?" · "+esc(x.oficina):""}${x.obs?`<br><small>${esc(x.obs)}</small>`:""}${(x.fotos||[]).length?fotosM(x.fotos):""}</span><span class="fr-hs">${x.custo!=null?esc(fBRL(x.custo)):""}${isStaff()?` <button class="lnk" type="button" data-vsdel="${esc(x.id)}">Apagar</button>`:""}</span></li>`).join("")}</ul>`:`<p class="fr-none">Nenhum serviço registrado.</p>`}</div></section></div>`;
   app.innerHTML=h;bindVeiculo(v);bindZoom(app);bindMOpen(app);
 }
+async function corrigirKm(v,km,motivo){
+  if(S.demo){v.kmCorrecoes=(v.kmCorrecoes||[]).concat([{de:kmVeic(v),para:km,em:nowISO(),quem:S.meName||"Coordenação",motivo}]);Object.assign(v,{kmAtual:km,kmAtualEm:nowISO(),kmCorrigidoEm:nowISO(),kmInicial:Math.min(v.kmInicial==null?km:Number(v.kmInicial),km)});return}
+  const {error}=await sb.rpc("corrigir_km_veiculo",{p_veiculo:v.id,p_km:km,p_motivo:motivo});if(error)throw error;await carregar("veiculos")}
 function bindVeiculo(v){
+  const kc=$("#kmCorr");if(kc)kc.onclick=()=>{S.kmCorr={id:v.id};renderVeiculo();const b=$("#kmCorrBox");if(b){b.scrollIntoView({block:"nearest"});$("#kcKm").focus()}};
+  const kx=$("#kcX");if(kx)kx.onclick=()=>{S.kmCorr=null;renderVeiculo()};
+  const ko=$("#kcOk");if(ko)ko.onclick=async()=>{const er=$("#kcErr");er.textContent="";const kmS=$("#kcKm").value.trim(),mot=$("#kcMot").value.trim();S.kmCorr.km=kmS;S.kmCorr.mot=mot;
+    const km=Math.round(Number(kmS));if(kmS===""||!(km>=0)||km>3000000){er.textContent="Informe o km certo.";return}if(!mot){er.textContent="Diga o motivo da correção.";return}
+    const atual=kmVeic(v);if(atual===km){er.textContent="Esse já é o km mostrado pelo sistema.";return}
+    if(ko.dataset.c!=="1"){ko.dataset.c="1";ko.textContent="Confirmar: "+fKm(atual)+" → "+fKm(km);return}
+    ko.disabled=true;ko.textContent="Salvando…";
+    try{await corrigirKm(v,km,mot);S.kmCorr=null;toast("Km corrigido para "+fKm(km));renderVeiculo()}
+    catch(e){console.error(e);ko.disabled=false;ko.dataset.c="";ko.textContent="Salvar km correto";er.textContent=/corrigir_km_veiculo|schema cache|Could not find/i.test(e.message||"")?"Falta rodar o script 29 no Supabase.":(e.message||"Não foi possível salvar.")}};
   $$("[data-vserv]").forEach(b=>b.onclick=()=>{S.vServ={id:v.id,tipo:b.dataset.vserv};renderVeiculo();const f=$("#vsKm");if(f){f.scrollIntoView({block:"center"});f.focus()}});
   const vx=$("#vsX");if(vx)vx.onclick=()=>{S.vServ=null;renderVeiculo()};
   const vt=$("#vsTipo");if(vt)vt.onchange=()=>{S.vServ=Object.assign(S.vServ,lerServ(),{tipo:vt.value});renderVeiculo()};
@@ -3696,7 +3751,7 @@ function renderVeiculoEditar(){
     if(d.oleoMeses===0||d.revisaoMeses===0){er.textContent="Meses precisa ser maior que zero, ou deixe vazio.";return}
     if(d.kmInicial!=null){if(d.oleoUltimaKm!=null&&d.oleoUltimaKm>(d.kmAtual??d.kmInicial)+50000){er.textContent="O km da última troca está muito acima do km do veículo. Confira.";return}}
     if(novo)d.kmAtual=d.kmInicial;
-    else if(d.kmAtual!=null&&v.kmAtual!=null&&d.kmAtual<v.kmAtual&&d.kmAtual<(kmVeic(v)||0)){er.textContent="O km atual informado é menor que o último registrado ("+fKm(kmVeic(v))+").";return}
+    else if(d.kmAtual!=null&&v.kmAtual!=null&&d.kmAtual<v.kmAtual&&d.kmAtual<(kmVeic(v)||0)){er.textContent="O km atual informado é menor que o último registrado ("+fKm(kmVeic(v))+"). Se o km foi lançado errado, use o botão Corrigir km na página do veículo.";return}
     if(!novo&&d.kmAtual==null)delete d.kmAtual;
     const dup=S.veiculos.find(x=>x.id!==v.id&&d.placa&&String(x.placa||"").toUpperCase().replace(/[\s-]/g,"")===d.placa);if(dup){er.textContent="Já existe um veículo com essa placa: "+dup.nome+".";return}
     const b=$("#vfOk");b.disabled=true;b.textContent="Salvando…";
@@ -4381,16 +4436,106 @@ async function transporteFrota(m){
 /* ---------- combustível (área Frota) ---------- */
 const semScript24=()=>!S.demo&&S.missing&&S.missing.veiculo_abastecimentos;
 const aviso24=()=>semScript24()?`<div class="banner"><b>Falta um passo no Supabase.</b> Rode o arquivo <code>supabase/24_eficiencia.sql</code> no SQL Editor para ativar o combustível e o Controle de Eficiência.</div>`:"";
+/* ---------- importar abastecimentos de uma planilha (placa + valor) ---------- */
+const normTxt=t=>String(t==null?"":t).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();
+const normPlaca=p=>String(p||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+// placa antiga (ABC1234) e Mercosul (ABC1C34) viram a mesma chave
+const chavePlaca=p=>{const x=normPlaca(p);return /^[A-Z]{3}\d[A-J]\d{2}$/.test(x)?x.slice(0,4)+(x.charCodeAt(4)-65)+x.slice(5):x};
+function numPlan(v){if(v==null||v==="")return null;if(typeof v==="number")return isFinite(v)?v:null;
+  let t=String(v).replace(/R\$|\s| /gi,"").replace(/[^\d,.\-]/g,"");if(!t)return null;
+  if(t.includes(",")&&t.includes("."))t=t.lastIndexOf(",")>t.lastIndexOf(".")?t.replace(/\./g,"").replace(",","."):t.replace(/,/g,"");
+  else if(t.includes(","))t=t.replace(/\./g,"").replace(",",".");
+  else if(/^\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,"");
+  const n=Number(t);return isFinite(n)?n:null}
+function dataPlan(v){if(v==null||v==="")return null;
+  if(v instanceof Date&&!isNaN(v))return dayKey(new Date(v.getTime()+12*3600000));
+  if(typeof v==="number"&&v>20000&&v<80000){const d=new Date(Math.round((v-25569)*86400000));return dayKey(new Date(d.getTime()+12*3600000))}
+  const t=String(v).trim();let m=t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
+  if(m){const y=m[3].length===2?2000+Number(m[3]):Number(m[3]);const d=new Date(y,Number(m[2])-1,Number(m[1]),12);return isNaN(d)?null:dayKey(d)}
+  m=t.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[1]+"-"+m[2]+"-"+m[3];return null}
+function csvLinhas(txt){txt=txt.replace(/^﻿/,"");const prim=txt.split(/\r?\n/)[0]||"";const sep=[";","\t",","].sort((a,b)=>prim.split(b).length-prim.split(a).length)[0];
+  const out=[];let row=[],cel="",q=false;
+  for(let i=0;i<txt.length;i++){const c=txt[i];
+    if(q){if(c==='"'){if(txt[i+1]==='"'){cel+='"';i++}else q=false}else cel+=c;continue}
+    if(c==='"')q=true;else if(c===sep){row.push(cel);cel=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&txt[i+1]==="\n")i++;row.push(cel);out.push(row);row=[];cel=""}else cel+=c}
+  if(cel!==""||row.length){row.push(cel);out.push(row)}return out}
+let xlsxCarregando=null;
+function carregarXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(xlsxCarregando)return xlsxCarregando;
+  xlsxCarregando=new Promise((ok,no)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";s.onload=()=>ok(window.XLSX);s.onerror=()=>{xlsxCarregando=null;no(new Error("Não foi possível abrir planilhas do Excel agora. Confira a internet ou salve a planilha como CSV."))};document.head.appendChild(s)});return xlsxCarregando}
+async function lerPlanilha(file){
+  if(/\.csv$|\.txt$/i.test(file.name))return csvLinhas(await file.text());
+  const X=await carregarXLSX();const wb=X.read(await file.arrayBuffer(),{type:"array",cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];
+  return X.utils.sheet_to_json(ws,{header:1,raw:true,defval:""})}
+function mapearColunas(rows){
+  for(let i=0;i<Math.min(rows.length,15);i++){const h=rows[i].map(normTxt);const ip=h.findIndex(x=>/placa/.test(x));if(ip<0)continue;
+    const acha=(re,no)=>h.findIndex((x,j)=>j!==ip&&re.test(x)&&!(no&&no.test(x)));
+    let iv=acha(/valor total|total|valor|vlr|r\$|preco/,/unit|litro|\/l\b/);if(iv<0)iv=acha(/valor|vlr|r\$/);
+    return {lin:i,placa:ip,valor:iv,litros:acha(/litro|^qtd|quantidade|volume|^l$|^lts?$/,/valor|r\$|preco|\/l\b/),data:acha(/data|^dt|dia/),km:acha(/km|odometro|hodometro|quilometr/,/km\/l|por km/),comb:acha(/combust|produto|tipo/)}}
+  return null}
+function montarImport(rows,nome){
+  const M=mapearColunas(rows);if(!M)throw new Error("Não achei a coluna Placa. A primeira linha da planilha precisa ter os títulos: Placa e Valor.");
+  if(M.valor<0)throw new Error("Não achei a coluna Valor. Dê o título Valor à coluna com o valor abastecido.");
+  const mapa={};(S.veiculos||[]).forEach(v=>{if(v.placa)mapa[chavePlaca(v.placa)]=v});
+  const L=[];rows.slice(M.lin+1).forEach((r,i)=>{const placa=normPlaca(r[M.placa]);const val=numPlan(r[M.valor]);if(!placa&&val==null)return;
+    const v=placa?mapa[chavePlaca(placa)]:null;const x={n:M.lin+i+2,placaTxt:String(r[M.placa]||"").trim(),placa,v,valor:val,litros:M.litros>=0?numPlan(r[M.litros]):null,data:M.data>=0?dataPlan(r[M.data]):null,
+      km:M.km>=0?(n=>n!=null&&n>0?Math.round(n):null)(numPlan(r[M.km])):null,comb:M.comb>=0?String(r[M.comb]||"").trim():""};
+    x.erro=!placa?"Sem placa":!v?"Placa não cadastrada":val==null||!(val>0)?"Sem valor":x.litros!=null&&!(x.litros>0)?"Litros inválidos":null;
+    if(v&&v.ativo===false&&!x.erro)x.aviso="Veículo desativado";
+    x.marcado=!x.erro;L.push(x)});
+  if(!L.length)throw new Error("A planilha não tem linhas com placa e valor.");
+  return {nome,linhas:L,temData:M.data>=0,temLitros:M.litros>=0,temKm:M.km>=0}}
+function periodoImp(I,x){return x.data?[x.data,x.data]:[I.ini,I.fim]}
+function marcarDuplicados(I){I.linhas.forEach(x=>{if(x.erro||!x.v){x.dup=false;return}const [a,b]=periodoImp(I,x);
+  x.dup=(S.veiculo_abastecimentos||[]).some(y=>y.veiculoId===x.v.id&&Math.abs(Number(y.valor)-x.valor)<0.005&&String(y.periodoIni).slice(0,10)===a&&String(y.periodoFim).slice(0,10)===b);
+  if(x.dup&&x.marcado&&!x.dupVisto){x.marcado=false;x.dupVisto=true}})}
+function importHTML(){const I=S.imp;
+  if(!I.linhas)return `<section class="card fr-form" id="impBox"><div class="card-h"><h2>Importar abastecimentos da planilha</h2></div><div class="card-b">
+    <p style="margin:0 0 10px;max-width:74ch">A planilha precisa ter, na primeira linha, os títulos <b>Placa</b> e <b>Valor</b>. Se tiver, o sistema também usa <b>Litros</b>, <b>Data</b> e <b>Km</b>. Cada linha é lançada no veículo da placa. Placas no formato antigo e no Mercosul são reconhecidas.</p>
+    <div class="imp-ex"><table class="t"><thead><tr><th>Placa</th><th>Valor</th><th>Litros</th><th>Data</th><th>Km</th></tr></thead><tbody><tr><td>SUG4A56</td><td>412,80</td><td>68,5</td><td>18/11/2026</td><td>52340</td></tr><tr><td>ABC1D23</td><td>250,00</td><td></td><td></td><td></td></tr></tbody></table><p class="hint">Litros, Data e Km são opcionais.</p></div>
+    <div class="actions"><label class="btn pri" for="impArq">Escolher planilha (Excel ou CSV)</label><input type="file" id="impArq" accept=".xlsx,.xls,.csv,.txt" hidden><button class="btn" type="button" id="impModelo">Baixar modelo</button><button class="btn ghost" type="button" id="impX">Cancelar</button></div>
+    <p class="err" id="impErr" role="alert">${esc(I.erro||"")}</p></div></section>`;
+  marcarDuplicados(I);
+  const ok=I.linhas.filter(x=>x.marcado&&!x.erro);const tot=ok.reduce((s,x)=>s+x.valor,0);const semData=I.linhas.some(x=>!x.data&&!x.erro);
+  return `<section class="card fr-form" id="impBox"><div class="card-h"><h2>Conferir a planilha</h2><span class="sub">${esc(I.nome)}</span></div><div class="card-b">
+    ${semData?`<div class="filters"><div class="field"><label for="impIni" class="req">${I.temData?"Período para as linhas sem data: de":"Período dos abastecimentos: de"}</label><input type="date" id="impIni" value="${esc(I.ini)}"></div><div class="field"><label for="impFim" class="req">Até</label><input type="date" id="impFim" value="${esc(I.fim)}"></div></div>`:""}
+    <div class="tbl-wrap"><table class="t imp-t"><thead><tr><th><input type="checkbox" id="impTodos" aria-label="Marcar todas" ${I.linhas.filter(x=>!x.erro).every(x=>x.marcado)?"checked":""}></th><th>Linha</th><th>Placa</th><th>Veículo</th><th class="r">Valor</th><th class="r">Litros</th><th>Data</th><th class="r">Km</th><th>Situação</th></tr></thead><tbody>
+      ${I.linhas.map((x,i)=>`<tr class="${x.erro?"imp-err":x.dup?"imp-dup":""}"><td>${x.erro?"":`<input type="checkbox" data-imp="${i}" aria-label="Lançar linha ${x.n}" ${x.marcado?"checked":""}>`}</td><td class="num">${x.n}</td><td class="num">${esc(x.placaTxt||"—")}</td><td>${x.v?`<a href="#veiculo/${esc(x.v.id)}">${esc(x.v.nome)}</a>`:"—"}</td>
+        <td class="r num">${x.valor!=null?fBRL(x.valor):"—"}</td><td class="r num">${x.litros!=null?fNum(x.litros,1):"—"}</td><td class="num">${x.data?esc(fDia(x.data)):"período"}</td><td class="r num">${x.km!=null?fNum(x.km):"—"}</td>
+        <td>${x.erro?`<b class="imp-e">${esc(x.erro)}</b>`:x.dup?`<b class="imp-d">Parece já lançado</b>`:x.aviso?`<span class="imp-d">${esc(x.aviso)}</span>`:`<span class="imp-ok">Pronto</span>`}</td></tr>`).join("")}</tbody></table></div>
+    <p class="hint" style="margin:10px 0 0">${plural(I.linhas.length,"linha")} na planilha · ${plural(I.linhas.filter(x=>x.erro).length,"com erro","com erro")}${I.linhas.some(x=>x.dup)?" · "+plural(I.linhas.filter(x=>x.dup).length,"parece já lançada","parecem já lançadas")+" (desmarcadas)":""}. Linhas com erro não são lançadas: corrija a placa no cadastro do veículo ou na planilha e importe de novo.</p>
+    <p class="err" id="impErr" role="alert">${esc(I.erro||"")}</p><div class="actions"><button class="btn pri" type="button" id="impOk"${ok.length?"":" disabled"}>${ok.length?"Lançar "+plural(ok.length,"abastecimento")+" · "+fBRL(tot):"Nada marcado para lançar"}</button><button class="btn" type="button" id="impOutra">Escolher outra planilha</button><button class="btn ghost" type="button" id="impX">Cancelar</button></div></div></section>`}
+function bindImport(){const I=S.imp;if(!I)return;const er=()=>$("#impErr");
+  const x=$("#impX");if(x)x.onclick=()=>{S.imp=null;renderFComb()};
+  const ou=$("#impOutra");if(ou)ou.onclick=()=>{S.imp={ini:I.ini,fim:I.fim};renderFComb()};
+  const mo=$("#impModelo");if(mo)mo.onclick=()=>{const vs=veicAtivos().filter(v=>v.placa).slice(0,3);const L=["Placa;Valor;Litros;Data;Km"].concat(vs.map(v=>v.placa+";;;;"));
+    const url=URL.createObjectURL(new Blob(["﻿"+L.join("\n")],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="modelo-abastecimentos.csv";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)};
+  const arq=$("#impArq");if(arq)arq.onchange=async()=>{const f=arq.files[0];if(!f)return;er().textContent="Lendo a planilha…";
+    try{const rows=await lerPlanilha(f);Object.assign(S.imp,montarImport(rows,f.name),{erro:""});renderFComb();const b=$("#impBox");if(b)b.scrollIntoView({block:"start"})}
+    catch(e){console.error(e);S.imp.erro=e.message||"Não foi possível ler a planilha.";renderFComb()}};
+  const ini=$("#impIni"),fim=$("#impFim");if(ini)ini.onchange=()=>{I.ini=ini.value;renderFComb()};if(fim)fim.onchange=()=>{I.fim=fim.value;renderFComb()};
+  $$("[data-imp]").forEach(c=>c.onchange=()=>{I.linhas[+c.dataset.imp].marcado=c.checked;renderFComb()});
+  const td=$("#impTodos");if(td)td.onchange=()=>{I.linhas.forEach(x=>{if(!x.erro)x.marcado=td.checked});renderFComb()};
+  const ok=$("#impOk");if(ok)ok.onclick=async()=>{er().textContent="";const L=I.linhas.filter(x=>x.marcado&&!x.erro);
+    if(L.some(x=>!x.data)&&(!I.ini||!I.fim)){er().textContent="Informe o período.";return}if(L.some(x=>!x.data)&&I.fim<I.ini){er().textContent="A data final é antes da inicial.";return}
+    const rows=L.map(x=>{const [a,b]=periodoImp(I,x);return {veiculoId:x.v.id,periodoIni:a,periodoFim:b,combustivel:x.comb||x.v.combustivel||null,litros:x.litros!=null?x.litros:null,valor:Math.round(x.valor*100)/100,kmInicial:null,kmFinal:x.km,obs:"Importado da planilha "+I.nome,placaPlanilha:x.placaTxt||null}});
+    ok.disabled=true;ok.textContent="Lançando…";
+    try{if(S.demo){rows.forEach(r=>{S.veiculo_abastecimentos.push(Object.assign({id:novoId(),criadoEm:nowISO()},r));const v=byId(S.veiculos,r.veiculoId);if(v&&r.kmFinal!=null&&(v.kmAtual==null||r.kmFinal>v.kmAtual))v.kmAtual=r.kmFinal})}
+      else{for(let i=0;i<rows.length;i+=200){const {error}=await sb.from("veiculo_abastecimentos").insert(rows.slice(i,i+200).map(r=>toDb(r)));if(error)throw error}await Promise.all(["veiculo_abastecimentos","veiculos"].map(carregar))}
+      const tot=rows.reduce((s,r)=>s+r.valor,0);S.imp=null;toast(plural(rows.length,"abastecimento lançado","abastecimentos lançados")+" · "+fBRL(tot));renderFComb()}
+    catch(e){console.error(e);ok.disabled=false;ok.textContent="Tentar de novo";er().textContent=/litros|null value|placa_planilha|schema cache|Could not find/i.test(e.message||"")?"Falta rodar o script 29 no Supabase (planilha sem litros).":"Não foi possível lançar: "+(e.message||"erro")}};
+}
+
 function renderFComb(){
   if(!podeDesenhar())return;
   const vid0=S.routeArg&&byId(S.veiculos,S.routeArg)?S.routeArg:"";
   if(vid0&&(!S.ab||S.ab.veiculoId!==vid0)&&!S.abOk){S.ab={veiculoId:vid0}}
   const [a,b]=periodRange(fPer());
   const ls=(S.veiculo_abastecimentos||[]).filter(x=>fVeicOk(x.veiculoId)&&abNoPer(x,a.getTime(),b.getTime())).sort((x,y)=>String(y.periodoFim).localeCompare(String(x.periodoFim)));
-  const cs=ls.map(abastCalc);const tot=k=>cs.reduce((s,c)=>s+(c[k]||0),0);const kmT=cs.filter(c=>c.km).reduce((s,c)=>s+c.km,0),lT=cs.filter(c=>c.km).reduce((s,c)=>s+c.litros,0);
+  const cs=ls.map(abastCalc);const tot=k=>cs.reduce((s,c)=>s+(c[k]||0),0);const kmT=cs.filter(c=>c.km&&c.litros).reduce((s,c)=>s+c.km,0),lT=cs.filter(c=>c.km&&c.litros).reduce((s,c)=>s+c.litros,0);
   const F=S.ab;const dd=new Date().getDate(),ant=dd<=3||(dd>=16&&dd<=18);const q=quinzenaDe(ant?new Date(quinzenaDe(new Date())[0].getTime()-DIA_MS):new Date());if(q[1]>new Date())q[1]=new Date();
-  let h=headFrota("Combustível","Lance a cada quinzena quantos litros e quantos reais foram gastos com cada veículo. O sistema calcula o km por litro real e o custo por km.",isFrota()&&!F?`<button class="btn pri" type="button" id="abNovo">Lançar combustível</button>`:"")+aviso24()
+  let h=headFrota("Combustível","Lance a cada quinzena quantos litros e quantos reais foram gastos com cada veículo. O sistema calcula o km por litro real e o custo por km.",isFrota()&&!F&&!S.imp?`<button class="btn" type="button" id="abImp">Importar planilha</button><button class="btn pri" type="button" id="abNovo">Lançar combustível</button>`:"")+aviso24()
     +filtrosFrota("");
+  if(S.imp&&isFrota())h+=importHTML();
   if(F&&isFrota()){const v=byId(S.veiculos,F.veiculoId);const ult=v?abastDe(v.id)[0]:null;
     h+=`<section class="card fr-form"><div class="card-h"><h2>Lançar combustível</h2></div><div class="card-b"><div class="filters">
       <div class="field"><label for="abV" class="req">Veículo</label><select id="abV"><option value="">Escolha…</option>${veicAtivos().slice().sort(sortNome).map(x=>`<option value="${esc(x.id)}"${x.id===F.veiculoId?" selected":""}>${esc(nomeV(x))}</option>`).join("")}</select></div>
@@ -4406,9 +4551,11 @@ function renderFComb(){
       <p class="err" id="abErr" role="alert"></p><div class="actions"><button class="btn pri" type="button" id="abOk">Salvar</button><button class="btn ghost" type="button" id="abX">Cancelar</button></div></div></section>`}
   h+=`<div class="kpis">${kpi("Gasto com combustível",fBRL(tot("valor")),"",plural(ls.length,"lançamento"),"money-k")}${kpi("Litros",fNum(tot("litros"),1),"l","no período")}${kpi("Km rodados",fNum(kmT),"km",kmT?"nos lançamentos com km":"Informe o km para calcular")}${kpi("Média",lT&&kmT?fNum(kmT/lT,1):"—","km/l",lT&&kmT?fBRL(cs.filter(c=>c.km).reduce((s,c)=>s+c.valor,0)/kmT)+" por km":"")}</div>
   <section class="card"><div class="card-h"><h2>Lançamentos</h2><span class="sub">${plural(ls.length,"registro")}</span></div><div class="card-b tbl-wrap">${ls.length?`<table class="t"><thead><tr><th>Período</th><th>Veículo</th><th>Combustível</th><th class="r">Litros</th><th class="r">Valor</th><th class="r">Km</th><th class="r">Km/l real</th><th class="r">Esperado</th><th class="r">R$/km</th><th></th></tr></thead><tbody>${ls.map((x,i)=>{const c=cs[i],v=byId(S.veiculos,x.veiculoId)||{};const ref=kmLVeic(v);const pc=c.kmL&&ref?c.kmL/ref*100:null;
-      return `<tr><td class="num">${esc(fDia(String(x.periodoIni).slice(0,10)))} a ${esc(fDia(String(x.periodoFim).slice(0,10)))}</td><td><a href="#veiculo/${esc(x.veiculoId)}">${esc(nomeV(v))}</a></td><td>${esc(x.combustivel||v.combustivel||"—")}</td><td class="r num">${fNum(c.litros,1)}</td><td class="r num">${fBRL(c.valor)}</td><td class="r num">${c.km?fNum(c.km)+(c.fonte==="rotas"?' <small title="Somado das rotas do período">rotas</small>':""):"—"}</td><td class="r num">${esc(fKmL(c.kmL))}${pc!=null?`<br><small class="${pc>=95?"ok":pc>=85?"":"late"}">${fNum(pc)}% do esperado</small>`:""}</td><td class="r num">${esc(fKmL(ref))}</td><td class="r num">${c.rKm!=null?fBRL(c.rKm):"—"}</td><td>${isFrota()?`<button class="lnk" type="button" data-abdel="${esc(x.id)}">Apagar</button>`:""}</td></tr>`}).join("")}</tbody></table>`:`<p class="fr-none">Nenhum lançamento no período.${isFrota()?" Toque em Lançar combustível.":""}</p>`}</div></section>`;
+      return `<tr><td class="num">${esc(fDia(String(x.periodoIni).slice(0,10)))} a ${esc(fDia(String(x.periodoFim).slice(0,10)))}</td><td><a href="#veiculo/${esc(x.veiculoId)}">${esc(nomeV(v))}</a></td><td>${esc(x.combustivel||v.combustivel||"—")}</td><td class="r num">${x.litros!=null&&x.litros!==""?fNum(c.litros,1):"—"}</td><td class="r num">${fBRL(c.valor)}</td><td class="r num">${c.km?fNum(c.km)+(c.fonte==="rotas"?' <small title="Somado das rotas do período">rotas</small>':""):"—"}</td><td class="r num">${esc(fKmL(c.kmL))}${pc!=null?`<br><small class="${pc>=95?"ok":pc>=85?"":"late"}">${fNum(pc)}% do esperado</small>`:""}</td><td class="r num">${esc(fKmL(ref))}</td><td class="r num">${c.rKm!=null?fBRL(c.rKm):"—"}</td><td>${isFrota()?`<button class="lnk" type="button" data-abdel="${esc(x.id)}">Apagar</button>`:""}</td></tr>`}).join("")}</tbody></table>`:`<p class="fr-none">Nenhum lançamento no período.${isFrota()?" Toque em Lançar combustível.":""}</p>`}</div></section>`;
   app.innerHTML=h;bindFiltrosFrota(renderFComb);
   const nv=$("#abNovo");if(nv)nv.onclick=()=>{S.ab={veiculoId:S.fveic||""};renderFComb();const f=$("#abV");if(f)f.focus()};
+  const ai=$("#abImp");if(ai)ai.onclick=()=>{S.ab=null;S.imp={ini:dayKey(q[0]),fim:dayKey(q[1])};renderFComb();const b=$("#impBox");if(b)b.scrollIntoView({block:"start"})};
+  bindImport();
   const lerAb=()=>({veiculoId:$("#abV").value,ini:$("#abIni").value,fim:$("#abFim").value,comb:$("#abC").value,litros:$("#abL").value.trim(),valor:$("#abR").value.trim(),kmI:$("#abKi").value.trim(),kmF:$("#abKf").value.trim(),obs:$("#abO").value.trim()});
   const av=$("#abV");if(av)av.onchange=()=>{S.ab=Object.assign(lerAb(),{comb:null,kmI:null,kmF:null});renderFComb()};
   const ax=$("#abX");if(ax)ax.onclick=()=>{S.ab=null;S.abOk=true;if(S.routeArg)location.hash="#f-comb";else renderFComb()};
@@ -4432,8 +4579,8 @@ function renderFComb(){
 function efVeiculos(a,b){
   const dentro=x=>abNoPer(x,a,b);
   return veicAtivos().map(v=>{const ls=(S.veiculo_abastecimentos||[]).filter(x=>x.veiculoId===v.id&&dentro(x));const cs=ls.map(abastCalc);
-    const valor=cs.reduce((s,c)=>s+c.valor,0),litros=cs.reduce((s,c)=>s+c.litros,0),comKm=cs.filter(c=>c.km),km=comKm.reduce((s,c)=>s+c.km,0),lk=comKm.reduce((s,c)=>s+c.litros,0),vk=comKm.reduce((s,c)=>s+c.valor,0);
-    const kmL=km&&lk?km/lk:null,ref=kmLVeic(v),pct=kmL&&ref?kmL/ref*100:null;
+    const valor=cs.reduce((s,c)=>s+c.valor,0),litros=cs.reduce((s,c)=>s+c.litros,0),comKm=cs.filter(c=>c.km),km=comKm.reduce((s,c)=>s+c.km,0),comL=comKm.filter(c=>c.litros),kmLit=comL.reduce((s,c)=>s+c.km,0),lk=comL.reduce((s,c)=>s+c.litros,0),vk=comKm.reduce((s,c)=>s+c.valor,0);
+    const kmL=kmLit&&lk?kmLit/lk:null,ref=kmLVeic(v),pct=kmL&&ref?kmL/ref*100:null;
     const os=S.os.filter(o=>o.veiculoId===v.id&&o.status==="concluida"&&T(o.concluidoEm)>=a&&T(o.concluidoEm)<b);
     return {v,n:ls.length,valor,litros,km,kmL,ref,pct,rKm:km?vk/km:null,missoes:os.length,kmRotas:os.reduce((s,o)=>s+(kmRodados(o)||0),0)}});
 }
