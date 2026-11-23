@@ -98,7 +98,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=52;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=53;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1098,7 +1098,7 @@ function renderDrawer(){
         <div><dt>Tempo de resposta</dt><dd class="num">${o.agendadaEm?fDur(tResposta(o)):"Aguardando agendamento"}</dd></div>
         <div><dt>Tempo de execução</dt><dd class="num">${o.concluidoEm?fDur(tExec(o)):o.iniciadoEm?"Em rota desde "+fHora(o.iniciadoEm):"—"}</dd></div>
         ${o.kmInicial!=null||o.kmFinal!=null?`<div><dt>Quilometragem</dt><dd class="num">${o.kmInicial!=null?Number(o.kmInicial).toLocaleString("pt-BR"):"—"} → ${o.kmFinal!=null?Number(o.kmFinal).toLocaleString("pt-BR"):"—"}${kmRodados(o)!=null?` · <b>rodou ${fKm(kmRodados(o))}</b>`:""}</dd></div>`:""}
-        ${o.status!=="cancelada"&&(o.status==="concluida"||(o.custosExtra||[]).length)?(()=>{const d=custoLogDet(o);return `<div><dt>${o.status==="concluida"?"Custo da OS":"Custos extras até agora"}</dt><dd class="money">${fBRL(o.status==="concluida"?d.total:d.ex)}${o.status==="concluida"?` <span style="color:var(--faint);font-weight:500">veículo ${fBRL(d.veic)} · equipe ${fBRL(d.eq)}${d.ex?" · extras "+fBRL(d.ex):""}</span>`:""}</dd></div>`})():""}
+        ${o.status!=="cancelada"&&(o.status==="concluida"||(o.custosExtra||[]).length)?(()=>{const d=custoLogDet(o);return `<div><dt>${o.status==="concluida"?"Custo da OS":"Custos extras até agora"}</dt><dd class="money">${fBRL(o.status==="concluida"?d.total:d.ex)}${o.status==="concluida"?` <span style="color:var(--faint);font-weight:500">veículo ${fBRL(d.veic)} · equipe ${fBRL(d.eq)}${d.ex?" · extras "+fBRL(d.ex):""}</span>${d.comb!=null&&d.km?`<small class="cst-comb">Combustível ${fBRL(d.comb)}: ${fNum(d.km,1)} km da missão × ${d.fc==="real"?fBRL(d.rkm)+" por km (custo real do veículo em "+esc(fDia(String(d.rk.x.periodoIni).slice(0,10)))+" a "+esc(fDia(String(d.rk.x.periodoFim).slice(0,10)))+")":"consumo esperado do cadastro (falta o km do odômetro para o custo real)"}</small>`:""}`:""}</dd></div>`})():""}
         ${o.solicitanteTelefone?`<div><dt>WhatsApp de quem pediu</dt><dd class="num">${esc(fFone(o.solicitanteTelefone))}${o.avisoStatus==="enviado"?` <span style="color:var(--s-ok);font-weight:600">· aviso enviado automaticamente ${fDH(o.avisoAutoEm)}</span>`:o.avisadoEm?` <span style="color:var(--s-ok);font-weight:600">· avisado ${fDH(o.avisadoEm)}</span>`:o.avisoStatus==="erro"?` <span class="late">· falha no envio automático</span>`:""}</dd></div>`:""}
       </dl>${o.observacoes?`<p style="margin:14px 0 0;color:var(--mute)"><b style="color:var(--ink)">Observações:</b> ${esc(o.observacoes)}</p>`:""}</section>
       <section class="card"><div class="card-h"><h2>${ehTraslado(o)?"Passageiros":"Itens"}</h2><span class="sub">${ehTraslado(o)?plural(paxDe(o),"pessoa","pessoas"):(o.itens||[]).length+" "+((o.itens||[]).length===1?"item":"itens")}</span></div><div class="card-b tbl-wrap">
@@ -3795,7 +3795,7 @@ function renderConferir(){
     $$(".ms-cta").forEach(a=>a.addEventListener("click",()=>{S.cf=null}));return}
   const ult=kmVeic(v),p=prazoConf(v);
   app.innerHTML=`<div class="fr-cf">${bar}<h1 class="ms-h">${esc(v.nome)}${v.placa?` <span class="fr-pl">${esc(v.placa)}</span>`:""}</h1><p class="ms-sub">${esc(p.txt)}${p.ult?" · última em "+esc(fData(p.ult.feitoEm)):""}</p>
-    <div class="ms-box"><label class="ms-lbl" for="cfKm">Km no painel agora</label><input class="ms-in big num" id="cfKm" type="number" inputmode="numeric" min="0" value="${esc(A.km)}" placeholder="${ult!=null?esc(String(ult)):"Ex.: 124300"}">${ult!=null?`<span class="hint">Último registrado: ${esc(fKm(ult))}</span>`:""}</div>
+    <div class="ms-box"><label class="ms-lbl" for="cfKm">Km atual do veículo (painel)</label><input class="ms-in big num" id="cfKm" type="number" inputmode="numeric" min="0" value="${esc(A.km)}" placeholder="${ult!=null?esc(String(ult)):"Ex.: 124300"}"><span class="hint">${ult!=null?"Último registrado: "+esc(fKm(ult))+". ":""}Obrigatório: é com esse km que o sistema calcula o custo real por km do combustível.</span></div>
     <div class="ms-box"><span class="ms-lbl">Confira cada item</span>${CONF_ITENS.map(([k,l,dica])=>{const c=A.it[k]||{};return `<div class="ms-ck"><span>${esc(l)}<small class="fr-dica">${esc(dica)}</small></span><span class="ms-ckb"><button type="button" class="${c.ok===true?"on ok":""}" data-cfk="${k}" data-v="1" aria-pressed="${c.ok===true}">Bom</button><button type="button" class="${c.ok===false?"on pb":""}" data-cfk="${k}" data-v="0" aria-pressed="${c.ok===false}">Ruim</button></span>${c.ok===false?`<input type="text" class="ms-in" id="cfo-${k}" placeholder="O que está ruim?" value="${esc(c.obs||"")}">`:""}</div>`}).join("")}
       <button type="button" class="lnk fr-tudo" id="cfTudo">Marcar todos como bom</button></div>
     <div class="ms-box"><label class="ms-lbl" for="cfOutro">Outro problema <i>opcional</i></label><textarea class="ms-in" id="cfOutro" rows="2" placeholder="Ex.: luz do freio queimada, barulho na suspensão">${esc(A.outro)}</textarea><span class="hint">Se escrever aqui, também vira OS.</span></div>
@@ -4399,12 +4399,54 @@ const abNoPer=(x,a,b)=>T(String(x.periodoIni).slice(0,10)+"T12:00:00")<b&&T(Stri
 const quinzenaDe=d=>{d=new Date(d);const y=d.getFullYear(),m=d.getMonth();return d.getDate()<=15?[new Date(y,m,1),new Date(y,m,15)]:[new Date(y,m,16),new Date(y,m+1,0)]};
 // km rodados pelo veículo nas OS concluídas entre duas datas (YYYY-MM-DD, inclusive)
 function kmOSVeic(vid,ini,fim){const a=T(ini+"T00:00:00"),b=T(fim+"T23:59:59");return S.os.filter(o=>o.veiculoId===vid&&o.status==="concluida"&&T(o.concluidoEm)>=a&&T(o.concluidoEm)<=b).reduce((s,o)=>s+(kmRodados(o)||0),0)}
-function abastCalc(x){
-  const kmP=x.kmInicial!=null&&x.kmFinal!=null&&x.kmFinal>=x.kmInicial?x.kmFinal-x.kmInicial:null;
-  const kmO=kmP==null?kmOSVeic(x.veiculoId,String(x.periodoIni).slice(0,10),String(x.periodoFim).slice(0,10)):null;
-  const km=kmP!=null?kmP:kmO||null,l=Number(x.litros)||0,val=Number(x.valor)||0;
-  return {km,fonte:kmP!=null?"painel":km?"rotas":"",litros:l,valor:val,kmL:km&&l?km/l:null,rKm:km?val/km:null,rL:l?val/l:null};
+/* ---------- odômetro (v53): leituras de km do veículo, de qualquer registro ----------
+   Conferência semanal, rotas, OS, serviços e km de painel do abastecimento.
+   Serve para saber quanto o veículo rodou DE VERDADE num período, mesmo que
+   parte do uso (ex.: traslado de clientes) não seja lançada no sistema. */
+let _lkC=null;
+function leiturasKm(vid){
+  if(!_lkC){_lkC=new Map();setTimeout(()=>{_lkC=null},0)}
+  if(_lkC.has(vid))return _lkC.get(vid);
+  const v=byId(S.veiculos||[],vid),cut=kmCorte(v),L=[];
+  const add=(k,t,de)=>{k=nOuNull(k);if(k==null||k<=0||!t)return;const ms=T(t);if(!isFinite(ms)||!kmValeT(cut,t))return;L.push({t:ms,km:Number(k),de})};
+  if(cut!=null&&v&&(!v.kmAtualEm||Math.abs(T(v.kmAtualEm)-cut)<120000))add(v.kmAtual,v.kmCorrigidoEm,"correção");
+  confsDe(vid).forEach(c=>add(c.km,c.feitoEm,"conferência"));
+  servsDe(vid).forEach(x=>add(x.km,x.feitoEm?dtServ(x):x.criadoEm,"serviço"));
+  (S.rotas||[]).forEach(r=>{if(r.veiculoId!==vid)return;add(r.kmSaida,r.saidaEm,"rota");add(r.kmInicio,r.inicioEm,"rota");add(r.kmFim,r.fimEm,"rota");add(r.kmDevolucao,r.devolvidoEm,"rota")});
+  S.os.forEach(o=>{if(o.veiculoId!==vid)return;add(o.kmInicial,o.iniciadoEm,"OS");add(o.kmFinal,o.concluidoEm,"OS")});
+  (S.veiculo_abastecimentos||[]).forEach(x=>{if(x.veiculoId!==vid)return;add(x.kmInicial,String(x.periodoIni).slice(0,10)+"T00:00:00","abastecimento");add(x.kmFinal,String(x.periodoFim).slice(0,10)+"T23:59:00","abastecimento")});
+  L.sort((a,b)=>a.t-b.t||a.km-b.km);
+  // maior sequência de leituras que só sobem: um km digitado errado fica de fora
+  const tails=[],prev=new Array(L.length);
+  L.forEach((x,i)=>{let lo=0,hi=tails.length;while(lo<hi){const m=(lo+hi)>>1;if(L[tails[m]].km<=x.km)lo=m+1;else hi=m}prev[i]=lo?tails[lo-1]:-1;tails[lo]=i});
+  const R=[];for(let i=tails.length?tails[tails.length-1]:-1;i>=0;i=prev[i])R.unshift(L[i]);
+  _lkC.set(vid,R);return R;
 }
+// km do odômetro num instante (entre duas leituras, proporcional ao tempo)
+function odoEm(L,t){if(!L.length||t<L[0].t||t>L[L.length-1].t)return null;for(let i=1;i<L.length;i++){const a=L[i-1],b=L[i];if(t<=b.t)return b.t===a.t?b.km:a.km+(b.km-a.km)*(t-a.t)/(b.t-a.t)}return L[L.length-1].km}
+// km rodados entre a e b (ms) pelo odômetro; cob = parte do período coberta por leituras
+function kmOdo(vid,a,b){const L=leiturasKm(vid);if(L.length<2||!(b>a))return null;
+  const sa=Math.max(a,L[0].t),sb=Math.min(b,L[L.length-1].t);if(sb-sa<2*DIA_MS)return null;
+  const km=odoEm(L,sb)-odoEm(L,sa);if(!(km>0))return null;
+  return {km,cob:Math.min(1,(sb-sa)/(b-a)),n:L.filter(x=>x.t>=a&&x.t<=b).length}}
+function abastCalc(x){
+  const a=T(String(x.periodoIni).slice(0,10)+"T00:00:00"),b=T(String(x.periodoFim).slice(0,10)+"T23:59:59");
+  const kmP=x.kmInicial!=null&&x.kmFinal!=null&&x.kmFinal>x.kmInicial?x.kmFinal-x.kmInicial:null;
+  let km=null,fonte="",est=false,cob=null;
+  if(kmP!=null){km=kmP;fonte="painel"}
+  else{const o=kmOdo(x.veiculoId,a,b);if(o&&o.cob>=0.3){km=Math.round(o.km/o.cob);fonte="odometro";cob=o.cob;est=o.cob<0.97}}
+  // km só das OS: NÃO entra no R$/km (o veículo pode ter rodado em serviços que não são lançados)
+  const kmOS=km==null?(kmOSVeic(x.veiculoId,String(x.periodoIni).slice(0,10),String(x.periodoFim).slice(0,10))||null):null;
+  const l=Number(x.litros)||0,val=Number(x.valor)||0;
+  return {km,fonte,est,cob,kmOS,litros:l,valor:val,kmL:km&&l?km/l:null,rKm:km?val/km:null,rL:l?val/l:null};
+}
+// R$ por km de combustível real do veículo na data: lançamento que cobre a data,
+// senão o anterior mais recente com km, senão o mais próximo
+function rKmComb(vid,iso){const k=iso?dayKey(iso):"9999";const ls=abastDe(vid).map(x=>({x,c:abastCalc(x)})).filter(y=>y.c.rKm!=null);if(!ls.length)return null;
+  const ini=y=>String(y.x.periodoIni).slice(0,10),fim=y=>String(y.x.periodoFim).slice(0,10);
+  const y=ls.find(y=>ini(y)<=k&&fim(y)>=k)||ls.find(y=>fim(y)<k)||ls[ls.length-1];
+  return {r:y.c.rKm,x:y.x,c:y.c}}
+const fonteKmTxt=c=>c.fonte==="painel"?"km do painel informado no lançamento":c.fonte==="odometro"?(c.est?"estimado pelo odômetro (leituras cobrem "+fNum(c.cob*100)+"% do período)":"pelo odômetro (conferências, rotas e OS)"):"";
 function precoLitro(vid,iso){const l=abastDe(vid).filter(x=>Number(x.litros)>0);if(!l.length)return null;const k=iso?dayKey(iso):"9999";const x=l.find(a=>String(a.periodoIni).slice(0,10)<=k)||l[l.length-1];return Number(x.valor)/Number(x.litros)}
 function custoOleo(v){const c=nOuNull(v.oleoCusto);if(c!=null)return c;const s=servsDe(v.id).find(x=>x.tipo==="oleo"&&nOuNull(x.custo)!=null);return s?Number(s.custo):null}
 const kmLVeic=(v,carga)=>{const le=nOuNull(v.kmLLeve),pe=nOuNull(v.kmLPesado);return carga==="pesada"?(pe||le):(le||pe)};
@@ -4412,18 +4454,20 @@ const salarioDe=id=>(S.funcionario_custos||[]).find(x=>x.equipeId===id);
 function custoMissao(o){
   const pr=partRota(o);
   if(pr){const c=custoRota(pr.r),s=pr.s,m=v=>v==null?null:v*s;const ex=somaExtras(o.custosExtra);const veic=c.veic*s,eq=c.eq*s;
-    return {km:c.km*s,h:c.h*s,comb:m(c.comb),oleo:m(c.oleo),pneu:m(c.pneu),kml:null,pl:null,detalhado:c.detalhado,veic,eq,ex,total:veic+eq+ex,rota:pr.r,share:s,metodo:pr.metodo}}
+    return {km:c.km*s,h:c.h*s,comb:m(c.comb),oleo:m(c.oleo),pneu:m(c.pneu),kml:null,pl:null,rkm:c.rkm,fc:c.fc,rk:c.rk,detalhado:c.detalhado,veic,eq,ex,total:veic+eq+ex,rota:pr.r,share:s,metodo:pr.metodo}}
   const km=kmRodados(o)||0;const h=o.concluidoEm&&o.iniciadoEm?Math.max(0,tExec(o))/3600000:0;
   const v=o.veiculoId?byId(S.veiculos,o.veiculoId):null;
-  let comb=null,oleo=null,pneu=null,kml=null,pl=null;
-  if(v){kml=kmLVeic(v,o.carga);pl=precoLitro(v.id,o.concluidoEm);if(kml&&pl!=null)comb=km/kml*pl;
+  let comb=null,oleo=null,pneu=null,kml=null,pl=null,rkm=null,fc="",rk=null;
+  if(v){rk=rKmComb(v.id,o.concluidoEm);
+    if(rk){rkm=rk.r;comb=km*rkm;fc="real"}
+    else{kml=kmLVeic(v,o.carga);pl=precoLitro(v.id,o.concluidoEm);if(kml&&pl!=null){comb=km/kml*pl;fc="esperado"}}
     const oc=custoOleo(v);if(oc!=null)oleo=km*oc/(Number(v.oleoIntervaloKm)||10000);
     if(nOuNull(v.pneuCusto)!=null&&Number(v.pneuVidaKm)>0)pneu=km*Number(v.pneuCusto)/Number(v.pneuVidaKm);}
   const detalhado=comb!=null||oleo!=null||pneu!=null;
   const veic=detalhado?(comb||0)+(oleo||0)+(pneu||0):(o.veiculoId?km*custoKmVeic(o.veiculoId):0);
   const eq=h*(o.equipeIds||[]).reduce((s,id)=>s+custoHoraPessoa(id),0);
   const ex=somaExtras(o.custosExtra);
-  return {km,h,comb,oleo,pneu,kml,pl,detalhado,veic,eq,ex,total:veic+eq+ex};
+  return {km,h,comb,oleo,pneu,kml,pl,rkm,fc,rk,detalhado,veic,eq,ex,total:veic+eq+ex};
 }
 
 /* ---------- transporte da frota (levar e buscar na oficina) ---------- */
@@ -4543,7 +4587,7 @@ function renderFComb(){
   const ls=(S.veiculo_abastecimentos||[]).filter(x=>fVeicOk(x.veiculoId)&&abNoPer(x,a.getTime(),b.getTime())).sort((x,y)=>String(y.periodoFim).localeCompare(String(x.periodoFim)));
   const cs=ls.map(abastCalc);const tot=k=>cs.reduce((s,c)=>s+(c[k]||0),0);const kmT=cs.filter(c=>c.km&&c.litros).reduce((s,c)=>s+c.km,0),lT=cs.filter(c=>c.km&&c.litros).reduce((s,c)=>s+c.litros,0);
   const F=S.ab;const dd=new Date().getDate(),ant=dd<=3||(dd>=16&&dd<=18);const q=quinzenaDe(ant?new Date(quinzenaDe(new Date())[0].getTime()-DIA_MS):new Date());if(q[1]>new Date())q[1]=new Date();
-  let h=headFrota("Combustível","Lance a cada quinzena quantos litros e quantos reais foram gastos com cada veículo. O sistema calcula o km por litro real e o custo por km.",isFrota()&&!F&&!S.imp?`<button class="btn" type="button" id="abImp">Importar planilha</button><button class="btn pri" type="button" id="abNovo">Lançar combustível</button>`:"")+aviso24()
+  let h=headFrota("Combustível","Lance a cada quinzena quanto foi gasto com cada veículo. O sistema divide pelo km que o veículo rodou no odômetro (conferência semanal) e cada OS paga só os km da missão.",isFrota()&&!F&&!S.imp?`<button class="btn" type="button" id="abImp">Importar planilha</button><button class="btn pri" type="button" id="abNovo">Lançar combustível</button>`:"")+aviso24()
     +filtrosFrota("");
   if(S.imp&&isFrota())h+=importHTML();
   if(F&&isFrota()){const v=byId(S.veiculos,F.veiculoId);const ult=v?abastDe(v.id)[0]:null;
@@ -4556,12 +4600,12 @@ function renderFComb(){
       <div class="field"><label for="abR" class="req">Valor pago (R$)</label><input type="text" inputmode="decimal" id="abR" placeholder="Ex.: 512,40" value="${esc(F.valor||"")}"></div>
       <div class="field"><label for="abKi">Km no painel no início</label><input type="number" inputmode="numeric" min="0" id="abKi" placeholder="Opcional" value="${esc(F.kmI!=null?F.kmI:ult&&ult.kmFinal!=null?ult.kmFinal:"")}"></div>
       <div class="field"><label for="abKf">Km no painel no fim</label><input type="number" inputmode="numeric" min="0" id="abKf" placeholder="Opcional" value="${esc(F.kmF!=null?F.kmF:v&&kmVeic(v)!=null?kmVeic(v):"")}"></div></div>
-      <p class="hint" style="margin:8px 0 0">Com o km do início e do fim, o km por litro é exato. Sem o km, o sistema usa os km das rotas registradas no período.${v&&kmLVeic(v)?" Consumo esperado: "+esc(fKmL(kmLVeic(v)))+".":v?" Cadastre o consumo esperado (km/l) no veículo para comparar.":""}</p>
+      <p class="hint" style="margin:8px 0 0">Sem o km do painel, o sistema usa o km do odômetro registrado na conferência semanal, nas rotas e nas OS. O custo por km de cada OS sai daqui: valor gasto ÷ km que o veículo realmente rodou.${v&&kmLVeic(v)?" Consumo esperado: "+esc(fKmL(kmLVeic(v)))+".":v?" Cadastre o consumo esperado (km/l) no veículo para comparar.":""}</p>
       <div class="field" style="margin-top:10px"><label for="abO">Observação</label><input type="text" id="abO" placeholder="Ex.: posto Shell da Marginal, cartão frota" value="${esc(F.obs||"")}"></div>
       <p class="err" id="abErr" role="alert"></p><div class="actions"><button class="btn pri" type="button" id="abOk">Salvar</button><button class="btn ghost" type="button" id="abX">Cancelar</button></div></div></section>`}
-  h+=`<div class="kpis">${kpi("Gasto com combustível",fBRL(tot("valor")),"",plural(ls.length,"lançamento"),"money-k")}${kpi("Litros",fNum(tot("litros"),1),"l","no período")}${kpi("Km rodados",fNum(kmT),"km",kmT?"nos lançamentos com km":"Informe o km para calcular")}${kpi("Média",lT&&kmT?fNum(kmT/lT,1):"—","km/l",lT&&kmT?fBRL(cs.filter(c=>c.km).reduce((s,c)=>s+c.valor,0)/kmT)+" por km":"")}</div>
+  h+=`<div class="kpis">${kpi("Gasto com combustível",fBRL(tot("valor")),"",plural(ls.length,"lançamento"),"money-k")}${kpi("Litros",fNum(tot("litros"),1),"l","no período")}${kpi("Km rodados",fNum(cs.reduce((s,c)=>s+(c.km||0),0)),"km",cs.some(c=>c.km)?"pelo odômetro ou painel":"Falta o km da conferência semanal")}${(()=>{const kk=cs.filter(c=>c.km),kmK=kk.reduce((s,c)=>s+c.km,0);return kpi("Custo por km",kmK?fBRL(kk.reduce((s,c)=>s+c.valor,0)/kmK):"—","",lT&&kmT?fNum(kmT/lT,1)+" km/l":"só combustível","money-k")})()}</div>
   <section class="card"><div class="card-h"><h2>Lançamentos</h2><span class="sub">${plural(ls.length,"registro")}</span></div><div class="card-b tbl-wrap">${ls.length?`<table class="t"><thead><tr><th>Período</th><th>Veículo</th><th>Combustível</th><th class="r">Litros</th><th class="r">Valor</th><th class="r">Km</th><th class="r">Km/l real</th><th class="r">Esperado</th><th class="r">R$/km</th><th></th></tr></thead><tbody>${ls.map((x,i)=>{const c=cs[i],v=byId(S.veiculos,x.veiculoId)||{};const ref=kmLVeic(v);const pc=c.kmL&&ref?c.kmL/ref*100:null;
-      return `<tr><td class="num">${esc(fDia(String(x.periodoIni).slice(0,10)))} a ${esc(fDia(String(x.periodoFim).slice(0,10)))}</td><td><a href="#veiculo/${esc(x.veiculoId)}">${esc(nomeV(v))}</a></td><td>${esc(x.combustivel||v.combustivel||"—")}</td><td class="r num">${x.litros!=null&&x.litros!==""?fNum(c.litros,1):"—"}</td><td class="r num">${fBRL(c.valor)}</td><td class="r num">${c.km?fNum(c.km)+(c.fonte==="rotas"?' <small title="Somado das rotas do período">rotas</small>':""):"—"}</td><td class="r num">${esc(fKmL(c.kmL))}${pc!=null?`<br><small class="${pc>=95?"ok":pc>=85?"":"late"}">${fNum(pc)}% do esperado</small>`:""}</td><td class="r num">${esc(fKmL(ref))}</td><td class="r num">${c.rKm!=null?fBRL(c.rKm):"—"}</td><td>${isFrota()?`<button class="lnk" type="button" data-abdel="${esc(x.id)}">Apagar</button>`:""}</td></tr>`}).join("")}</tbody></table>`:`<p class="fr-none">Nenhum lançamento no período.${isFrota()?" Toque em Lançar combustível.":""}</p>`}</div></section>`;
+      return `<tr><td class="num">${esc(fDia(String(x.periodoIni).slice(0,10)))} a ${esc(fDia(String(x.periodoFim).slice(0,10)))}</td><td><a href="#veiculo/${esc(x.veiculoId)}">${esc(nomeV(v))}</a></td><td>${esc(x.combustivel||v.combustivel||"—")}</td><td class="r num">${x.litros!=null&&x.litros!==""?fNum(c.litros,1):"—"}</td><td class="r num">${fBRL(c.valor)}</td><td class="r num">${c.km?(c.est?"≈ ":"")+fNum(c.km)+(c.fonte==="odometro"?`<br><small title="${esc(fonteKmTxt(c))}">odômetro</small>`:""):c.kmOS?`—<br><small class="late" title="Só ${esc(fNum(c.kmOS))} km em OS no período. Falta o km do odômetro (conferência semanal) para calcular o custo real.">falta km</small>`:"—"}</td><td class="r num">${esc(fKmL(c.kmL))}${pc!=null?`<br><small class="${pc>=95?"ok":pc>=85?"":"late"}">${fNum(pc)}% do esperado</small>`:""}</td><td class="r num">${esc(fKmL(ref))}</td><td class="r num">${c.rKm!=null?fBRL(c.rKm):"—"}</td><td>${isFrota()?`<button class="lnk" type="button" data-abdel="${esc(x.id)}">Apagar</button>`:""}</td></tr>`}).join("")}</tbody></table>`:`<p class="fr-none">Nenhum lançamento no período.${isFrota()?" Toque em Lançar combustível.":""}</p>`}</div></section>`;
   app.innerHTML=h;bindFiltrosFrota(renderFComb);
   const nv=$("#abNovo");if(nv)nv.onclick=()=>{S.ab={veiculoId:S.fveic||""};renderFComb();const f=$("#abV");if(f)f.focus()};
   const ai=$("#abImp");if(ai)ai.onclick=()=>{S.ab=null;S.imp={ini:dayKey(q[0]),fim:dayKey(q[1])};renderFComb();const b=$("#impBox");if(b)b.scrollIntoView({block:"start"})};
@@ -4635,7 +4679,7 @@ function renderEficiencia(){
       ${L.map((o,i)=>{const c=C[i];const d=v=>v!=null&&v>0?fBRL(v):"—";return `<tr><td><button type="button" class="lnk" data-efo="${esc(o.id)}">${esc(codigo(o))}</button></td><td class="num">${esc(fData(o.concluidoEm))}</td><td>${esc(rotaTxt(o))}</td><td>${o.carga==="pesada"?"Pesada":"Leve"}</td><td>${c.rota?esc(codR(c.rota))+" · "+fNum(c.share*100)+"%":"—"}</td><td class="r num">${c.km?fNum(c.km,1):"—"}</td><td class="r num">${fHrs(c.h)}</td><td class="r num">${d(c.eq)}</td><td class="r num">${c.detalhado?d(c.comb):`<small title="Veículo sem consumo cadastrado: usa o custo por km">${d(c.veic)}*</small>`}</td><td class="r num">${d(c.oleo)}</td><td class="r num">${d(c.pneu)}</td><td class="r num">${d(c.ex)}</td><td class="r num"><b>${fBRL(c.total)}</b></td><td class="r num">${c.km?fBRL(c.total/c.km):"—"}</td></tr>`}).join("")}</tbody></table>`:`<p class="fr-none">Nenhuma missão concluída no período.</p>`}</div></section>
       <section class="card"><div class="card-h"><h2>Como o custo é calculado</h2></div><div class="card-b ef-como">
         <p><b>Equipe:</b> tempo da missão × custo por hora de cada pessoa escalada. Custo por hora = salário × (1 + encargos) ÷ horas trabalhadas no mês.</p>
-        <p><b>Combustível:</b> km da missão ÷ km por litro do veículo (vazio/leve ou carregado/pesado, conforme a carga) × preço do litro do último lançamento.</p>
+        <p><b>Combustível:</b> km da missão × custo real por km do veículo. O custo real por km = valor abastecido na quinzena ÷ km que o veículo rodou na quinzena pelo odômetro (conferência semanal, rotas, OS ou km do painel). Assim, o combustível gasto em serviços que não entram no sistema não encarece as OS. Sem leitura de odômetro, usa o consumo esperado do cadastro (km/l) × preço do litro.</p>
         <p><b>Óleo e filtro:</b> km da missão × custo da troca ÷ km entre as trocas. Ex.: R$ 400 a cada 10.000 km = R$ 0,04 por km.</p>
         <p><b>Pneus:</b> km da missão × custo do jogo de pneus ÷ km que os pneus rodam.</p>
         <p><b>*</b> Veículo sem consumo cadastrado usa o custo por km do cadastro. Cadastre em Frota → Veículos → Editar.</p></div></section>`}
@@ -4670,6 +4714,9 @@ function loadDemoEfic(){
   for(let k=0;k<4;k++){const ref=new Date(hoje.getTime()-k*15.2*DIA_MS);const [i,f]=quinzenaDe(ref);if(k===0&&f>hoje)f.setTime(hoje.getTime());
     S.veiculos.forEach((v,j)=>{if(!real[v.id])return;const km=380+((j*137+k*61)%420);const kml=real[v.id]*(0.94+((j+k)%5)*0.03);const l=Math.round(km/kml*10)/10;const kf=(v.kmAtual||50000)-k*600;
       S.veiculo_abastecimentos.push({id:"ab"+k+j,veiculoId:v.id,periodoIni:dayKey(i),periodoFim:dayKey(f),combustivel:v.combustivel||"",litros:l,valor:Math.round(l*preco[v.id]*100)/100,kmInicial:kf-km,kmFinal:kf,criadoEm:f.toISOString()})})}
+  // v53: o Corolla Cross (traslado de clientes) tem combustível importado sem km; o km vem da conferência semanal
+  S.veiculo_abastecimentos.filter(x=>x.veiculoId==="v4").forEach(x=>{x.kmInicial=null;x.kmFinal=null});
+  const v4=byId(S.veiculos,"v4");if(v4){const k0=Number(v4.kmAtual)||27400;for(let w=1;w<=9;w++)S.veiculo_conferencias.push({id:"cw"+w,veiculoId:"v4",feitoEm:new Date(hoje.getTime()-(1+7*w)*DIA_MS).toISOString(),feitoPorNome:"Carlos",km:Math.round(k0-20-w*7*44),itens:CONF_ITENS.map(([k,l])=>({k,label:l,ok:true,obs:""})),problemas:0})}
   S.os.forEach((o,i)=>{o.carga=i%4===0?"pesada":"leve"});
   S.funcionario_custos=[["e0",3100,220,70],["e1",2950,220,70],["e2",2100,220,70],["e3",2050,220,70]].map(([equipeId,salario,horasMes,encargosPct])=>({equipeId,salario,horasMes,encargosPct}));
 }
@@ -4896,14 +4943,16 @@ function rateio(r){const L=osDaRota(r).filter(o=>o.status!=="cancelada");const o
 const rotaKm=r=>{const f=r.kmDevolucao!=null?r.kmDevolucao:r.kmFim;return f!=null&&r.kmSaida!=null&&f>=r.kmSaida?f-r.kmSaida:null};
 const rotaHoras=r=>{const f=r.devolvidoEm||r.fimEm;return f&&r.saidaEm?Math.max(0,T(f)-T(r.saidaEm))/3600000:0};
 function custoRota(r){const km=rotaKm(r)||0,h=rotaHoras(r);const v=r.veiculoId?byId(S.veiculos,r.veiculoId):null;const L=osDaRota(r);
-  const pesada=L.some(o=>o.carga==="pesada");let comb=null,oleo=null,pneu=null;
-  if(v){const kml=kmLVeic(v,pesada?"pesada":"leve"),pl=precoLitro(v.id,r.saidaEm);if(kml&&pl!=null)comb=km/kml*pl;
+  const pesada=L.some(o=>o.carga==="pesada");let comb=null,oleo=null,pneu=null,rkm=null,fc="",rk=null;
+  if(v){rk=rKmComb(v.id,r.saidaEm);
+    if(rk){rkm=rk.r;comb=km*rkm;fc="real"}
+    else{const kml=kmLVeic(v,pesada?"pesada":"leve"),pl=precoLitro(v.id,r.saidaEm);if(kml&&pl!=null){comb=km/kml*pl;fc="esperado"}}
     const oc=custoOleo(v);if(oc!=null)oleo=km*oc/(Number(v.oleoIntervaloKm)||10000);
     if(nOuNull(v.pneuCusto)!=null&&Number(v.pneuVidaKm)>0)pneu=km*Number(v.pneuCusto)/Number(v.pneuVidaKm)}
   const detalhado=comb!=null||oleo!=null||pneu!=null;const veic=detalhado?(comb||0)+(oleo||0)+(pneu||0):(r.veiculoId?km*custoKmVeic(r.veiculoId):0);
   const pessoas=[...new Set((r.equipeIds||[]).concat(...L.map(o=>o.equipeIds||[])))];const eq=h*pessoas.reduce((s,id)=>s+custoHoraPessoa(id),0);
   const ex=L.reduce((s,o)=>s+somaExtras(o.custosExtra),0);
-  return {km,h,comb,oleo,pneu,detalhado,veic,eq,ex,total:veic+eq+ex,pessoas,pesada}}
+  return {km,h,comb,oleo,pneu,rkm,fc,rk,detalhado,veic,eq,ex,total:veic+eq+ex,pessoas,pesada}}
 function partRota(o){if(!o.rotaId)return null;const r=byId(S.rotas||[],o.rotaId);if(!r||rotaKm(r)==null)return null;const R=rateio(r);const s=R.out[o.id];return s==null?null:{r,s,metodo:R.metodo}}
 
 /* ---------- equipe de campo ---------- */

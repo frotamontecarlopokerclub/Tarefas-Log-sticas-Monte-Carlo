@@ -549,3 +549,11 @@ Não precisa rodar nada no Supabase.
 ## Atualização 52 · Excluir veículo junto com o histórico dele
 **Rodar no Supabase:** `supabase/30_excluir_com_historico.sql` (uma vez). No fim aparecem 2 itens "OK".
 - Em Cadastros › Veículos › **Excluir**: se o veículo só tem histórico próprio (serviços, conferências ou abastecimentos) e não aparece em nenhuma OS nem rota, aparece o botão **Excluir veículo e esse histórico** (pede confirmação). Se aparecer em OS ou rota, continua bloqueado: desative.
+
+## Atualização 53 · Custo de combustível pelo km real do odômetro
+Não precisa rodar nada no Supabase.
+- **Problema resolvido:** um veículo usado também em serviços que não entram no sistema (ex.: Renegade no traslado de clientes) tinha o combustível da quinzena inteira dividido só pelos poucos km das OS, e cada OS ficava cara demais.
+- **Conferência semanal:** o campo **Km atual do veículo** é obrigatório (não salva sem ele e avisa se for menor que o último).
+- **Custo real por km** = valor abastecido na quinzena ÷ km que o veículo rodou na quinzena pelo odômetro (conferências, rotas, OS, serviços ou km do painel do lançamento). Quando as leituras não cobrem a quinzena inteira, o km aparece com "≈" (estimado).
+- **Cada OS (e cada rota)** paga só os km da missão × esse custo real por km. A gaveta da OS mostra a conta. Sem leitura de odômetro, continua usando o consumo esperado do cadastro.
+- Em Combustível, lançamentos sem km de odômetro aparecem com "falta km" (os km das OS não entram mais na conta do R$/km).

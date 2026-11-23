@@ -1234,10 +1234,15 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"52"}
+:root{--versao-css:"53"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}
 .imp-t tr.imp-err td{background:var(--danger-surface)}
 .imp-t tr.imp-dup td{background:var(--warn-surface)}
 .imp-e{color:var(--s-late)}.imp-d{color:var(--gold-ink)}.imp-ok{color:var(--s-ok);font-weight:600}
+
+/* v53 · custo de combustível pelo odômetro */
+.cst-comb{display:block;margin-top:4px;color:var(--mute);font-weight:500;font-size:12.5px;line-height:1.4}
+dd.money{white-space:normal}
+dd.money>span,.cst-comb{white-space:normal;overflow-wrap:anywhere}
