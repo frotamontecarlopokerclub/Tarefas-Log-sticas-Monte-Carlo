@@ -98,7 +98,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=51;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=52;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1658,17 +1658,23 @@ const USO_LBL={os:["OS de logística","OS de logística"],pedidos:["pedido","ped
   veiculo_abastecimentos:["abastecimento","abastecimentos"],veiculo_servicos:["serviço do veículo","serviços do veículo"],veiculo_conferencias:["conferência","conferências"],emergencias:["demanda emergencial","demandas emergenciais"],
   equipe:["pessoa da equipe","pessoas da equipe"],locais:["local","locais"],veiculos:["veículo","veículos"],prestadores:["prestador","prestadores"],funcionario_custos:["custo de funcionário","custos de funcionário"],distancias:["distância","distâncias"]};
 const usoTxt=u=>Object.entries(u||{}).map(([t,n])=>{const l=USO_LBL[t]||[t,t];return n+" "+(n===1?l[0]:l[1])}).join(", ");
+const PROPRIAS_V=["veiculo_servicos","veiculo_conferencias","veiculo_abastecimentos"];
 function usosDemo(tab,id){const u={};const conta=(nome,arr)=>{const n=(arr||[]).filter(x=>!(nome===tab&&x.id===id)&&JSON.stringify(x).includes(id)).length;if(n)u[nome]=n};
   [["os",S.os],["pedidos",S.pedidos],["manutencoes",S.manutencoes],["rotas",S.rotas],["recorrencias",S.recorrencias],["equipamentos",S.equipamentos],["planos",S.planos],["setores",S.setores],["solicitantes",S.solicitantes],
    ["veiculo_abastecimentos",S.veiculo_abastecimentos],["veiculo_servicos",S.veiculo_servicos],["veiculo_conferencias",S.veiculo_conferencias],["equipe",S.equipe],["locais",S.locais],["veiculos",S.veiculos],["prestadores",S.prestadores]].forEach(([n,a])=>conta(n,a));
-  return {total:Object.values(u).reduce((s,n)=>s+n,0),usos:u}}
-async function excluirCad(tab,id,executar){
-  if(S.demo){const r=usosDemo(tab,id);if(executar&&!r.total){S[tab]=S[tab].filter(x=>x.id!==id);if(tab==="locais")S.distancias=(S.distancias||[]).filter(d=>d.localA!==id&&d.localB!==id);return Object.assign(r,{apagado:true})}return Object.assign(r,{apagado:false})}
-  const {data,error}=await sb.rpc("excluir_cadastro",{p_tabela:CAD[tab].col,p_id:id,p_executar:!!executar});if(error)throw error;
-  if(data&&data.apagado)await Promise.all([CAD[tab].col].concat(tab==="locais"?["distancias"]:[]).map(carregar));return data}
+  const proprios=tab==="veiculos"?PROPRIAS_V.reduce((s,t)=>s+(u[t]||0),0):0;
+  return {total:Object.values(u).reduce((s,n)=>s+n,0),usos:u,proprios}}
+async function excluirCad(tab,id,executar,comHist){
+  if(S.demo){const r=usosDemo(tab,id);if(executar&&(!r.total||(comHist&&r.total===r.proprios))){if(comHist)PROPRIAS_V.forEach(t=>{S[t]=(S[t]||[]).filter(x=>x.veiculoId!==id)});
+      S[tab]=S[tab].filter(x=>x.id!==id);if(tab==="locais")S.distancias=(S.distancias||[]).filter(d=>d.localA!==id&&d.localB!==id);return Object.assign(r,{apagado:true})}return Object.assign(r,{apagado:false})}
+  const arg={p_tabela:CAD[tab].col,p_id:id,p_executar:!!executar};if(comHist)arg.p_com_historico=true;
+  const {data,error}=await sb.rpc("excluir_cadastro",arg);if(error)throw error;
+  if(data&&data.apagado)await Promise.all([CAD[tab].col].concat(tab==="locais"?["distancias"]:[],tab==="veiculos"&&comHist?PROPRIAS_V:[]).map(carregar));return data}
 function excluirCadHTML(tab,x){const D=S.cadDel;const nm=tab==="setores"?nomeSetor(x.id):x.nome;
   if(!D.res)return `<div class="cad-join"><p>Conferindo se “${esc(nm)}” está em uso…</p></div>`;
   if(D.res.erro)return `<div class="cad-join"><p class="err" style="margin:0">${esc(D.res.erro)}</p><div class="actions"><button class="btn ghost" type="button" data-cdelx>Fechar</button></div></div>`;
+  if(D.res.total>0&&tab==="veiculos"&&D.res.proprios>0&&D.res.proprios===D.res.total)return `<div class="cad-join"><p><b>“${esc(nm)}” só tem histórico próprio:</b> ${esc(usoTxt(D.res.usos))}. Ele não aparece em nenhuma OS nem rota.<br>Se o veículo foi cadastrado por engano, dá para excluir o veículo <b>junto com esses registros</b>. Não dá para desfazer.</p>
+    <div class="actions"><button class="btn danger" type="button" data-cdelh="${esc(x.id)}">${D.conf?"Confirmar: excluir veículo e "+plural(D.res.total,"registro"):"Excluir veículo e esse histórico"}</button>${x.ativo!==false?`<button class="btn" type="button" data-tg="${esc(x.id)}">Só desativar</button>`:""}<button class="btn ghost" type="button" data-cdelx>Cancelar</button></div><p class="err" id="cdErr" role="alert"></p></div>`;
   if(D.res.total>0)return `<div class="cad-join"><p><b>“${esc(nm)}” não pode ser excluído porque já está em uso:</b> ${esc(usoTxt(D.res.usos))}.<br>Para não perder o histórico, <b>desative</b> o cadastro (ele some dos formulários e o histórico fica com o nome)${tab==="locais"||tab==="setores"?" ou use <b>Juntar com…</b> se ele for repetido":""}.</p>
     <div class="actions">${x.ativo!==false?`<button class="btn" type="button" data-tg="${esc(x.id)}">Desativar</button>`:""}${tab==="locais"||tab==="setores"?`<button class="btn" type="button" data-join="${esc(x.id)}">Juntar com…</button>`:""}<button class="btn ghost" type="button" data-cdelx>Fechar</button></div></div>`;
   return `<div class="cad-join"><p><b>Excluir “${esc(nm)}”?</b> Ele não está ligado a nenhuma OS, rota ou outro registro. Não dá para desfazer.</p>
@@ -1705,6 +1711,10 @@ function bindCad(){
   $$("[data-cdel]").forEach(b=>b.onclick=async()=>{const id=b.dataset.cdel;S.cadDel={id,res:null};S.cadEdit=null;S.cadJoin=null;renderCadastros();
     try{S.cadDel.res=await excluirCad(S.cadTab,id,false)}catch(e){console.error(e);S.cadDel.res={erro:msgExcl(e)}}if(S.cadDel&&S.cadDel.id===id)renderCadastros()});
   $$("[data-cdelx]").forEach(b=>b.onclick=()=>{S.cadDel=null;renderCadastros()});
+  $$("[data-cdelh]").forEach(b=>b.onclick=async()=>{const id=b.dataset.cdelh;const x=byId(S[S.cadTab],id);if(!S.cadDel.conf){S.cadDel.conf=true;renderCadastros();return}
+    b.disabled=true;b.textContent="Excluindo…";
+    try{const r=await excluirCad(S.cadTab,id,true,true);if(r.apagado){S.cadDel=null;toast("“"+((x&&x.nome)||"Veículo")+"” excluído com o histórico dele");renderCadastros()}else{S.cadDel.res=r;S.cadDel.conf=false;renderCadastros()}}
+    catch(e){console.error(e);b.disabled=false;const er=$("#cdErr");if(er)er.textContent=/p_com_historico|excluir_cadastro|schema cache|Could not find/i.test(e.message||"")?"Falta rodar o script 30 no Supabase.":msgExcl(e)}});
   $$("[data-cdelok]").forEach(b=>b.onclick=async()=>{const id=b.dataset.cdelok;const x=byId(S[S.cadTab],id);b.disabled=true;b.textContent="Excluindo…";
     try{const r=await excluirCad(S.cadTab,id,true);if(r.apagado){S.cadDel=null;toast("“"+((x&&x.nome)||"Cadastro")+"” excluído");renderCadastros()}else{S.cadDel.res=r;renderCadastros()}}
     catch(e){console.error(e);b.disabled=false;b.textContent="Excluir de vez";const er=$("#cdErr");if(er)er.textContent=msgExcl(e)}});

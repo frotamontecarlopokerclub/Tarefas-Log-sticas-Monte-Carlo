@@ -545,3 +545,7 @@ Não precisa rodar nada no Supabase.
 - **Corrigir km:** na página do veículo (Frota › Veículos › abrir o veículo), botão **Corrigir km** no quadro Quilometragem. Informe o km certo e o motivo. O km informado vale a partir de agora; os registros antigos ficam no histórico, mas não contam mais.
 - **Excluir cadastro feito por engano:** em Cadastros (Equipe, Veículos, Locais, Setores, Solicitantes e Prestadores), botão **Excluir** (só a coordenação geral). Se o cadastro já estiver em uso em alguma OS, rota ou abastecimento, o sistema não apaga e mostra onde está em uso: aí desative (ou junte com o certo, em Locais e Setores).
 - **Importar abastecimentos:** em Frota › Combustível, botão **Importar planilha** (Excel ou CSV). A planilha precisa das colunas **Placa** e **Valor**; **Litros**, **Data** e **Km** são opcionais. O sistema confere cada placa (formato antigo e Mercosul), mostra o que vai lançar, avisa placas não cadastradas e linhas que parecem já lançadas, e lança cada valor no veículo certo.
+
+## Atualização 52 · Excluir veículo junto com o histórico dele
+**Rodar no Supabase:** `supabase/30_excluir_com_historico.sql` (uma vez). No fim aparecem 2 itens "OK".
+- Em Cadastros › Veículos › **Excluir**: se o veículo só tem histórico próprio (serviços, conferências ou abastecimentos) e não aparece em nenhuma OS nem rota, aparece o botão **Excluir veículo e esse histórico** (pede confirmação). Se aparecer em OS ou rota, continua bloqueado: desative.
