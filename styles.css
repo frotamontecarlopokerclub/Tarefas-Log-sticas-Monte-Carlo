@@ -1234,7 +1234,7 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"54"}
+:root{--versao-css:"55"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}
@@ -1267,3 +1267,26 @@ button.pf-row,a.pf-row{cursor:pointer}button.pf-row:hover,a.pf-row:hover{backgro
   .pf-row .pf-k{grid-column:2;grid-row:1}.pf-row .pf-x{grid-column:2/4;grid-row:2}.pf-row .pf-h{grid-row:1}
   .pf-row .pf-n{grid-column:1;grid-row:2;text-align:left;font-size:12px}.pf-row .st{grid-column:3;grid-row:1;font-size:12px}
 }
+
+/* v55 · escala em caixas de seleção (motorista, ajudantes, veículo) */
+.esc-box{margin-top:22px;padding:16px 18px 18px;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:var(--shadow)}
+.esc-t{margin:0 0 12px;font-size:15px;font-weight:700;color:var(--ink)}
+.esc-t .opc{font-weight:500}
+.esc-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px;align-items:start}
+.esc-full{grid-column:1/-1}
+.esc-f select{appearance:none;-webkit-appearance:none;padding-right:40px;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23C7932D' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;background-size:14px}
+.esc-f select:disabled{cursor:default;opacity:.65}
+.esc-f select.wz-in{font-size:16px;font-weight:600;border-radius:12px}
+.esc-vi{min-height:18px}.esc-vi .late{font-weight:600}
+.esc-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.esc-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 14px;border-radius:999px;background:var(--soft);border:1px solid var(--line-strong);font-size:14px}
+.esc-pill small{color:var(--mute);font-size:12px}
+.esc-pill button{width:28px;height:28px;border-radius:50%;border:0;background:transparent;color:var(--mute);font-size:18px;line-height:1;cursor:pointer}
+.esc-pill button:hover{background:var(--hover);color:var(--s-late)}
+.fesc{margin-top:4px}.fesc .esc-g{gap:14px}
+.esc-qa{display:flex;flex-wrap:wrap;gap:4px 22px;margin-top:6px}
+.esc-qa:empty{display:none}
+@media (max-width:760px){.esc-g{grid-template-columns:minmax(0,1fr)}.esc-box{padding:14px}}
+.esc-qa .qa-box{flex-basis:100%}

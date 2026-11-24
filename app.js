@@ -98,7 +98,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=54;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=55;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -894,8 +894,7 @@ function renderForm(){
       <div class="field"><label class="req" for="solTel">WhatsApp de quem pediu</label><input type="tel" id="solTel" inputmode="tel" value="${esc(FD.solicitanteTelefone||"")}" placeholder="(11) 99999-9999"><span class="hint">Recebe o aviso de conclusão</span></div>
       <div class="field"><label class="req" for="setor">Setor solicitante</label><select id="setor"></select><span class="hint">Preenchido sozinho quando o contato já tem setor</span>${qaHTML("setor","fSetor")}</div>
       <div class="field"><label for="agPara">${FD.rep.on?"Horário de início":"Quando"}</label><input type="datetime-local" id="agPara" value="${toInput(FD.agendadoPara)}"><span class="hint" id="agHint">${FD.rep.on?"Na rota fixa vale o horário; a data é a de cada dia escolhido":""}</span></div>
-      <div class="field full"><span class="lbl">Equipe</span><div class="chips" id="eqChips"></div>${qaHTML("equipe","fEq",{area:"logistica",funcao:"Motorista"})}</div>
-      <div class="field"><label for="veic">Veículo</label><select id="veic"></select><span class="hint">Com equipe e veículo, a OS já entra agendada</span>${qaHTML("veiculo","fVe")}</div>
+      <div class="full esc-box fesc"><h3 class="esc-t">Equipe e veículo</h3><div class="esc-g" id="fEsc"></div><p class="hint" style="margin:8px 0 0">Com equipe e veículo, a OS já entra agendada.</p><div class="esc-qa">${qaHTML("equipe","fEq",{area:"logistica",funcao:"Motorista"})}${qaHTML("veiculo","fVe")}</div></div>
       <div class="field"><span class="lbl">Carga</span><div class="chips">${[["leve","Leve"],["pesada","Pesada"]].map(([k,l])=>`<button type="button" class="chip" data-carga="${k}" aria-pressed="${(FD.carga||"leve")===k}">${l}</button>`).join("")}</div><span class="hint">Carga pesada usa o consumo de veículo carregado</span></div>
     </div></section>
     <details class="fs" id="fMais"${ed||rec||fp||dup||FD.rep.on?" open":""}><summary>Mais detalhes <small>tipo, prioridade, canal, horários, observações${podeRepetir?", rota fixa":""}</small></summary><div class="fg">
@@ -922,7 +921,7 @@ function renderForm(){
   $("#fOS").onsubmit=submitForm;
   bindQA($("#fOS"),{fSetor:row=>{FD.setorId=row.id;$("#setor").innerHTML=optsSetores(row.id,"Selecione…")},
     fEq:row=>{if(!FD.equipeIds.includes(row.id))FD.equipeIds.push(row.id);refreshFormOptions()},
-    fVe:row=>{refreshFormOptions();$("#veic").value=row.id;FD.veiculoId=row.id}});
+    fVe:row=>{refreshFormOptions();$("#veic").value=row.id;FD.veiculoId=row.id;const i=$("#veicI");if(i)i.innerHTML=veicInfo(row.id)}});
   FD.tipoManual=!!(ed||rec||fp||dup);
   $("#tipo").addEventListener("change",()=>{FD.tipoManual=true;$("#tipoHint").textContent=""});
   $("#solic").addEventListener("input",()=>{const c=acharContato($("#solic").value);const h=$("#solHint");
@@ -934,15 +933,16 @@ function renderForm(){
 function refreshFormOptions(){
   if(!FD||!$("#fOS"))return;
   const keep=(sel,val)=>{const el=$(sel);return el?(el.value||val):val};
-  FD.setorId=keep("#setor",FD.setorId);FD.veiculoId=keep("#veic",FD.veiculoId);
+  FD.setorId=keep("#setor",FD.setorId);{const ve=$("#veic");if(ve)FD.veiculoId=ve.value}
   if(!$("#stops .lp")){ readStops(); renderStops(); } else refreshPickers();
   const inc=(arr,id)=>arr.filter(x=>x.ativo!==false||x.id===id).sort(sortNome);
   $("#setor").innerHTML=optsSetores(FD.setorId,"Selecione…");
-  $("#veic").innerHTML=`<option value="">A definir</option>`+inc(S.veiculos,FD.veiculoId).map(v=>`<option value="${esc(v.id)}"${v.id===FD.veiculoId?" selected":""}>${esc(v.nome)}${v.placa?" · "+esc(v.placa):""}</option>`).join("");
-  const eq=inc(S.equipe,null).filter(p=>(p.area||"logistica")!=="manutencao"||FD.equipeIds.includes(p.id)).concat(S.equipe.filter(p=>p.ativo===false&&FD.equipeIds.includes(p.id)));
-  $("#eqChips").innerHTML=eq.length?eq.map(p=>`<button type="button" class="chip" data-eq="${esc(p.id)}" aria-pressed="${FD.equipeIds.includes(p.id)}">${esc(p.nome)}${p.funcao?`<small>${esc(p.funcao)}</small>`:""}${semApp(p)}</button>`).join(""):`<span class="hint">Cadastre a equipe em Cadastros.</span>`;
-  $$("[data-eq]").forEach(b=>b.onclick=()=>{const id=b.dataset.eq;const i=FD.equipeIds.indexOf(id);if(i>=0)FD.equipeIds.splice(i,1);else FD.equipeIds.push(id);b.setAttribute("aria-pressed",i<0)});
+  renderFEsc();
 }
+const eqLogF=()=>S.equipe.filter(p=>(p.ativo!==false&&(p.area||"logistica")!=="manutencao")||FD.equipeIds.includes(p.id));
+function renderFEsc(){const b=$("#fEsc");if(!b)return;b.innerHTML=motHTML("f",FD.equipeIds,eqLogF())+veicSelHTML("veic",FD.veiculoId)+`<div class="esc-full">${ajHTML("f",FD.equipeIds,eqLogF())}</div>`;
+  bindEscala("f",FD.equipeIds,()=>{FD.veiculoId=$("#veic").value;renderFEsc()});
+  $("#veic").onchange=e=>{FD.veiculoId=e.target.value;$("#veicI").innerHTML=veicInfo(e.target.value)}}
 function renderItems(){
   $("#items").innerHTML=FD.itens.map((it,i)=>`<div class="item">
     <input type="text" id="it-d-${i}" aria-label="Item ${i+1}" placeholder="Descrição do item (ex.: cadeiras dobráveis, fardos de água)" value="${esc(it.desc)}">
@@ -3317,6 +3317,36 @@ function lerQuando(d){if(d.quandoK==="outro"){const q=$("#wzQ");d.quando=q?fromI
 function chipsEquipe(lista,sel,attr){return lista.length?`<div class="wz-chips">${lista.map(p=>`<button type="button" class="wz-chip${sel.includes(p.id)?" on":""}" data-${attr}="${esc(p.id)}">${esc(p.nome)}${p.funcao?`<small>${esc(p.funcao)}</small>`:""}${semApp(p)}</button>`).join("")}</div>`:`<p class="hint">Ninguém cadastrado. Cadastre em Cadastros → Equipe.</p>`}
 function bindChips(attr,arr){$$(`[data-${attr}]`).forEach(b=>b.onclick=()=>{const id=b.dataset[attr];const i=arr.indexOf(id);if(i>=0)arr.splice(i,1);else arr.push(id);b.classList.toggle("on",i<0)})}
 
+/* ---------- escala em caixas de seleção (v55): motorista, ajudantes e veículo ---------- */
+const ehMot=p=>/motorista/i.test(p&&p.funcao||""),ehAjud=p=>/ajudante/i.test(p&&p.funcao||"");
+const _escS=new WeakMap();
+// a 1ª pessoa da lista é o motorista (semMot: ainda sem motorista, só ajudantes).
+// Nas OS antigas, quem tem a função Motorista vem para a frente.
+function escSt(ids){let st=_escS.get(ids);if(!st){st={semMot:false};const P=id=>byId(S.equipe,id);
+  if(ids.length>1&&!ehMot(P(ids[0]))){const i=ids.findIndex(id=>ehMot(P(id)));if(i>0)ids.unshift(ids.splice(i,1)[0])}
+  if(ids.length&&!ids.some(id=>ehMot(P(id)))&&ehAjud(P(ids[0])))st.semMot=true;_escS.set(ids,st)}return st}
+const motId=ids=>escSt(ids).semMot?"":ids[0]||"",ajIds=ids=>escSt(ids).semMot?ids.slice():ids.slice(1);
+const optEq=(x,sel)=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.nome)}${x.funcao?" · "+esc(x.funcao):""}${x.ativo===false?" (inativo)":""}</option>`;
+function optsGrupo(L,sel,rot,fn){L=L.slice().sort(sortNome);const a=L.filter(fn),b=L.filter(p=>!fn(p));return (a.length?`<optgroup label="${rot}">${a.map(p=>optEq(p,sel)).join("")}</optgroup>`:"")+(b.length?`<optgroup label="${a.length?"Outros da equipe":"Equipe"}">${b.map(p=>optEq(p,sel)).join("")}</optgroup>`:"")}
+function motHTML(k,ids,lista,cls){const mot=motId(ids);
+  return `<div class="field esc-f"><label for="${k}Mot">Motorista</label><select id="${k}Mot" class="${cls||""}"><option value="">A definir</option>${optsGrupo(lista,mot,"Motoristas",ehMot)}</select></div>`}
+function ajHTML(k,ids,lista,cls){const aj=ajIds(ids).map(id=>byId(S.equipe,id)).filter(Boolean);const livres=lista.filter(p=>!ids.includes(p.id));
+  return `<div class="field esc-f"><label for="${k}Aj">Ajudantes <i class="opc">opcional</i></label><select id="${k}Aj" class="${cls||""}"${livres.length?"":" disabled"}><option value="">${livres.length?(aj.length?"Adicionar mais alguém…":"Adicionar ajudante…"):"Toda a equipe já foi escolhida"}</option>${optsGrupo(livres,"","Ajudantes",ehAjud)}</select>
+    ${aj.length?`<div class="esc-pills">${aj.map(p=>`<span class="esc-pill"><b>${esc(p.nome)}</b>${p.funcao?`<small>${esc(p.funcao)}</small>`:""}<button type="button" data-ajx="${esc(p.id)}" aria-label="Tirar ${esc(p.nome)}" title="Tirar da OS">×</button></span>`).join("")}</div>`:""}</div>`}
+function bindEscala(k,ids,redraw){const st=escSt(ids);
+  const m=$("#"+k+"Mot");if(m)m.onchange=()=>{const cur=motId(ids),v=m.value;if(cur)ids.splice(ids.indexOf(cur),1);
+    if(v){const j=ids.indexOf(v);if(j>=0)ids.splice(j,1);ids.unshift(v);st.semMot=false}else st.semMot=ids.length>0;redraw()};
+  const a=$("#"+k+"Aj");if(a)a.onchange=()=>{const v=a.value;if(v&&!ids.includes(v)){const tem=!!motId(ids);ids.push(v);if(!tem)st.semMot=true}redraw()};
+  $$("[data-ajx]").forEach(b=>b.onclick=()=>{const i=ids.indexOf(b.dataset.ajx);if(i>=0)ids.splice(i,1);if(!ids.length)st.semMot=false;redraw()});
+}
+function veicInfo(id){const v=id&&byId(S.veiculos,id);if(!v)return "";const km=kmVeic(v);const p=!frotaSemScript()?prazoConf(v):null;
+  const emUso=(S.rotas||[]).some(r=>r.veiculoId===v.id&&!["devolvida","cancelada"].includes(r.status));
+  return [v.tipo&&v.tipo!==v.nome?esc(v.tipo):"",km!=null?esc(fKm(km)):"",p&&p.nivel!=="ok"?`<span class="late">Conferência: ${esc(p.txt.toLowerCase())}</span>`:"",emUso?`<span class="late">em rota agora</span>`:""].filter(Boolean).join(" · ")}
+function veicOpts(sel){const L=ativos(S.veiculos).concat(S.veiculos.filter(v=>v.ativo===false&&v.id===sel)).sort(sortNome);const o=v=>`<option value="${esc(v.id)}"${v.id===sel?" selected":""}>${esc(v.nome)}${v.placa?" · "+esc(v.placa):""}${v.ativo===false?" (inativo)":""}</option>`;
+  const tipos=[...new Set(L.map(v=>v.tipo||"Outros"))];
+  return `<option value="">A definir</option>`+(tipos.length>1?tipos.sort().map(t=>`<optgroup label="${esc(t)}">${L.filter(v=>(v.tipo||"Outros")===t).map(o).join("")}</optgroup>`).join(""):L.map(o).join(""))}
+function veicSelHTML(id,sel,cls){return `<div class="field esc-f"><label for="${id}">Veículo</label><select id="${id}" class="${cls||""}">${veicOpts(sel)}</select><span class="hint esc-vi" id="${id}I">${veicInfo(sel)}</span></div>`}
+
 /* ---------- passos da logística ---------- */
 const PASSOS_LOG=[
   {q:d=>ehTraslado(d)?"De onde saem?":"De onde sai?",hint:d=>ehTraslado(d)?"Onde os funcionários embarcam.":"Onde a equipe vai buscar.",
@@ -3330,10 +3360,14 @@ const PASSOS_LOG=[
     bind:d=>{if(ehTraslado(d)){bindPaxWz(d);return}const t=$("#wzOque");if(t&&!t.value)t.focus();$$("[data-wcg]").forEach(b=>b.onclick=()=>{d.carga=b.dataset.wcg;$$("[data-wcg]").forEach(x=>x.classList.toggle("on",x===b))});const s2=$("#wzSol");s2.addEventListener("input",()=>{$("#wzSolH").textContent=acharContato(s2.value)?"Contato cadastrado: setor e WhatsApp entram sozinhos":""})},
     read:d=>{if(ehTraslado(d)){lerPaxWz(d);return}d.oQue=$("#wzOque").value.trim();d.solicitante=$("#wzSol").value.trim()},valid:d=>ehTraslado(d)?(Number(d.pax)>=1?null:"Informe quantas pessoas vão."):d.oQue?null:"Escreva o que vai ser levado."},
   {q:"Quando e quem vai?",hint:"Com equipe e veículo, a OS já aparece no celular de quem foi escalado. Pode deixar para depois.",html:d=>{const eq=ativos(S.equipe).filter(p=>(p.area||"logistica")!=="manutencao");
-      return quandoHTML(d,false)+`<span class="lbl" style="margin-top:18px;display:block">Equipe <i class="opc">opcional</i></span>${chipsEquipe(eq,d.equipeIds,"weq")}<span class="lbl" style="margin-top:16px;display:block">Veículo <i class="opc">opcional</i></span><div class="wz-tiles col2">${ativos(S.veiculos).map(v=>`<button type="button" class="wz-tile sm${d.veiculoId===v.id?" on":""}" data-wv="${esc(v.id)}"><b>${esc(v.nome)}</b><small>${esc(v.placa||"")}</small></button>`).join("")}</div>`},
-    bind:d=>{bindQuando(d);bindChips("weq",d.equipeIds);$$("[data-wv]").forEach(b=>b.onclick=()=>{d.veiculoId=d.veiculoId===b.dataset.wv?"":b.dataset.wv;d.veicOk=true;$$("[data-wv]").forEach(x=>x.classList.toggle("on",x.dataset.wv===d.veiculoId))})},
+      return quandoHTML(d,false)+`<div class="esc-box"><h3 class="esc-t">Equipe e veículo <i class="opc">opcional</i></h3><div class="esc-g" id="wzEsc">${wzEscHTML(d)}</div></div>`},
+    bind:d=>{bindQuando(d);bindWzEsc(d)},
     read:d=>{lerQuando(d);if(!d.quandoK){d.quandoK="sem";d.quando=null}},valid:d=>d.quando||d.quandoK==="sem"?null:"Escolha o dia e a hora."},
 ];
+const eqLogWz=d=>ativos(S.equipe).filter(p=>(p.area||"logistica")!=="manutencao").concat(S.equipe.filter(p=>p.ativo===false&&d.equipeIds.includes(p.id)));
+const wzEscHTML=d=>motHTML("wz",d.equipeIds,eqLogWz(d),"wz-in")+veicSelHTML("wzVe",d.veiculoId,"wz-in")+`<div class="esc-full">${ajHTML("wz",d.equipeIds,eqLogWz(d),"wz-in")}</div>`;
+function bindWzEsc(d){bindEscala("wz",d.equipeIds,()=>{$("#wzEsc").innerHTML=wzEscHTML(d);bindWzEsc(d)});
+  const v=$("#wzVe");if(v)v.onchange=()=>{d.veiculoId=v.value;d.veicOk=true;$("#wzVeI").innerHTML=veicInfo(v.value)}}
 function paxWzHTML(d){const nomes=String(d.nomes||"").split(/\n+/).map(x=>x.trim()).filter(Boolean).length;
   return `<div class="field"><label for="wzPax">Quantas pessoas</label><div class="ms-hrs wz-pax"><button type="button" data-wpx="-1" aria-label="Menos uma pessoa">−</button><input type="number" id="wzPax" class="wz-in num" inputmode="numeric" min="1" max="200" value="${esc(d.pax||"")}" placeholder="Ex.: 4"><button type="button" data-wpx="1" aria-label="Mais uma pessoa">+</button></div></div>
     <div class="field" style="margin-top:14px"><label for="wzNomes">Nome de cada um <i class="opc">opcional, um por linha</i></label><textarea id="wzNomes" class="wz-in" rows="4" placeholder="Ex.: Ana (cozinha)&#10;Bruno (bar)">${esc(d.nomes||"")}</textarea><span class="hint" id="wzNomesH">${nomes?plural(nomes,"nome")+" escrito"+(nomes>1?"s":""):""}</span></div>

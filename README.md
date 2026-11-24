@@ -565,3 +565,9 @@ Não precisa rodar nada no Supabase.
 - Em Ordens (logística) e em Chamados e OS (manutenção), novo filtro **Funcionário** dentro de Filtros.
 - No Controle de Eficiência › Funcionários, o nome de cada pessoa abre a página dela.
 - Conferências e lavagens aparecem para quem tem acesso ao app (ficha da equipe ligada ao usuário).
+
+## Atualização 55 · Escolher motorista, ajudantes e veículo em caixas de seleção
+Não precisa rodar nada no Supabase.
+- Na Nova OS (passo a passo e formulário completo), o quadro **Equipe e veículo** tem caixas de seleção: **Motorista** (motoristas primeiro), **Veículo** (agrupado por tipo, com placa) e **Ajudantes** (cada ajudante escolhido vira uma etiqueta com × para tirar).
+- Abaixo do veículo aparece o km atual e avisos úteis: conferência atrasada ou veículo em rota agora.
+- O motorista é a primeira pessoa da OS; nas OS antigas, quem tem a função Motorista é mostrado como motorista.
