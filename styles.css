@@ -1234,7 +1234,7 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"53"}
+:root{--versao-css:"54"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}
@@ -1246,3 +1246,24 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .cst-comb{display:block;margin-top:4px;color:var(--mute);font-weight:500;font-size:12.5px;line-height:1.4}
 dd.money{white-space:normal}
 dd.money>span,.cst-comb{white-space:normal;overflow-wrap:anywhere}
+
+/* v54 · Por funcionário */
+.pf-at{margin:-4px 0 14px;color:var(--mute)}
+.pf-dias{display:flex;flex-direction:column;gap:18px}
+.pf-dia h3{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:0 0 6px;padding-bottom:6px;border-bottom:1px solid var(--line);font-size:14px;color:var(--accent)}
+.pf-dia h3 span{font-size:12px;font-weight:500;color:var(--faint);text-transform:none}
+.pf-row{display:grid;grid-template-columns:48px 128px minmax(0,1fr) 84px 150px;gap:12px;align-items:center;width:100%;padding:9px 8px;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;text-decoration:none;border-radius:6px}
+.pf-row:last-child{border-bottom:0}
+button.pf-row,a.pf-row{cursor:pointer}button.pf-row:hover,a.pf-row:hover{background:var(--hover)}
+.pf-h{color:var(--mute);font-weight:600}
+.pf-k{font-size:12px;font-weight:700;color:var(--mute)}
+.pf-k.k-log,.pf-k.k-rota{color:var(--s-rota)}.pf-k.k-man{color:var(--gold-ink)}.pf-k.k-frota,.pf-k.k-conf,.pf-k.k-serv{color:var(--accent)}
+.pf-x{display:flex;flex-direction:column;min-width:0}
+.pf-x b{font-weight:600;overflow-wrap:anywhere}.pf-x span{color:var(--mute);font-size:13px;overflow-wrap:anywhere}
+.pf-n{text-align:right;font-weight:600}.pf-n small{display:block;color:var(--faint);font-weight:500}
+.pf-row .st{justify-self:end;white-space:normal;text-align:right}
+@media (max-width:760px){
+  .pf-row{grid-template-columns:44px minmax(0,1fr) auto;gap:4px 10px}
+  .pf-row .pf-k{grid-column:2;grid-row:1}.pf-row .pf-x{grid-column:2/4;grid-row:2}.pf-row .pf-h{grid-row:1}
+  .pf-row .pf-n{grid-column:1;grid-row:2;text-align:left;font-size:12px}.pf-row .st{grid-column:3;grid-row:1;font-size:12px}
+}

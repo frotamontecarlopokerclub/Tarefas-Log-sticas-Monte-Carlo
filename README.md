@@ -557,3 +557,11 @@ Não precisa rodar nada no Supabase.
 - **Custo real por km** = valor abastecido na quinzena ÷ km que o veículo rodou na quinzena pelo odômetro (conferências, rotas, OS, serviços ou km do painel do lançamento). Quando as leituras não cobrem a quinzena inteira, o km aparece com "≈" (estimado).
 - **Cada OS (e cada rota)** paga só os km da missão × esse custo real por km. A gaveta da OS mostra a conta. Sem leitura de odômetro, continua usando o consumo esperado do cadastro.
 - Em Combustível, lançamentos sem km de odômetro aparecem com "falta km" (os km das OS não entram mais na conta do R$/km).
+
+## Atualização 54 · O que cada funcionário fez
+Não precisa rodar nada no Supabase.
+- Novo item no menu: **Funcionários** (Por funcionário), nas três áreas. Sem escolher ninguém, mostra a equipe toda no período (OS concluídas, em andamento, rotas, conferências e lavagens, horas e km). Clicando no nome, aparece tudo o que a pessoa fez, dia a dia: OS da logística, rotas, OS da manutenção, OS da frota, conferências e lavagens registradas por ela.
+- Filtros: período (hoje, 7 dias, quinzena, mês, 30/90 dias, ano ou datas escolhidas), situação (só o concluído ou tudo, inclusive em andamento) e tipo de serviço. Clique numa OS para abri-la. Botões **Exportar CSV** e **Imprimir / PDF**.
+- Em Ordens (logística) e em Chamados e OS (manutenção), novo filtro **Funcionário** dentro de Filtros.
+- No Controle de Eficiência › Funcionários, o nome de cada pessoa abre a página dela.
+- Conferências e lavagens aparecem para quem tem acesso ao app (ficha da equipe ligada ao usuário).

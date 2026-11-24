@@ -32,9 +32,9 @@ const S={areaAcesso:"ambas",veiculo_conferencias:[],veiculo_servicos:[],frotaDia
   route:"painel",openId:null,action:null,editId:null,routeArg:null,
   area:(()=>{try{const a=localStorage.getItem("mc-area");return a==="man"||a==="frota"?a:"log"}catch(e){return "log"}})(),
   manutencoes:[],equipamentos:[],prestadores:[],planos:[],missing:{},mOpen:null,mAct:null,mEditId:null,eqEdit:null,editEq:null,planEdit:null,planX:null,planDel:null,
-  mlf:{status:"abertas",q:"",local:"",cat:"",tipo:""},mf:(()=>{try{return Object.assign({periodo:"30",local:"",cat:""},JSON.parse(localStorage.getItem("mc-man-f")||"{}"))}catch(e){return {periodo:"30",local:"",cat:""}}})(),ef:{q:"",local:"",cat:"",inativos:false},
+  mlf:{status:"abertas",q:"",local:"",cat:"",tipo:"",eq:""},mf:(()=>{try{return Object.assign({periodo:"30",local:"",cat:""},JSON.parse(localStorage.getItem("mc-man-f")||"{}"))}catch(e){return {periodo:"30",local:"",cat:""}}})(),ef:{q:"",local:"",cat:"",inativos:false},
   f:{periodo:"30",setor:"",local:""},
-  lf:{status:"abertas",q:"",setor:"",local:"",tipo:""},cadTab:"locais",cadEdit:null};
+  lf:{status:"abertas",q:"",setor:"",local:"",tipo:"",eq:""},cadTab:"locais",cadEdit:null};
 
 const app=document.getElementById("app"),layer=document.getElementById("layer");
 
@@ -98,7 +98,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=53;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=54;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -411,7 +411,7 @@ function areasPermitidas(){if(S.role==="campo")return [];if(S.role==="tv"||S.rol
 function isAdmin(){return S.role==="log"&&S.areaAcesso==="ambas"}
 function areaFixa(){if(S.role!=="log")return null;const a=areasPermitidas();return a.length===1?a[0]:null}
 const LABELS={painel:"Painel",ordens:"Ordens",pedidos:"Pedidos",agenda:"Agenda",relatorio:"Relatório",cadastros:"Cadastros",nova:"Nova OS",solicitar:"Novo pedido",meus:"Meus pedidos",
-  gestao:"Gestão",eficiencia:"Controle de Eficiência","rotas-dia":"Rotas","m-tv":"Painel TV","m-fila":"Ordens da manutenção","f-comb":"Combustível",missoes:"Minhas missões",missao:"Missão","campo-os":"Nova OS no caminho","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Veículos",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem",veiculos:"Veículos",emergencia:"Emergência","f-painel":"Painel","f-os":"OS da frota","f-conf":"Conferências","f-lav":"Lavagens","f-serv":"Serviços e custos"};
+  gestao:"Gestão",eficiencia:"Controle de Eficiência",funcionario:"Por funcionário","rotas-dia":"Rotas","m-tv":"Painel TV","m-fila":"Ordens da manutenção","f-comb":"Combustível",missoes:"Minhas missões",missao:"Missão","campo-os":"Nova OS no caminho","m-painel":"Painel","m-ordens":"Chamados e OS","m-prev":"Preventivas","m-equip":"Equipamentos","m-nova":"Nova OS","m-chamado":"Abrir chamado","m-meus":"Meus chamados","m-eq":"Equipamento",frota:"Veículos",veiculo:"Veículo","veiculo-editar":"Veículo",conferir:"Conferir veículo",lavar:"Lavagem",veiculos:"Veículos",emergencia:"Emergência","f-painel":"Painel","f-os":"OS da frota","f-conf":"Conferências","f-lav":"Lavagens","f-serv":"Serviços e custos"};
 const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   agenda:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',pedidos:'<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
   relatorio:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 17v-4M12 17V8M16 17v-6"/>',cadastros:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
@@ -420,7 +420,7 @@ const ICO={painel:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',ordens:'<rect 
   prev:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/>',
   equip:'<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M19 9h3M19 15h3M2 9h3M2 15h3"/>'};
 ICO.frota='<path d="M3 13l2-6h14l2 6v5h-2.5M3 13v5h2.5M3 13h18"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/><path d="M9.5 17.5h5"/>';ICO["f-lav"]='<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9 14a3 3 0 0 0 3 3"/>';ICO.gestao='<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/><path d="M15 8h4v4"/>';
-ICO.eficiencia='<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/><circle cx="12" cy="14" r="1.5"/>';ICO["f-comb"]='<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M7 7h5v4H7z"/><path d="M15 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/>';
+ICO.funcionario='<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>';ICO.eficiencia='<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/><circle cx="12" cy="14" r="1.5"/>';ICO["f-comb"]='<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M7 7h5v4H7z"/><path d="M15 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/>';
 ICO["rotas-dia"]='<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/>';ICO["m-tv"]='<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>';ICO["m-fila"]=ICO.wrench||'';
 Object.assign(ICO,{"f-painel":ICO.painel,"f-os":ICO.wrench,"f-conf":ICO.meus,"f-serv":ICO.wrench,conferir:ICO.meus,lavar:ICO["f-lav"],"m-painel":ICO.painel,"m-ordens":ICO.wrench,"m-prev":ICO.prev,"m-equip":ICO.equip,"m-meus":ICO.meus,"m-eq":ICO.equip});
 const svgI=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[k]}</svg>`;
@@ -429,17 +429,17 @@ function navCfg(){
   if(S.role==="tv")return {top:["m-tv"],cta:null,mob:[],more:[],home:"m-tv"};
   if(S.role==="oficina")return {top:["m-fila"],cta:null,mob:[],more:[],home:"m-fila"};
   if(S.area==="frota"){
-    if(S.role==="log")return {top:["f-painel","f-os","frota","f-comb","f-conf","f-lav","f-serv"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),cta:"conferir",mob:["f-painel","f-os","conferir","frota"],more:["f-comb","f-conf","f-lav","f-serv"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),home:"f-painel"};
-    return {top:["gestao","f-painel","f-os","frota","f-comb","f-conf","f-lav","f-serv","eficiencia"],cta:null,mob:["gestao","f-painel","f-os","frota"],more:["f-comb","f-conf","f-lav","f-serv","eficiencia"],home:"gestao"};
+    if(S.role==="log")return {top:["f-painel","f-os","frota","f-comb","f-conf","f-lav","f-serv"].concat(isAdmin()?["gestao"]:[],["eficiencia","funcionario","cadastros"]),cta:"conferir",mob:["f-painel","f-os","conferir","frota"],more:["f-comb","f-conf","f-lav","f-serv"].concat(isAdmin()?["gestao"]:[],["eficiencia","funcionario","cadastros"]),home:"f-painel"};
+    return {top:["gestao","f-painel","f-os","frota","f-comb","f-conf","f-lav","f-serv","eficiencia","funcionario"],cta:null,mob:["gestao","f-painel","f-os","frota"],more:["f-comb","f-conf","f-lav","f-serv","eficiencia","funcionario"],home:"gestao"};
   }
   if(S.area==="man"){
-    if(S.role==="log")return {top:["m-painel","m-ordens","m-tv","m-prev","m-equip"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),cta:"m-nova",mob:["m-painel","m-ordens","m-nova","m-tv"],more:["m-prev","m-equip"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),home:"m-ordens"};
+    if(S.role==="log")return {top:["m-painel","m-ordens","m-tv","m-prev","m-equip"].concat(isAdmin()?["gestao"]:[],["eficiencia","funcionario","cadastros"]),cta:"m-nova",mob:["m-painel","m-ordens","m-nova","m-tv"],more:["m-prev","m-equip"].concat(isAdmin()?["gestao"]:[],["eficiencia","funcionario","cadastros"]),home:"m-ordens"};
     if(S.role==="sol")return {top:["m-meus","m-equip"],cta:"m-chamado",mob:["m-meus","m-chamado","m-equip"],more:[],home:"m-meus"};
-    return {top:["gestao","m-painel","m-ordens","m-prev","m-equip","eficiencia"],cta:null,mob:["gestao","m-painel","m-ordens","m-equip"],more:["m-prev","eficiencia"],home:"gestao"};
+    return {top:["gestao","m-painel","m-ordens","m-prev","m-equip","eficiencia","funcionario"],cta:null,mob:["gestao","m-painel","m-ordens","m-equip"],more:["m-prev","eficiencia","funcionario"],home:"gestao"};
   }
-  if(S.role==="log")return {top:["painel","ordens","rotas-dia","pedidos","agenda","relatorio"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),cta:"nova",mob:["painel","ordens","nova","agenda"],more:["rotas-dia","pedidos","relatorio"].concat(isAdmin()?["gestao"]:[],["eficiencia","cadastros"]),home:"painel"};
+  if(S.role==="log")return {top:["painel","ordens","rotas-dia","pedidos","agenda","relatorio"].concat(isAdmin()?["gestao"]:[],["eficiencia","funcionario","cadastros"]),cta:"nova",mob:["painel","ordens","nova","agenda"],more:["rotas-dia","pedidos","relatorio"].concat(isAdmin()?["gestao"]:[],["eficiencia","funcionario","cadastros"]),home:"painel"};
   if(S.role==="sol")return {top:["meus","ordens","agenda","painel","relatorio"],cta:"solicitar",mob:["meus","ordens","solicitar","painel"],more:["agenda","relatorio"],home:"meus"};
-  return {top:["gestao","painel","ordens","rotas-dia","agenda","relatorio","eficiencia"],cta:null,mob:["gestao","painel","ordens","agenda"],more:["rotas-dia","relatorio","eficiencia"],home:"gestao"};
+  return {top:["gestao","painel","ordens","rotas-dia","agenda","relatorio","eficiencia","funcionario"],cta:null,mob:["gestao","painel","ordens","agenda"],more:["rotas-dia","relatorio","eficiencia","funcionario"],home:"gestao"};
 }
 const pendentes=()=>S.pedidos.filter(x=>x.status==="aguardando").length;
 const chamadosNovos=()=>isMan()?manInfra().filter(m=>m.status==="aberto").length:0;
@@ -452,7 +452,7 @@ function buildNav(){
     sw.classList.toggle("tres",ap.length>2);
     $$("[data-area]",sw).forEach(b=>b.onclick=()=>{if(S.area===b.dataset.area)return;S.area=b.dataset.area;try{localStorage.setItem("mc-area",S.area)}catch(e){}const h="#"+navCfg().home;buildNav();if(location.hash===h)route();else location.hash=h;});}
   const dense=c.top.length>=10;$("#topnav").classList.toggle("dense",dense);
-  const LT=dense?Object.assign({},LABELS,{eficiencia:"Eficiência","f-serv":"Custos","f-conf":"Conferências",conferir:"Conferir"}):LABELS;
+  const LT=dense?Object.assign({},LABELS,{eficiencia:"Eficiência",funcionario:"Funcionários","f-serv":"Custos","f-conf":"Conferências",conferir:"Conferir"}):LABELS;
   $("#topnav").innerHTML=c.top.map(r=>`<a href="#${r}" data-r="${r}" title="${esc(LABELS[r])}">${LT[r]}${bd(r)}</a>`).join("")+(c.cta?`<a href="#${c.cta}" class="btn-new" data-r="${c.cta}">${LT[c.cta]}</a>`:"")+(S.demo?"":`<button class="who" id="sairTop" type="button" title="Sair do sistema">${esc(S.meName)} · Sair</button>`);
   const LM=Object.assign({},LABELS,{conferir:"Conferir","f-os":"OS","f-serv":"Custos",meus:"Pedidos",solicitar:"Pedir","m-ordens":"Chamados","m-equip":"Equip.","m-chamado":"Chamado","m-meus":"Chamados"});
   const mob=c.mob.map(r=>r===c.cta?`<a href="#${r}" data-r="${r}" class="new"><span class="c">${svgI("plus")}</span>${LM[r]}</a>`:`<a href="#${r}" data-r="${r}">${svgI(r)}${LM[r]}${bd(r)}</a>`);
@@ -503,7 +503,7 @@ function render(force){
   else if(S.route==="conferir"||S.route==="veiculo-editar"||S.route==="lavar"||S.route==="emergencia"){ if(force||!formMounted){ ({conferir:renderConferir,lavar:renderLavar,emergencia:renderEmergencia}[S.route]||renderVeiculoEditar)(); formMounted=true; } }
   else { formMounted=false;
     const fn={painel:renderPainel,ordens:renderOrdens,agenda:renderAgenda,cadastros:renderCadastros,pedidos:renderPedidos,meus:renderMeus,relatorio:renderRelatorio,
-      gestao:renderGestao,missoes:renderMissoes,veiculos:renderVeicCampo,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo,"f-painel":renderFPainel,"f-os":renderFOs,rota:renderRota,"campo-os":renderNovaCampo,"rotas-dia":renderRotasDia,"m-tv":renderMTv,"m-fila":renderMFila,"m-exec":renderMExec,"f-comb":renderFComb,eficiencia:renderEficiencia,"f-conf":renderFConf,"f-lav":renderFLav,"f-serv":renderFServ}[S.route]||renderPainel;
+      gestao:renderGestao,missoes:renderMissoes,veiculos:renderVeicCampo,"m-painel":renderMPainel,"m-ordens":renderMOrdens,"m-prev":renderMPrev,"m-equip":renderMEquip,"m-eq":renderMEq,"m-meus":renderMMeus,frota:renderFrota,veiculo:renderVeiculo,"f-painel":renderFPainel,"f-os":renderFOs,rota:renderRota,"campo-os":renderNovaCampo,"rotas-dia":renderRotasDia,"m-tv":renderMTv,"m-fila":renderMFila,"m-exec":renderMExec,"f-comb":renderFComb,eficiencia:renderEficiencia,funcionario:renderFuncionario,"f-conf":renderFConf,"f-lav":renderFLav,"f-serv":renderFServ}[S.route]||renderPainel;
     // preserva foco em campos de busca
     const ae=document.activeElement, aid=ae&&ae.id, pos=ae&&ae.selectionStart;
     if(!force&&((S.route==="cadastros"&&S.cadEdit)||(S.route==="pedidos"&&S.recusando)||(S.route==="m-equip"&&S.eqEdit)||(S.route==="m-prev"&&S.planEdit)||(S.route==="m-eq"&&S.editEq)||(S.route==="veiculo"&&S.vServ)||(S.route==="f-comb"&&S.ab)||(S.route==="m-exec"&&S.ox&&(S.ox.modo||S.ox.sel.length))||(S.route==="rota"&&S.rt&&(S.rt.k==="nova"||S.rt.km||S.rt.busy))||(S.route==="eficiencia"&&S.efTab==="salarios")||(S.route==="campo-os"&&S.nc&&!S.nc.fim))) { /* não redesenha durante edição */ }
@@ -765,6 +765,7 @@ function filtraLista(){
     if(["em_rota","concluida","cancelada","registrada","agendada"].includes(f.status)&&o.status!==f.status)return false;}
     if(f.setor&&o.setorId!==f.setor)return false;
     if(f.tipo&&o.tipo!==f.tipo)return false;
+    if(f.eq&&!(o.equipeIds||[]).includes(f.eq))return false;
     if(f.local&&o.origemId!==f.local&&o.destinoId!==f.local)return false;
     if(q){const hay=[codigo(o),o.solicitante,o.tipo,paradasDe(o).map(nomeP).join(" "),nomeSetor(o.setorId),nomeEquipe(o.equipeIds),nomeVeic(o.veiculoId),o.observacoes,(o.itens||[]).map(i=>i.desc).join(" ")].join(" ").toLowerCase();if(!hay.includes(q))return false}
     return true;
@@ -790,11 +791,12 @@ function renderOrdens(){
   ${f.dia?diaSegsHTML("l",S.os,f.dia,f.dcat,false):`<div class="seg" role="group" aria-label="Situação">${segs.map(([k,l])=>`<button type="button" data-seg="${k}" aria-pressed="${f.status===k}">${l}<span class="c num">${S.loaded.os||S.demo?cnt(k):""}</span></button>`).join("")}</div>`}
   <div class="filters">
     <div class="field grow"><label for="lq">Buscar</label><input type="search" id="lq" placeholder="Número, solicitante, item, local, equipe…" value="${esc(f.q)}"></div>
-    <details class="fx" id="fx"${f.more||window.innerWidth>760?" open":""}><summary class="btn sm">Filtros${(f.setor||f.local||f.tipo)?" ativos":""}</summary><div class="fx-in">
+    <details class="fx" id="fx"${f.more||window.innerWidth>760?" open":""}><summary class="btn sm">Filtros${(f.setor||f.local||f.tipo||f.eq)?" ativos":""}</summary><div class="fx-in">
     <div class="field"><label for="lSet">Setor</label><select id="lSet">${optsSetores(f.setor,"Todos")}</select></div>
     <div class="field"><label for="lLoc">Unidade</label><select id="lLoc">${opts(ativos(S.locais),f.local,"Todas")}</select></div>
     <div class="field"><label for="lTip">Tipo</label><select id="lTip"><option value="">Todos</option>${optsS(TIPOS,f.tipo)}</select></div>
-  </div></details></div>`;
+    <div class="field"><label for="lEq">Funcionário</label><select id="lEq">${optsEquipe(f.eq)}</select></div>
+  </div></details></div>${f.eq?eqAtalhoHTML(f.eq):""}`;
   if(L){app.innerHTML=h+L;bindOrdens();return}
   let list=filtraLista();
   if(f.dia) list=ordenaDia(list,f.dia,false);
@@ -812,6 +814,7 @@ function bindOrdens(){
   $("#lSet").onchange=e=>{S.lf.setor=e.target.value;renderOrdens()};
   $("#lLoc").onchange=e=>{S.lf.local=e.target.value;renderOrdens()};
   $("#lTip").onchange=e=>{S.lf.tipo=e.target.value;renderOrdens()};
+  $("#lEq").onchange=e=>{S.lf.eq=e.target.value;renderOrdens()};
   bindOpen();
 }
 function bindOpen(){$$("[data-open]").forEach(b=>b.onclick=()=>openOS(b.dataset.open))}
@@ -2041,6 +2044,7 @@ function filtraM(){
     if(f.local&&m.localId!==f.local)return false;
     if(f.cat&&m.categoria!==f.cat)return false;
     if(f.tipo&&m.tipo!==f.tipo)return false;
+    if(f.eq&&!(m.equipeIds||[]).includes(f.eq))return false;
     if(q){const hay=[codM(m),m.titulo,m.descricao,m.solicitante,m.categoria,ondeM(m),executorTxt(m),m.solucao,m.diagnostico].join(" ").toLowerCase();if(!hay.includes(q))return false}
     return true;
   });
@@ -2065,11 +2069,12 @@ function renderMOrdens(){
   ${f.dia?diaSegsHTML("m",L,f.dia,f.dcat,true):`<div class="seg" role="group" aria-label="Situação">${segs.map(([k,l])=>`<button type="button" data-mseg="${k}" aria-pressed="${f.status===k}">${l}<span class="c num">${cnt(k)}</span></button>`).join("")}</div>`}
   <div class="filters">
     <div class="field grow"><label for="mq">Buscar</label><input type="search" id="mq" placeholder="Número, problema, local, equipamento, técnico…" value="${esc(f.q)}"></div>
-    <details class="fx" id="mfx"${f.more||window.innerWidth>760?" open":""}><summary class="btn sm">Filtros${(f.local||f.cat||f.tipo)?" ativos":""}</summary><div class="fx-in">
+    <details class="fx" id="mfx"${f.more||window.innerWidth>760?" open":""}><summary class="btn sm">Filtros${(f.local||f.cat||f.tipo||f.eq)?" ativos":""}</summary><div class="fx-in">
     <div class="field"><label for="mLocF">Local</label><select id="mLocF">${opts(ativos(S.locais).filter(l=>l.tipo!=="Fornecedor"),f.local,"Todos")}</select></div>
     <div class="field"><label for="mCatF">Categoria</label><select id="mCatF"><option value="">Todas</option>${optsS(MCATS,f.cat)}</select></div>
     <div class="field"><label for="mTipF">Tipo</label><select id="mTipF">${optsS([["","Todos"],["corretiva","Corretiva"],["preventiva","Preventiva"]],f.tipo)}</select></div>
-  </div></details></div>`;
+    <div class="field"><label for="mEqF">Funcionário</label><select id="mEqF">${optsEquipe(f.eq)}</select></div>
+  </div></details></div>${f.eq?eqAtalhoHTML(f.eq):""}`;
   if(!S.demo&&!S.loaded.manutencoes&&!faltaMan()){app.innerHTML=h+`<div class="empty"><h3>Carregando manutenções…</h3></div>`;bindMOrdens();return}
   let list=filtraM();
   if(f.dia) list=ordenaDia(list,f.dia,true);
@@ -2089,6 +2094,7 @@ function bindMOrdens(){
   $("#mLocF").onchange=e=>{S.mlf.local=e.target.value;renderMOrdens()};
   $("#mCatF").onchange=e=>{S.mlf.cat=e.target.value;renderMOrdens()};
   $("#mTipF").onchange=e=>{S.mlf.tipo=e.target.value;renderMOrdens()};
+  const me=$("#mEqF");if(me)me.onchange=e=>{S.mlf.eq=e.target.value;renderMOrdens()};
   bindMOpen();
 }
 function bindMOpen(root){$$("[data-mopen]",root).forEach(b=>b.onclick=()=>openM(b.dataset.mopen))}
@@ -4670,7 +4676,7 @@ function renderEficiencia(){
     h+=`<div class="ef-rks">${rkCard("Mais missões",porN[0]&&porN[0].n?porN[0].p.nome:null,porN[0]?plural(porN[0].n,"missão","missões"):"","ok")}${rkCard("Menos missões",porN.length>1?porN[porN.length-1].p.nome:null,porN.length>1?plural(porN[porN.length-1].n,"missão","missões"):"","alert")}
       ${rkCard("Mais tempo por missão",porT[0]&&porT[0].p.nome,porT[0]?fHrs(porT[0].media)+" em média":"","alert")}${rkCard("Menos tempo por missão",porT.length>1&&porT[porT.length-1].p.nome,porT.length>1?fHrs(porT[porT.length-1].media)+" em média":"","ok")}</div>
       <section class="card"><div class="card-h"><h2>Funcionários</h2><span class="sub">missões concluídas no período (logística e manutenção interna)</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>#</th><th>Funcionário</th><th>Função</th><th class="r">Missões</th><th class="r">Logística</th><th class="r">Manutenção</th><th class="r">Horas</th><th class="r">Média por missão</th><th>Missão mais longa</th><th class="r">Km</th>${adm?`<th class="r">Custo/hora</th><th class="r">Custo no período</th>`:""}</tr></thead><tbody>
-      ${porN.map((x,i)=>`<tr><td class="rk">${x.n?i+1+"º":""}</td><td>${esc(x.p.nome)}</td><td>${esc(x.p.funcao||"—")}</td><td class="r num"><b>${x.n}</b></td><td class="r num">${x.nLog||"—"}</td><td class="r num">${x.nMan||"—"}</td><td class="r num">${fHrs(x.horas)}</td><td class="r num">${fHrs(x.media)}</td><td>${x.maior&&isFinite(x.maior.h)?`<button type="button" class="lnk" ${x.maior.k==="log"?`data-efo="${esc(x.maior.o.id)}"`:`data-efm="${esc(x.maior.o.id)}"`}>${esc(x.maior.k==="log"?codigo(x.maior.o):codM(x.maior.o))}</button> ${esc(fHrs(x.maior.h))}`:"—"}</td><td class="r num">${x.km?fNum(x.km):"—"}</td>${adm?`<td class="r num">${x.ch?fBRL(x.ch):"—"}${x.temSal?"":` <small title="Sem salário cadastrado: usa o custo por hora do cadastro ou o padrão">padrão</small>`}</td><td class="r num">${x.horas&&x.ch?fBRL(x.horas*x.ch):"—"}</td>`:""}</tr>`).join("")}</tbody></table>
+      ${porN.map((x,i)=>`<tr><td class="rk">${x.n?i+1+"º":""}</td><td><a class="lnk" href="#funcionario/${esc(x.p.id)}">${esc(x.p.nome)}</a></td><td>${esc(x.p.funcao||"—")}</td><td class="r num"><b>${x.n}</b></td><td class="r num">${x.nLog||"—"}</td><td class="r num">${x.nMan||"—"}</td><td class="r num">${fHrs(x.horas)}</td><td class="r num">${fHrs(x.media)}</td><td>${x.maior&&isFinite(x.maior.h)?`<button type="button" class="lnk" ${x.maior.k==="log"?`data-efo="${esc(x.maior.o.id)}"`:`data-efm="${esc(x.maior.o.id)}"`}>${esc(x.maior.k==="log"?codigo(x.maior.o):codM(x.maior.o))}</button> ${esc(fHrs(x.maior.h))}`:"—"}</td><td class="r num">${x.km?fNum(x.km):"—"}</td>${adm?`<td class="r num">${x.ch?fBRL(x.ch):"—"}${x.temSal?"":` <small title="Sem salário cadastrado: usa o custo por hora do cadastro ou o padrão">padrão</small>`}</td><td class="r num">${x.horas&&x.ch?fBRL(x.horas*x.ch):"—"}</td>`:""}</tr>`).join("")}</tbody></table>
       <p class="hint" style="margin:10px 0 0">Tempo da missão: do início ao fim registrados no celular. Na manutenção, as horas de trabalho lançadas na OS.</p></div></section>`}
   if(tab==="missoes"&&adm){const L=S.os.filter(o=>o.status==="concluida"&&T(o.concluidoEm)>=a&&T(o.concluidoEm)<b).sort((x,y)=>T(y.concluidoEm)-T(x.concluidoEm));const C=L.map(custoMissao);const sum=k=>C.reduce((s,c)=>s+(c[k]||0),0);const km=sum("km");
     h+=`<div class="kpis">${kpi("Custo total",fBRL(sum("total")),"",plural(L.length,"missão concluída","missões concluídas"),"money-k")}${kpi("Custo médio por missão",L.length?fBRL(sum("total")/L.length):"—","","","money-k")}${kpi("Custo por km",km?fBRL(sum("total")/km):"—","",fNum(km)+" km rodados","money-k")}${kpi("Equipe",fBRL(sum("eq")),"",sum("total")?fNum(sum("eq")/sum("total")*100)+"% do custo":"","money-k")}</div>
@@ -4706,6 +4712,96 @@ function renderEficiencia(){
     const rows=[["OS","Concluída em","Trajeto","Veículo","Carga","Km","Horas","Equipe","Equipe (R$)","Combustível (R$)","Óleo (R$)","Pneus (R$)","Veículo por km (R$)","Extras (R$)","Total (R$)","R$ por km"]].concat(L.map(o=>{const c=custoMissao(o);return [codigo(o),fDH(o.concluidoEm),rotaTxt(o),nomeVeic(o.veiculoId),o.carga==="pesada"?"Pesada":"Leve",c.km,n2(c.h),nomeEquipe(o.equipeIds),n2(c.eq),n2(c.comb),n2(c.oleo),n2(c.pneu),c.detalhado?"":n2(c.veic),n2(c.ex),n2(c.total),c.km?n2(c.total/c.km):""]}));
     const url=URL.createObjectURL(new Blob(["﻿"+rows.map(r=>r.map(q).join(";")).join("\n")],{type:"text/csv;charset=utf-8"}));const x=document.createElement("a");x.href=url;x.download="eficiencia-"+dayKey(new Date())+".csv";document.body.appendChild(x);x.click();x.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)};
 }
+/* =====================================================================
+   POR FUNCIONÁRIO (v54): tudo o que cada pessoa da equipe fez
+   OS da logística, rotas, OS da manutenção, OS da frota, conferências
+   e lavagens/serviços que ela registrou, por período.
+   ===================================================================== */
+function optsEquipe(sel){const L=S.equipe.filter(p=>p.ativo!==false||p.id===sel).slice().sort(sortNome);return `<option value="">Todos</option>`+L.map(p=>`<option value="${esc(p.id)}"${p.id===sel?" selected":""}>${esc(p.nome)}${p.ativo===false?" (inativo)":""}</option>`).join("")}
+const eqAtalhoHTML=id=>{const p=byId(S.equipe,id);return p?`<p class="pf-at">Filtrando pelas OS de <b>${esc(p.nome)}</b>. <a class="lnk" href="#funcionario/${esc(id)}">Ver tudo o que ${esc(p.nome.split(" ")[0])} fez</a></p>`:""};
+const PF_PER=[["hoje","Hoje"],["7","Últimos 7 dias"],["q","Esta quinzena"],["qa","Quinzena anterior"],["mes","Este mês"],["mesant","Mês anterior"],["30","Últimos 30 dias"],["90","Últimos 90 dias"],["ano","Este ano"],["datas","Escolher as datas"]];
+const PF_CAT={log:["Logística","OS da logística"],rota:["Rota","Rotas"],man:["Manutenção","OS da manutenção"],frota:["Frota","OS da frota"],conf:["Conferência","Conferências"],serv:["Lavagem / serviço","Lavagens e serviços"]};
+const PF_AREA={log:"log",rota:"log",man:"man",frota:"frota",conf:"frota",serv:"frota"};
+function pfRange(){const f=S.pf;if(f.per==="datas"){const a=f.de?new Date(f.de+"T00:00:00"):new Date(Date.now()-29*DIA_MS),b=f.ate?new Date(f.ate+"T00:00:00"):new Date();b.setHours(0,0,0,0);return [a,new Date(b.getTime()+DIA_MS)]}return periodRange(f.per)}
+function pfCats(){const ap=S.role==="log"?areasPermitidas():["log","man","frota"];return Object.keys(PF_CAT).filter(k=>ap.includes(PF_AREA[k]))}
+// tudo o que a pessoa fez (ou tem atribuído) — sem filtro de período
+function feitosDe(pid){
+  const p=byId(S.equipe,pid);if(!p)return [];const nm=normTxt(p.nome),out=[];
+  const hM=m=>Number(m.horasTrabalho)>0?Number(m.horasTrabalho):m.iniciadoEm&&m.concluidoEm?Math.max(0,T(m.concluidoEm)-T(m.iniciadoEm))/3600000:null;
+  S.os.forEach(o=>{if(o.status==="cancelada"||!(o.equipeIds||[]).includes(pid))return;const c=o.status==="concluida";
+    out.push({k:"log",id:o.id,t:T(c?o.concluidoEm:o.iniciadoEm||o.agendadoPara||refDate(o)),c,cod:codigo(o),tit:rotaTxt(o),sub:[o.tipo,itensResumo(o),o.veiculoId?nomeVeic(o.veiculoId):""].filter(Boolean).join(" · "),
+      st:ST[o.status]||o.status,stc:o.status,h:c&&o.iniciadoEm?Math.max(0,tExec(o))/3600000:null,km:c?kmRodados(o):null,abre:{os:o.id},o})});
+  (S.rotas||[]).forEach(r=>{if(r.status==="cancelada"||!(r.equipeIds||[]).includes(pid))return;const L=osDaRota(r),c=r.status==="devolvida";
+    out.push({k:"rota",id:r.id,t:T(r.devolvidoEm||r.fimEm||r.inicioEm||r.saidaEm),c,cod:codR(r),tit:plural(L.length,"OS","OS")+" na rota"+(r.veiculoId?" · "+nomeVeic(r.veiculoId):""),sub:L.map(codigo).join(", "),
+      st:ROTA_ST[r.status]||r.status,stc:c?"concluida":"em_rota",h:rotaHoras(r)||null,km:rotaKm(r),os:L.map(o=>o.id)})});
+  S.manutencoes.forEach(m=>{if(m.status==="cancelada"||!(m.equipeIds||[]).includes(pid))return;const c=m.status==="concluida",fr=ehFrotaM(m);
+    out.push({k:fr?"frota":"man",id:m.id,t:T(c?m.concluidoEm:m.iniciadoEm||m.agendadoPara||m.criadoEm),c,cod:codM(m),tit:tituloM(m),sub:fr?nomeVid(m.veiculoId):ondeM(m),
+      st:MST[m.status]||m.status,stc:m.status,h:c?hM(m):null,km:null,abre:{m:m.id},o:m})});
+  (S.veiculo_conferencias||[]).forEach(x=>{if(!((p.perfilId&&x.feitoPor===p.perfilId)||(!x.feitoPor||!p.perfilId)&&normTxt(x.feitoPorNome)===nm))return;
+    out.push({k:"conf",id:x.id,t:T(x.feitoEm),c:true,cod:"Conferência",tit:nomeVid(x.veiculoId),sub:(x.km!=null?fKm(x.km)+" · ":"")+(x.problemas?plural(x.problemas,"item ruim","itens ruins"):"tudo OK"),
+      st:"Feita",stc:x.problemas?"aguardando":"concluida",h:null,km:null,abre:{v:x.veiculoId}})});
+  if(p.perfilId)(S.veiculo_servicos||[]).forEach(x=>{if(x.criadoPor!==p.perfilId)return;
+    out.push({k:"serv",id:x.id,t:T(x.feitoEm?dtServ(x):x.criadoEm),c:true,cod:lblServ(x),tit:nomeVid(x.veiculoId),sub:[x.oficina,x.obs].filter(Boolean).join(" · "),st:"Feito",stc:"concluida",h:null,km:null,abre:{v:x.veiculoId}})});
+  return out.filter(x=>isFinite(x.t));
+}
+function pfItens(pid){const f=S.pf,[a,b]=pfRange(),cats=pfCats();const A=a.getTime(),B=b.getTime();
+  return feitosDe(pid).filter(x=>cats.includes(x.k)&&(!f.cat||(f.cat==="frota"?["frota","conf","serv"].includes(x.k):f.cat===x.k))&&(f.sit==="todas"||x.c)&&x.t>=A&&x.t<B).sort((x,y)=>y.t-x.t)}
+const pfResumo=L=>{const os=L.filter(x=>["log","man","frota"].includes(x.k));return {n:os.length,conc:os.filter(x=>x.c).length,abertas:os.filter(x=>!x.c).length,h:os.reduce((s,x)=>s+(x.h||0),0),km:L.filter(x=>x.k==="log").reduce((s,x)=>s+(x.km||0),0),rotas:L.filter(x=>x.k==="rota").length,frota:L.filter(x=>x.k==="conf"||x.k==="serv").length}};
+function pfLinha(x){const cl=x.abre&&x.abre.os?`data-open="${esc(x.abre.os)}"`:x.abre&&x.abre.m?`data-mopen="${esc(x.abre.m)}"`:"";const tag=cl?"button":x.abre&&x.abre.v?"a":"div";
+  return `<${tag} class="pf-row" ${tag==="button"?`type="button" ${cl}`:tag==="a"?`href="#veiculo/${esc(x.abre.v)}"`:""}><span class="pf-h num">${esc(fHora(new Date(x.t).toISOString()))}</span><span class="pf-k k-${x.k}">${esc(PF_CAT[x.k][0])}</span>
+    <span class="pf-x"><b><span class="num">${esc(x.cod)}</span> · ${esc(x.tit)}</b>${x.sub?`<span>${esc(x.sub)}</span>`:""}</span>
+    <span class="pf-n num">${x.h?fHrs(x.h):""}${x.km?`<small>${esc(fNum(x.km,1))} km</small>`:""}</span><span class="st ${esc(x.stc)}">${esc(x.st)}</span></${tag}>`}
+function renderFuncionario(){
+  if(!podeDesenhar())return;
+  if(!S.pf)S.pf={per:"mes",sit:"concl",cat:"",de:"",ate:""};const f=S.pf;
+  const pid=S.routeArg&&byId(S.equipe,S.routeArg)?S.routeArg:"";const p=pid?byId(S.equipe,pid):null;const cats=pfCats();
+  const L=loading();
+  let h=`<div class="head"><div><h1>Por <em>funcionário</em></h1><p>Tudo o que cada pessoa da equipe fez no período: OS, rotas, manutenções, conferências e lavagens.</p></div>
+    ${p?`<div class="act"><button class="btn" type="button" id="pfCsv">Exportar CSV</button><button class="btn" type="button" id="pfPrint">Imprimir / PDF</button></div>`:""}</div>${banner()}
+    <div class="filters">
+      <div class="field grow"><label for="pfP">Funcionário</label><select id="pfP">${optsEquipe(pid).replace(">Todos<",">Escolha… (ver todos)<")}</select></div>
+      <div class="field"><label for="pfPer">Período</label><select id="pfPer">${optsS(PF_PER,f.per)}</select></div>
+      ${f.per==="datas"?`<div class="field"><label for="pfDe">De</label><input type="date" id="pfDe" value="${esc(f.de||dayKey(new Date(Date.now()-29*DIA_MS)))}"></div><div class="field"><label for="pfAte">Até</label><input type="date" id="pfAte" value="${esc(f.ate||dayKey(new Date()))}"></div>`:""}
+      <div class="field"><label for="pfSit">Situação</label><select id="pfSit">${optsS([["concl","Só o concluído"],["todas","Tudo, inclusive em andamento"]],f.sit)}</select></div>
+      ${cats.length>2?`<div class="field"><label for="pfCat">Tipo de serviço</label><select id="pfCat">${optsS([["","Tudo"]].concat([["log","OS da logística"],["rota","Rotas"],["man","OS da manutenção"],["frota","Frota (OS, conferências, lavagens)"]].filter(([k])=>cats.includes(k))),f.cat)}</select></div>`:""}
+    </div>`;
+  if(L){app.innerHTML=h+L;bindFuncionario([]);return}
+  if(!p){const [a,b]=pfRange();const T0=a.getTime(),T1=b.getTime();
+    const R=S.equipe.filter(x=>x.ativo!==false).map(x=>{const it=feitosDe(x.id).filter(y=>cats.includes(y.k)&&(f.sit==="todas"||y.c)&&y.t>=T0&&y.t<T1);return {p:x,r:pfResumo(it)}}).sort((x,y)=>y.r.n-x.r.n||y.r.frota-x.r.frota||sortNome(x.p,y.p));
+    h+=`<section class="card"><div class="card-h"><h2>Equipe no período</h2><span class="sub">clique no nome para ver tudo o que a pessoa fez</span></div><div class="card-b tbl-wrap">${R.length?`<table class="t"><thead><tr><th>Funcionário</th><th>Função</th><th class="r">OS</th><th class="r">Em andamento</th><th class="r">Rotas</th><th class="r">Conferências e lavagens</th><th class="r">Horas</th><th class="r">Km</th></tr></thead><tbody>
+      ${R.map(({p:x,r})=>`<tr><td><a class="lnk" href="#funcionario/${esc(x.id)}"><b>${esc(x.nome)}</b></a></td><td>${esc(x.funcao||"—")}</td><td class="r num"><b>${r.conc}</b></td><td class="r num">${r.abertas||"—"}</td><td class="r num">${r.rotas||"—"}</td><td class="r num">${r.frota||"—"}</td><td class="r num">${fHrs(r.h)}</td><td class="r num">${r.km?fNum(r.km,1):"—"}</td></tr>`).join("")}</tbody></table>`:`<p class="fr-none">Nenhuma pessoa cadastrada na equipe.</p>`}</div></section>`;
+    app.innerHTML=h;bindFuncionario([]);return}
+  const I=pfItens(pid),r=pfResumo(I);
+  h+=`<div class="kpis">${kpi("OS concluídas",String(r.conc),"",plural(r.n,"OS no total","OS no total"))}${f.sit==="todas"?kpi("Em andamento",String(r.abertas),"","agendadas ou em execução"):""}${kpi("Horas em serviço",fHrs(r.h),"","do início ao fim de cada OS")}${r.km?kpi("Km rodados",fNum(r.km,1),"km","nas OS da logística"):""}${r.rotas?kpi("Rotas",String(r.rotas),"","com o veículo"):""}${r.frota?kpi("Conferências e lavagens",String(r.frota),"","registradas por ele(a)"):""}</div>`;
+  if(!I.length)h+=`<div class="empty"><h3>Nada registrado para ${esc(p.nome)} neste período</h3><p>Escolha outro período${f.sit!=="todas"?" ou mude a situação para incluir o que está em andamento":""}.${!p.perfilId&&!S.demo?" Esta pessoa não tem acesso ao app, então conferências e lavagens feitas por ela não aparecem.":""}</p></div>`;
+  else{const dias=[];I.forEach(x=>{const k=dayKey(new Date(x.t));let d=dias[dias.length-1];if(!d||d.k!==k){d={k,L:[]};dias.push(d)}d.L.push(x)});
+    h+=`<section class="card"><div class="card-h"><h2>${esc(p.nome)}</h2><span class="sub">${esc(p.funcao||"")}${p.funcao?" · ":""}${plural(I.length,"registro")}, do mais recente para o mais antigo</span></div><div class="card-b pf-dias">
+      ${dias.map(d=>{const dt=new Date(d.k+"T12:00:00");return `<div class="pf-dia"><h3>${esc((t=>t.charAt(0).toUpperCase()+t.slice(1))(dt.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})))}<span>${plural(d.L.length,"registro")}</span></h3>${d.L.map(pfLinha).join("")}</div>`}).join("")}</div></section>`}
+  app.innerHTML=h;bindFuncionario(I,p);
+}
+function bindFuncionario(I,p){
+  const g=id=>$("#"+id);
+  g("pfP").onchange=e=>{location.hash="#funcionario"+(e.target.value?"/"+e.target.value:"")};
+  g("pfPer").onchange=e=>{S.pf.per=e.target.value;renderFuncionario()};
+  g("pfSit").onchange=e=>{S.pf.sit=e.target.value;renderFuncionario()};
+  if(g("pfCat"))g("pfCat").onchange=e=>{S.pf.cat=e.target.value;renderFuncionario()};
+  if(g("pfDe"))g("pfDe").onchange=e=>{S.pf.de=e.target.value;renderFuncionario()};
+  if(g("pfAte"))g("pfAte").onchange=e=>{S.pf.ate=e.target.value;renderFuncionario()};
+  $$("[data-open]").forEach(b=>b.onclick=()=>openOS(b.dataset.open));$$("[data-mopen]").forEach(b=>b.onclick=()=>openM(b.dataset.mopen));
+  if(!p)return;
+  const [a,b]=pfRange();const per=fData(a.toISOString())+" a "+fData(new Date(b.getTime()-1).toISOString());
+  const linhas=()=>I.map(x=>[fData(new Date(x.t).toISOString()),fHora(new Date(x.t).toISOString()),PF_CAT[x.k][0],x.cod,x.tit,x.sub,x.st,x.h?(Math.round(x.h*100)/100).toFixed(2).replace(".",","):"",x.km?String(Math.round(x.km*10)/10).replace(".",","):""]);
+  const cv=g("pfCsv");if(cv)cv.onclick=()=>{const q=v=>{v=v==null?"":String(v);return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+    const rows=[["Funcionário",p.nome],["Período",per],[],["Data","Hora","Tipo","Código","Descrição","Detalhe","Situação","Horas","Km"]].concat(linhas());
+    const url=URL.createObjectURL(new Blob(["﻿"+rows.map(r=>r.map(q).join(";")).join("\n")],{type:"text/csv;charset=utf-8"}));const x=document.createElement("a");x.href=url;x.download="funcionario-"+normTxt(p.nome).replace(/[^a-z0-9]+/g,"-")+".csv";document.body.appendChild(x);x.click();x.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)};
+  const pr=g("pfPrint");if(pr)pr.onclick=()=>{const r=pfResumo(I);
+    const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(p.nome)} · ${esc(per)}</title><style>@page{size:A4;margin:14mm}body{font-family:Montserrat,Arial,sans-serif;color:#140C0B;font-size:10pt}h1{font-size:18pt;margin:0;color:#420804}.s{color:#5A5250;margin:4px 0 12px}.k{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}.k div{border:1px solid #E4DED8;border-radius:6px;padding:8px}.k small{color:#5A5250;display:block}.k b{font-size:14pt}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:5px 6px;border-bottom:1px solid #E4DED8;vertical-align:top}th{background:#F4EFEA;font-size:9pt}td.r,th.r{text-align:right}</style></head><body>
+      <h1>${esc(p.nome)}</h1><p class="s">${esc(p.funcao||"")}${p.funcao?" · ":""}${esc(per)} · ${S.pf.sit==="todas"?"tudo atribuído":"só o que foi concluído"} · gerado em ${fDH(nowISO())}</p>
+      <div class="k"><div><small>OS concluídas</small><b>${r.conc}</b></div><div><small>Horas em serviço</small><b>${fHrs(r.h)}</b></div><div><small>Km rodados</small><b>${r.km?fNum(r.km,1):"—"}</b></div><div><small>Rotas · conferências e lavagens</small><b>${r.rotas} · ${r.frota}</b></div></div>
+      <table><thead><tr><th>Data</th><th>Tipo</th><th>Código</th><th>Descrição</th><th>Situação</th><th class="r">Horas</th><th class="r">Km</th></tr></thead><tbody>${I.map(x=>`<tr><td>${esc(fData(new Date(x.t).toISOString()))} ${esc(fHora(new Date(x.t).toISOString()))}</td><td>${esc(PF_CAT[x.k][0])}</td><td>${esc(x.cod)}</td><td><b>${esc(x.tit)}</b>${x.sub?"<br>"+esc(x.sub):""}</td><td>${esc(x.st)}</td><td class="r">${x.h?fHrs(x.h):""}</td><td class="r">${x.km?fNum(x.km,1):""}</td></tr>`).join("")}</tbody></table></body></html>`;
+    const fr=document.createElement("iframe");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0";document.body.appendChild(fr);fr.contentDocument.open();fr.contentDocument.write(html);fr.contentDocument.close();setTimeout(()=>{try{fr.contentWindow.focus();fr.contentWindow.print()}catch(e){}setTimeout(()=>fr.remove(),60000)},300)};
+}
+
 function loadDemoEfic(){
   const cons={v0:[9,7],v1:[12,10],v2:[6,4.5],v3:[10,9],v4:[12,11]},oleo={v0:520,v1:320,v2:780,v3:650,v4:420},pneu={v0:[3200,50000],v1:[1800,45000],v2:[6400,70000],v3:[4800,55000],v4:[2600,50000]};
   S.veiculos.forEach(v=>{const c=cons[v.id];if(c){v.kmLLeve=c[0];v.kmLPesado=c[1]}if(oleo[v.id])v.oleoCusto=oleo[v.id];if(pneu[v.id]){v.pneuCusto=pneu[v.id][0];v.pneuVidaKm=pneu[v.id][1]}});
