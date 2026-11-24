@@ -98,7 +98,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=55;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=56;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1056,7 +1056,7 @@ function renderDrawer(){
       `}<div class="field"><label class="${o.veiculoId?"req":""}" for="kmF">Km final (odômetro na chegada)</label><input type="number" id="kmF" inputmode="numeric" min="0" value="${esc(A.kmF||"")}" placeholder="${o.kmInicial!=null?"Saída: "+o.kmInicial:"Ex.: 124360"}">
         <span class="hint" id="kmHint">${o.kmInicial!=null?"Saída: "+fKm(o.kmInicial)+(A.kmF&&Number(A.kmF)>=o.kmInicial?" · rodou "+fKm(Number(A.kmF)-o.kmInicial):""):""}</span></div>
       <div class="field full"><label for="cObs">${ehTraslado(o)?"Observações do traslado":"Observações da entrega"}</label><textarea id="cObs" placeholder="${ehTraslado(o)?"Atrasos, alguém faltou…":"Divergências, avarias, itens faltantes…"}">${esc(A.obs||"")}</textarea></div></div>
-      ${quandoPanHTML(A,ehTraslado(o)?"Quando terminou o traslado":"Quando foi entregue",ultimoFeito(o))}
+      ${quandoPanHTML(A,ehTraslado(o)?"Quando terminou o traslado":"Quando foi entregue",ultimoFeito(o),o)}
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>Encerrar OS</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
   if(A&&A.t==="parada"){const pp=paradasDe(o)[A.idx];const ent=pp.tipo==="entrega";
     panel=`<div class="panel" id="pan"><h3>${pLbl(o,pp.tipo)} em ${esc(nomeP(pp))} · parada ${A.idx+1} de ${paradasDe(o).length}</h3>
@@ -1203,10 +1203,20 @@ function sigBlob(A){return new Promise(res=>{const W=600,H=220,c=document.create
   A.sig.forEach(st=>{if(!st.length)return;x.beginPath();x.moveTo(st[0][0]*W,st[0][1]*H);st.forEach(p=>x.lineTo(p[0]*W,p[1]*H));if(st.length===1)x.lineTo(st[0][0]*W+.1,st[0][1]*H);x.stroke()});
   c.toBlob(b=>res(b),"image/png")})}
 /* ---------- coordenação: registrar etapa com o horário em que aconteceu ---------- */
-function quandoPanHTML(A,txt,min){const v=A.q||toInput(nowISO());
-  return `<div class="field qd-pan"><label for="pQ">${esc(txt)}</label><input type="datetime-local" id="pQ" value="${esc(v)}" max="${esc(toInput(nowISO()))}"${min?` min="${esc(toInput(min))}"`:""}>
+/* prazo da OS da logística ao registrar a conclusão (v56):
+   mostra, enquanto a pessoa escolhe o horário, se a OS fica no prazo ou atrasada */
+const durAtr=ms=>{const m=Math.max(1,Math.round(ms/60000));if(m<60)return m+" min";const h=Math.floor(m/60),r=m%60;if(h<24)return h+" h"+(r?" "+String(r).padStart(2,"0")+" min":"");const d=Math.floor(h/24),hh=h%24;return d+(d>1?" dias":" dia")+(hh?" e "+hh+" h":"")};
+const pzOS=o=>{const p=prazo(o);return isFinite(p)?p+tolMs():NaN};
+const pzPassou=o=>isFinite(pzOS(o))&&Date.now()>pzOS(o);
+function pzTxt(o,iso){const p=prazo(o);if(!o||!isFinite(p))return "";const t=T(iso);if(!isFinite(t))return "";const pd=esc(fDH(new Date(p).toISOString()));
+  return t<=pzOS(o)?`<span class="pz ok">${ic("ok","ic sm")}Com este horário a OS fica <b>no prazo</b> (prazo ${pd}).</span>`
+    :`<span class="pz late">Com este horário a OS fica <b>atrasada ${esc(durAtr(t-p))}</b> (prazo ${pd}). Se terminou antes, coloque o horário real.</span>`}
+function quandoPanHTML(A,txt,min,o){const pz=o&&isFinite(prazo(o))?o:null;A._pz=pz;
+  if(pz&&!A.qMan&&!A.q&&pzPassou(pz))A.qAviso=true;const v=A.q||toInput(nowISO());
+  return `<div class="field qd-pan${A.qAviso?" qd-at":""}">${A.qAviso?`<p class="qd-av"><b>O prazo desta OS já passou</b> (${esc(fDH(new Date(prazo(pz)).toISOString()))}). Se a equipe terminou antes e só está registrando agora, coloque aqui o dia e a hora reais, para ela não ficar como atrasada.</p>`:""}<label for="pQ">${esc(txt)}</label><input type="datetime-local" id="pQ" value="${esc(v)}" max="${esc(toInput(nowISO()))}"${min?` min="${esc(toInput(min))}"`:""}>
+    ${pz?`<p class="qd-pz" id="pQz">${pzTxt(pz,new Date(v).toISOString())}</p>`:""}
     <span class="hint">Se foi agora, deixe como está. Se a equipe ficou sem bateria ou sem internet, informe o dia e a hora em que aconteceu${min?" (depois de "+esc(fDH(min))+")":""}. Fica marcado no histórico.</span></div>`}
-function bindQuandoPan(A){const q=$("#pQ");if(q)q.oninput=q.onchange=()=>{A.q=q.value;A.qMan=true}}
+function bindQuandoPan(A){const q=$("#pQ");if(q)q.oninput=q.onchange=()=>{A.q=q.value;A.qMan=true;const z=$("#pQz");if(z&&A._pz){const t=new Date(q.value);z.innerHTML=isFinite(t)?pzTxt(A._pz,t.toISOString()):""}}}
 function quandoPan(A,min){
   if(!A||!A.qMan||!A.q)return {iso:nowISO(),nota:""};
   const t=new Date(A.q).getTime();if(!isFinite(t))throw new Error("Informe o dia e a hora.");
@@ -3142,7 +3152,7 @@ function renderMissao(){
         ${horaHTML(A,"Quando você saiu?")}<p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button">${ic("van","ic lg")}Saí para a missão</button>`}`;
     } else {
       const nx=proximaParada(o);const fin=nx<0;const idx=fin?ps.length-1:nx;const p=ps[idx];const ent=p.tipo==="entrega";
-      if(tr&&A.pax==null)A.pax=String(paxDe(o)||"");horaAuto(A,ultimoFeito(o)||o.agendadoPara);
+      if(tr&&A.pax==null)A.pax=String(paxDe(o)||"");horaAuto(A,ultimoFeito(o)||o.agendadoPara,fin&&pzPassou(o));if(fin&&isFinite(prazo(o)))A._pz=o;
       h+=`<h1 class="ms-h">${pLbl(o,p.tipo)} em ${esc(nomeP(p))}</h1><p class="ms-sub">Parada ${idx+1} de ${ps.length}${p.detalhe&&p.localId?" · "+esc(p.detalhe):""}${(byId(S.locais,p.localId)||{}).endereco?"<br>"+esc(byId(S.locais,p.localId).endereco):""}</p>
         ${rotaBtns(p.localId,p.localId?"":p.detalhe)}${(byId(S.locais,p.localId)||{}).contato?`<div class="ms-box"><span class="ms-lbl">Contato no local</span>${esc(byId(S.locais,p.localId).contato)}</div>`:""}${idx===0||ent?itens:""}${obs}
         ${tr?`<div class="ms-box"><label class="ms-lbl" for="msPax">${ent?"Quantas pessoas desceram aqui?":"Quantas pessoas embarcaram?"}</label><div class="ms-hrs"><button type="button" data-pax="-1" aria-label="Menos uma pessoa">−</button><input class="ms-in big num" id="msPax" type="number" inputmode="numeric" min="0" value="${esc(A.pax||"")}"><button type="button" data-pax="1" aria-label="Mais uma pessoa">+</button></div><span class="ms-sub">Traslado de pessoas: não precisa de foto nem de assinatura.</span></div>`:`${fotoCtl("p",A.fotos,!!(A.obs||"").trim(),(ent?"Foto do material entregue":"Foto da mercadoria retirada")+((A.obs||"").trim()?"":" (opcional: só se houver problema)"))}
@@ -3279,17 +3289,19 @@ const msgErroCampo=e=>{const m=(e&&e.message)||"";return /horário informado/i.t
    Vale até 7 dias para trás, nunca no futuro e nunca antes da etapa anterior. */
 // abre o campo sozinho quando a etapa anterior (ou o horário marcado) já passou há mais de 2 horas:
 // é o caso de quem ficou sem bateria ou sem internet e está lançando depois
-function horaAuto(Q,ref){if(Q.qInit)return;Q.qInit=true;if(ref&&Date.now()-T(ref)>2*3600000&&Date.now()-T(ref)<7*DIA_MS){Q.qOn=true;Q.qAuto=true;Q.quando=toInput(nowISO())}}
+function horaAuto(Q,ref,prazoPassou){if(Q.qInit)return;Q.qInit=true;if(prazoPassou){Q.qOn=true;Q.qAuto=true;Q.qPz=true;Q.quando=toInput(nowISO());return}if(ref&&Date.now()-T(ref)>2*3600000&&Date.now()-T(ref)<7*DIA_MS){Q.qOn=true;Q.qAuto=true;Q.quando=toInput(nowISO())}}
 function horaHTML(Q,txt,min){
   if(!Q.qOn)return `<button type="button" class="ms-link qd-l" id="qdOn">${ic("clock","ic sm")} Aconteceu em outro horário?</button>`;
-  return `<div class="ms-box qd${Q.qAuto?" auto":""}">${Q.qAuto?`<p class="qd-av"><b>Está registrando depois?</b> Troque para o dia e a hora em que isso aconteceu. Se foi agora mesmo, deixe como está.</p>`:""}<label class="ms-lbl" for="qdIn">${esc(txt||"Quando aconteceu?")}</label>
+  const pz=Q._pz&&isFinite(prazo(Q._pz))?Q._pz:null;
+  return `<div class="ms-box qd${Q.qAuto?" auto":""}">${Q.qAuto?(Q.qPz&&pz?`<p class="qd-av"><b>O prazo desta OS já passou</b> (${esc(fDH(new Date(prazo(pz)).toISOString()))}). Se você terminou antes e só está registrando agora, coloque o dia e a hora em que terminou, para ela não ficar como atrasada.</p>`:`<p class="qd-av"><b>Está registrando depois?</b> Troque para o dia e a hora em que isso aconteceu. Se foi agora mesmo, deixe como está.</p>`):""}<label class="ms-lbl" for="qdIn">${esc(txt||"Quando aconteceu?")}</label>
     <input class="ms-in big num" id="qdIn" type="datetime-local" value="${esc(Q.quando||"")}" max="${esc(toInput(nowISO()))}" min="${esc(toInput(min&&Date.now()-T(min)<7*DIA_MS?min:new Date(Date.now()-7*DIA_MS).toISOString()))}">
+    ${pz?`<p class="qd-pz" id="qdPz">${pzTxt(pz,Q.quando?new Date(Q.quando).toISOString():nowISO())}</p>`:""}
     <span class="hint">Use quando o celular ficou sem bateria ou sem internet. Pode ser até 7 dias atrás${min?", depois de "+esc(fDH(min)):""}. Fica marcado no histórico como horário informado.</span>
     <button type="button" class="ms-link" id="qdOff">Foi agora</button></div>`}
 function bindHora(Q,redraw){
   const on=$("#qdOn");if(on)on.onclick=()=>{Q.qOn=true;Q.quando=Q.quando||toInput(nowISO());redraw();const i=$("#qdIn");if(i)i.focus()};
   const off=$("#qdOff");if(off)off.onclick=()=>{Q.qOn=false;Q.qAuto=false;Q.quando="";redraw()};
-  const i=$("#qdIn");if(i)i.oninput=i.onchange=()=>{Q.quando=i.value}}
+  const i=$("#qdIn");if(i)i.oninput=i.onchange=()=>{Q.quando=i.value;const z=$("#qdPz");if(z&&Q._pz){const t=new Date(i.value);z.innerHTML=isFinite(t)?pzTxt(Q._pz,t.toISOString()):""}}}
 // devolve {iso, manual, nota} ou lança erro com mensagem para o usuário
 function horaISO(Q,min){
   if(!Q||!Q.qOn||!Q.quando)return {iso:nowISO(),manual:false,nota:""};

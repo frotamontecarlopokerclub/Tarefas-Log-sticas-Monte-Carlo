@@ -1234,7 +1234,7 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"55"}
+:root{--versao-css:"56"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}
@@ -1290,3 +1290,11 @@ button.pf-row,a.pf-row{cursor:pointer}button.pf-row:hover,a.pf-row:hover{backgro
 .esc-qa:empty{display:none}
 @media (max-width:760px){.esc-g{grid-template-columns:minmax(0,1fr)}.esc-box{padding:14px}}
 .esc-qa .qa-box{flex-basis:100%}
+
+/* v56 · prazo ao registrar a conclusão depois */
+.qd-pz{margin:8px 0 2px;font-size:14px;line-height:1.45}
+.pz{display:block}
+.pz .ic{vertical-align:-2px;margin-right:5px}
+.pz.ok{color:var(--s-ok,#1E7A46)}
+.pz.late{color:var(--s-late,#B42318)}
+.qd-pan.qd-at{padding:12px 14px;border:2px solid var(--gold-ink,#A87420);border-radius:12px;background:var(--warn-surface,#FFF7E6)}

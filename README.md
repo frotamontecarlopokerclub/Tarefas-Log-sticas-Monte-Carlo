@@ -571,3 +571,9 @@ Não precisa rodar nada no Supabase.
 - Na Nova OS (passo a passo e formulário completo), o quadro **Equipe e veículo** tem caixas de seleção: **Motorista** (motoristas primeiro), **Veículo** (agrupado por tipo, com placa) e **Ajudantes** (cada ajudante escolhido vira uma etiqueta com × para tirar).
 - Abaixo do veículo aparece o km atual e avisos úteis: conferência atrasada ou veículo em rota agora.
 - O motorista é a primeira pessoa da OS; nas OS antigas, quem tem a função Motorista é mostrado como motorista.
+
+## Atualização 56 · OS da logística registrada depois sem cair como atrasada
+Não precisa rodar nada no Supabase.
+- O atraso da OS sempre foi calculado pelo horário de conclusão informado (não pela hora em que se registra). O risco era esquecer de trocar o horário, que vem preenchido com "agora".
+- Na última etapa (entrega final ou desembarque), se o prazo da OS já passou, o campo **"Quando terminou?"** abre sozinho com o aviso **"O prazo desta OS já passou"**, no celular da equipe e no painel da coordenação.
+- Enquanto a pessoa escolhe o dia e a hora, aparece na hora: **"Com este horário a OS fica no prazo"** (verde) ou **"fica atrasada 1 h 09 min"** (vermelho), com o prazo ao lado.
