@@ -105,7 +105,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=60;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=61;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -281,6 +281,7 @@ function avisosCardHTML(){if(S.role!=="campo"&&S.role!=="oficina")return "";
   return `<div class="ms-box av-card">${ic("bell","ic")}<div><b>${st==="denied"?"Notificações bloqueadas":"Ative o aviso de nova missão"}</b>
     <p>${st==="denied"?"O som continua tocando com o app aberto. Para receber também a notificação, libere em Configurações do celular › Apps › Facilities MC › Notificações.":"Toca um som, vibra e aparece uma notificação quando chegar uma OS nova para você."}</p>
     <div class="av-bts">${st==="default"?`<button type="button" class="btn pri sm" id="avAtivar">Ativar avisos</button>`:st==="granted"?`<button type="button" class="btn pri sm" id="avAtivar">Ativar som</button>`:""}<button type="button" class="btn sm" id="avTeste">Testar som</button></div></div></div>`}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-kmdia]");if(b){e.preventDefault();abrirKmDia(b.dataset.kmdia,b.dataset.kmdt||null)}});
 document.addEventListener("click",async e=>{const t=e.target.closest&&e.target.closest("#avAtivar,#avTeste");if(!t)return;
   audioCtx();if(t.id==="avTeste"){somAviso();try{if(navigator.vibrate)navigator.vibrate([300,150,300])}catch(x){}toast("Esse é o som de nova missão.");return}
   let r=temNotif()?Notification.permission:"x";if(r==="default"){try{r=await Notification.requestPermission()}catch(x){}}
@@ -1102,8 +1103,9 @@ function renderDrawer(){
   const tl=(o.historico||[]).slice().reverse().map(h=>`<li><time class="num">${fDH(h.em)}</time><span><span class="st ${h.s}">${ST[h.s]||h.s}</span>${h.nota?` · ${esc(h.nota)}`:""}${h.por&&S.names[h.por]?` <span style="color:var(--faint)">por ${esc(S.names[h.por])}</span>`:""}</span></li>`).join("");
   let acts="";
   const copyBtn=`<button class="btn" data-act="copiar">Copiar resumo</button>`;
+  const kmBtn=o.veiculoId&&podeCorrigirKm()&&(o.iniciadoEm||o.rotaId)?`<button class="btn" type="button" data-kmdia="${esc(o.veiculoId)}" data-kmdt="${esc(o.iniciadoEm||(o.rotaId&&(byId(S.rotas||[],o.rotaId)||{}).saidaEm)||"")}">Corrigir km</button>`:"";
   const avisarBtn=isLog()&&(o.status==="concluida"||entregue(o))?`<button class="btn ${o.avisadoEm?"":"wa"}" data-act="avisar">${o.avisadoEm||o.avisoStatus==="enviado"?"Avisar de novo no WhatsApp":"Avisar no WhatsApp"}</button>`:"";
-  const extraActs=isLog()?(o.status!=="cancelada"?`<button class="btn" data-act="extras">Custos extras${(o.custosExtra||[]).length?" ("+fBRL(somaExtras(o.custosExtra))+")":""}</button>`:"")+avisarBtn+`<button class="btn" data-act="duplicar">Duplicar</button><button class="btn ghost danger" data-act="excluir">Excluir</button>`:"";
+  const extraActs=isLog()?(o.status!=="cancelada"?`<button class="btn" data-act="extras">Custos extras${(o.custosExtra||[]).length?" ("+fBRL(somaExtras(o.custosExtra))+")":""}</button>`:"")+avisarBtn+kmBtn+`<button class="btn" data-act="duplicar">Duplicar</button><button class="btn ghost danger" data-act="excluir">Excluir</button>`:"";
   if(isLog()){
     if(o.status==="registrada") acts=`<button class="btn pri" data-act="editar">Agendar equipe e veículo</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
     if(o.status==="agendada") acts=`<button class="btn pri" data-act="iniciar">Iniciar rota</button><button class="btn" data-act="editar">Editar</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
@@ -1385,7 +1387,7 @@ function bindPanel(o){
         const kmTxt=String(A.kmF==null?"":A.kmF).trim();const kmIni=rAb?(rr.kmInicio!=null?rr.kmInicio:rr.kmSaida):o.kmInicial;
         if((o.veiculoId||rAb)&&kmTxt===""){err.textContent="Informe o km do painel na chegada à base.";return}
         const km=kmTxt===""?null:Math.round(Number(kmTxt));if(km!=null&&(!isFinite(km)||km<0)){err.textContent="Km inválido.";return}
-        if(km!=null&&kmIni!=null&&km<kmIni){err.textContent="O km da chegada ("+fKm(km)+") é menor que o da saída ("+fKm(kmIni)+").";return}
+        if(km!=null&&kmIni!=null&&km<kmIni){err.innerHTML=esc("O km da chegada ("+fKm(km)+") é menor que o da saída ("+fKm(kmIni)+"). Se o km da saída foi digitado errado, ")+`<a href="#" class="lnk" data-kmdia="${esc(o.veiculoId||(rr&&rr.veiculoId)||"")}" data-kmdt="${esc((rr&&rr.saidaEm)||o.iniciadoEm||"")}">corrija o km do dia</a> e volte aqui.`;return}
         if(km!=null&&kmIni!=null&&km-kmIni>1500&&!A.kmOk){A.kmOk=true;err.textContent="Ficaria com "+fKm(km-kmIni)+" rodados. Confira o odômetro. Se estiver certo, toque em Encerrar OS de novo.";return}
         let Q;try{Q=quandoPan(A,L.map(x=>x.entregueEm||ultimoFeito(x)).filter(Boolean).sort().pop()||null)}catch(e){err.textContent=e.message;return}
         btn.disabled=true;btn.textContent="Salvando…";
@@ -3370,7 +3372,7 @@ function bindMissao(x){
       }
       if(x.k==="log"&&voltando(o)){let km=null;
         if(o.veiculoId){const t=String(A.km||"").trim();if(!t){err.textContent="Informe o km do painel na chegada à base.";return}km=Math.round(Number(t));if(!isFinite(km)||km<0){err.textContent="Km inválido.";return}
-          if(o.kmInicial!=null&&km<o.kmInicial){err.textContent="O km da chegada ("+fKm(km)+") não pode ser menor que o da saída ("+fKm(o.kmInicial)+").";return}
+          if(o.kmInicial!=null&&km<o.kmInicial){err.textContent="O km da chegada ("+fKm(km)+") não pode ser menor que o da saída ("+fKm(o.kmInicial)+"). Se o km da saída foi digitado errado, peça para a coordenação corrigir (página do veículo › Corrigir km de um dia).";return}
           if(o.kmInicial!=null&&km-o.kmInicial>1500&&!A.kmOk){A.kmOk=true;err.textContent="Deu "+fKm(km-o.kmInicial)+" rodados. Confira o painel. Se estiver certo, toque de novo.";return}}
         trava();await saveOS(o.id,{status:"concluida",concluidoEm:now,retornoEm:now,kmFinal:km,atualizadoEm:agora,historico:hist(o,"concluida","Voltou à base ("+baseNome(baseDe(o))+", app de campo)"+qn)});
         S.ms={key:"fim",id:o.id,fim:"Missão concluída",rota:null,fotos:[],sig:[]};renderMissao();return}
@@ -3806,6 +3808,71 @@ function blocoServ(v,tipo){
 function blocoLimp(v){const l=prazoLimpeza(v),ln=(p,nm,a)=>`<p><b>${nm}:</b> ${esc(p.txt)}${p.ult?" · última "+esc(fDia(p.ult.feitoEm)):""} <small>(a cada ${esc(plural(a,"dia"))})</small></p>`;
   return `<div class="fr-sit ${l.nivel}"><h3>Lavagem e higienização</h3><p class="fr-big">${esc(l.a.txt)}</p>${ln(l.a,"Lavagem",lavDias(v))}${ln(l.b,"Higienização",higDias(v))}
     <div class="actions"><a class="btn sm${l.nivel!=="ok"?" pri":""}" href="#lavar/${esc(v.id)}">Registrar lavagem</a></div></div>`}
+/* =====================================================================
+   v61 · CORRIGIR O KM DE UM DIA (sem excluir nada)
+   Mostra todos os km registrados num dia para um veículo (rotas, OS,
+   conferências e serviços) e deixa corrigir os valores errados.
+   Fica registrado quem corrigiu, o valor antigo e o motivo.
+   ===================================================================== */
+function regsKmDia(vid,dia){const R=[];const noDia=t=>!!t&&dayKey(t)===dia;
+  const add=(rec,obj,campos,label,t,ref)=>{const km=nOuNull(obj[campos[0]]);if(km==null||!t)return;R.push({id:rec+"-"+obj.id+"-"+campos[0],rec,obj,campos,label,t,km,ref})};
+  (S.rotas||[]).forEach(r=>{if(r.veiculoId!==vid||![r.saidaEm,r.inicioEm,r.fimEm,r.devolvidoEm].some(noDia))return;const ref="Rota "+codR(r);
+    add("rota",r,["kmSaida"].concat(r.kmInicio!=null&&r.kmInicio===r.kmSaida?["kmInicio"]:[]),"Saída",r.saidaEm,ref);
+    if(r.kmInicio!=null&&r.kmInicio!==r.kmSaida)add("rota",r,["kmInicio"],"Início da rota",r.inicioEm||r.saidaEm,ref);
+    if(r.kmDevolucao!=null)add("rota",r,["kmDevolucao"].concat(r.kmFim===r.kmDevolucao?["kmFim"]:[]),"Volta à base",r.devolvidoEm||r.fimEm,ref);
+    if(r.kmFim!=null&&r.kmFim!==r.kmDevolucao)add("rota",r,["kmFim"],"Fim da rota",r.fimEm,ref)});
+  S.os.forEach(o=>{if(o.veiculoId!==vid)return;const ref=codigo(o);
+    if(noDia(o.iniciadoEm))add("os",o,["kmInicial"],"Saída da OS",o.iniciadoEm,ref);
+    const tf=o.retornoEm||o.concluidoEm;if(noDia(tf))add("os",o,["kmFinal"],o.retornoEm?"Volta à base":"Chegada",tf,ref)});
+  (S.veiculo_conferencias||[]).forEach(c=>{if(c.veiculoId===vid&&noDia(c.feitoEm))add("conf",c,["km"],"Conferência",c.feitoEm,c.feitoPorNome||"Conferência")});
+  (S.veiculo_servicos||[]).forEach(x=>{if(x.veiculoId===vid&&String(x.feitoEm||"").slice(0,10)===dia)add("serv",x,["km"],lblServ(x),dtServ(x),"Serviço")});
+  return R.sort((a,b)=>T(a.t)-T(b.t))}
+async function atualizarLinha(tab,obj,patch){if(S.demo){Object.assign(obj,patch);return obj}
+  const {data,error}=await sb.from(tab).update(toDb(patch)).eq("id",obj.id).select().single();if(error)throw error;Object.assign(obj,fromDb(data));return obj}
+async function recalcularKmVeiculo(v){
+  if(S.demo){const L=leiturasKm(v.id);const m=L.length?Math.max(...L.map(x=>x.km)):null;if(m!=null)v.kmAtual=m;return}
+  try{const {data,error}=await sb.rpc("recalcular_km_veiculo",{p_veiculo:v.id});if(error)throw error;if(data!=null){v.kmAtual=data;v.kmAtualEm=nowISO()}}
+  catch(e){dlog("km: recalcular "+(e.message||e))}}
+function kmDiaHTML(v){const K=S.kmDia;const R=regsKmDia(v.id,K.dia);K.vals=K.vals||{};
+  return `<section class="card fr-form" id="kmDiaBox"><div class="card-h"><h2>Corrigir o km de um dia</h2><span class="sub">${esc(nomeV(v))}</span></div><div class="card-b">
+    <p class="hint" style="margin:0 0 12px">Corrija só os km digitados errado. Nada é excluído: as OS, as rotas e os horários continuam iguais, e fica registrado o valor antigo, quem corrigiu e o motivo.</p>
+    <div class="filters"><div class="field"><label for="kdDia">Dia</label><input type="date" id="kdDia" value="${esc(K.dia)}" max="${esc(dayKey(new Date()))}"></div></div>
+    ${R.length?`<div class="tbl-wrap"><table class="t kd-t"><thead><tr><th>Hora</th><th>Registro</th><th class="r">Km registrado</th><th class="r">Km certo</th></tr></thead><tbody>
+      ${R.map((x,i)=>`<tr><td class="num">${esc(fHora(x.t))}</td><td><b>${esc(x.ref)}</b><br><small style="color:var(--mute)">${esc(x.label)}</small></td><td class="r num">${esc(fKm(x.km))}</td>
+        <td class="r"><input class="kd-in num" type="number" inputmode="numeric" min="0" data-kd="${esc(x.id)}" value="${esc(K.vals[x.id]!=null?K.vals[x.id]:x.km)}" aria-label="Km certo de ${esc(x.ref+" "+x.label)}"></td></tr>`).join("")}</tbody></table></div>
+      <div class="field" style="margin-top:12px"><label class="req" for="kdMot">Motivo da correção</label><input id="kdMot" maxlength="300" value="${esc(K.mot||"")}" placeholder="Ex.: o motorista digitou 152.300 em vez de 52.300"></div>`
+      :`<p class="fr-none">Nenhum km registrado para este veículo em ${esc(fData(K.dia+"T12:00:00"))}.</p>`}
+    <p class="err" id="kdErr" role="alert"></p>
+    <div class="actions">${R.length?`<button class="btn pri" type="button" id="kdOk">Salvar correção</button>`:""}<button class="btn ghost" type="button" id="kdX">Fechar</button></div></div></section>`}
+function bindKmDia(v){const K=S.kmDia;if(!K)return;
+  const d=$("#kdDia");if(d)d.onchange=()=>{K.dia=d.value||dayKey(new Date());K.vals={};K.conf=false;renderVeiculo()};
+  $$("[data-kd]").forEach(i=>i.oninput=()=>{K.vals[i.dataset.kd]=i.value;K.conf=false});
+  const m=$("#kdMot");if(m)m.oninput=()=>{K.mot=m.value};
+  const x=$("#kdX");if(x)x.onclick=()=>{S.kmDia=null;renderVeiculo()};
+  const ok=$("#kdOk");if(ok)ok.onclick=async()=>{const er=$("#kdErr");er.textContent="";const R=regsKmDia(v.id,K.dia);
+    const mud=[];for(const x of R){const t=String(K.vals[x.id]!=null?K.vals[x.id]:x.km).trim();if(t===""){er.textContent="Preencha o km de "+x.ref+" ("+x.label.toLowerCase()+").";return}
+      const k=Math.round(Number(t));if(!isFinite(k)||k<0||k>3000000){er.textContent="Km inválido em "+x.ref+".";return}if(k!==x.km)mud.push({x,k})}
+    if(!mud.length){er.textContent="Nenhum km foi alterado.";return}
+    const mot=String(K.mot||"").trim();if(mot.length<5){er.textContent="Escreva o motivo da correção.";return}
+    // novos valores por registro
+    const P=new Map();mud.forEach(({x,k})=>{const key=x.rec+":"+x.obj.id;if(!P.has(key))P.set(key,{rec:x.rec,obj:x.obj,patch:{},desc:[]});const g=P.get(key);x.campos.forEach(c=>g.patch[c]=k);g.desc.push(x.label.toLowerCase()+" "+fKm(x.km)+" → "+fKm(k))});
+    for(const g of P.values()){const n=Object.assign({},g.obj,g.patch);
+      if(g.rec==="rota"){const seq=[["kmSaida","saída"],["kmInicio","início"],["kmFim","fim"],["kmDevolucao","volta à base"]].filter(([c])=>n[c]!=null);
+        for(let i=1;i<seq.length;i++)if(Number(n[seq[i][0]])<Number(n[seq[i-1][0]])){er.textContent="Rota "+codR(g.obj)+": o km da "+seq[i][1]+" ("+fKm(n[seq[i][0]])+") ficaria menor que o da "+seq[i-1][1]+" ("+fKm(n[seq[i-1][0]])+"). Corrija os dois.";return}}
+      if(g.rec==="os"&&n.kmInicial!=null&&n.kmFinal!=null&&Number(n.kmFinal)<Number(n.kmInicial)){er.textContent=codigo(g.obj)+": o km de chegada ficaria menor que o de saída.";return}}
+    // ordem do dia: cada leitura não pode ser menor que a anterior (avisa uma vez)
+    const nov=R.map(x=>({x,k:(mud.find(m=>m.x===x)||{k:x.km}).k}));const fora=[];for(let i=1;i<nov.length;i++)if(nov[i].k<nov[i-1].k)fora.push(nov[i]);
+    if(fora.length&&!K.conf){K.conf=true;er.textContent="Atenção: "+fora.map(f=>fHora(f.x.t)+" "+f.x.ref+" ("+fKm(f.k)+")").join(", ")+" ficaria menor que o registro anterior do dia. Se estiver certo, toque em Salvar correção de novo.";return}
+    ok.disabled=true;ok.textContent="Salvando…";const quem=S.meName||"Coordenação";
+    try{for(const g of P.values()){const nota="Km corrigido por "+quem+": "+g.desc.join("; ")+". Motivo: "+mot;
+        if(g.rec==="rota")await salvarRota(g.obj.id,Object.assign({},g.patch,{obs:((g.obj.obs||"")+"\n"+nota).trim()}));
+        else if(g.rec==="os")await saveOS(g.obj.id,Object.assign({},g.patch,{atualizadoEm:nowISO(),historico:hist(g.obj,g.obj.status,nota)}));
+        else await atualizarLinha(g.rec==="conf"?"veiculo_conferencias":"veiculo_servicos",g.obj,g.patch)}
+      await recalcularKmVeiculo(v);S.kmDia=null;toast(plural(mud.length,"km corrigido","km corrigidos")+". Nada foi excluído.");renderVeiculo()}
+    catch(e){ok.disabled=false;ok.textContent="Salvar correção";const msg=(e&&e.message)||"";er.textContent=/row-level|permission|policy/i.test(msg)?"Você não tem permissão para corrigir um destes registros (conferências e serviços são da coordenação da frota).":/check/i.test(msg)?"O banco recusou: um km ficaria menor que o anterior no mesmo registro. Confira os valores.":"Não foi possível salvar: "+msg}}}
+const podeCorrigirKm=()=>isLog()||isFrota()||isAdmin();
+function abrirKmDia(vid,iso){if(!vid)return;S.kmDia={id:vid,dia:dayKey(iso||new Date()),vals:{}};closeOS();if(location.hash==="#veiculo/"+vid)render();else location.hash="#veiculo/"+vid}
+
 function renderVeiculo(){
   const v=byId(S.veiculos,S.routeArg);
   if(!v){app.innerHTML=`<div class="empty"><h3>Veículo não encontrado</h3><p><a class="btn" href="#frota">Voltar para a frota</a></p></div>`;return}
@@ -3821,8 +3888,9 @@ function renderVeiculo(){
         return `<div class="fr-sit ${pc==null?"":pc>=90?"ok":pc>=80?"medio":"alto"}"><h3>Combustível</h3><p class="fr-big">${c&&c.kmL?esc(fKmL(c.kmL)):"—"}</p>${u?`<p>Último lançamento: ${esc(fDia(String(u.periodoIni).slice(0,10)))} a ${esc(fDia(String(u.periodoFim).slice(0,10)))}</p><p>${u.litros!=null&&u.litros!==""?esc(fNum(c.litros,1))+" l · ":""}${esc(fBRL(c.valor))}${c.rKm!=null?" · "+esc(fBRL(c.rKm))+"/km":""}</p>`:`<p>Nenhum lançamento.</p>`}<p>${ref?"Esperado: "+esc(fKmL(ref))+(pc!=null?" · "+fNum(pc)+"% do esperado":""):"Cadastre o consumo esperado em Editar cadastro."}</p>
           ${isFrota()?`<div class="actions"><a class="btn sm" href="#f-comb/${esc(v.id)}">Lançar combustível</a></div>`:""}</div>`})()}
       <div class="fr-sit"><h3>Quilometragem</h3><p class="fr-big num">${km!=null?esc(fKm(km)):"—"}</p><p>Atualiza sozinha pela conferência, pelos serviços e pelo km final das rotas.</p>${v.kmInicial!=null?`<p>Km inicial no cadastro: ${esc(fKm(v.kmInicial))}</p>`:""}${v.kmCorrigidoEm?`<p>Corrigido em ${esc(fDH(v.kmCorrigidoEm))}</p>`:""}
-        ${isFrota()||isAdmin()?`<div class="actions"><button class="btn sm" type="button" id="kmCorr">Corrigir km</button></div>`:""}</div>
+        ${isFrota()||isAdmin()||podeCorrigirKm()?`<div class="actions">${isFrota()||isAdmin()?`<button class="btn sm" type="button" id="kmCorr">Corrigir km atual</button>`:""}<button class="btn sm" type="button" id="kmDiaB">Corrigir km de um dia</button></div>`:""}</div>
     </div>`;
+  if(S.kmDia&&S.kmDia.id===v.id)h+=kmDiaHTML(v);
   if(S.kmCorr&&S.kmCorr.id===v.id){const K=S.kmCorr;const hist=(v.kmCorrecoes||[]).slice().reverse();
     h+=`<section class="card fr-form" id="kmCorrBox"><div class="card-h"><h2>Corrigir a quilometragem</h2><span class="sub">${esc(nomeV(v))}</span></div><div class="card-b">
       <p style="margin:0 0 12px;color:var(--mute);max-width:72ch">Use quando o km foi cadastrado ou lançado errado. O km informado passa a valer a partir de agora. Os registros antigos continuam no histórico, mas deixam de contar para o km atual do veículo.</p>
@@ -3858,6 +3926,8 @@ async function corrigirKm(v,km,motivo){
   if(S.demo){v.kmCorrecoes=(v.kmCorrecoes||[]).concat([{de:kmVeic(v),para:km,em:nowISO(),quem:S.meName||"Coordenação",motivo}]);Object.assign(v,{kmAtual:km,kmAtualEm:nowISO(),kmCorrigidoEm:nowISO(),kmInicial:Math.min(v.kmInicial==null?km:Number(v.kmInicial),km)});return}
   const {error}=await sb.rpc("corrigir_km_veiculo",{p_veiculo:v.id,p_km:km,p_motivo:motivo});if(error)throw error;await carregar("veiculos")}
 function bindVeiculo(v){
+  const kdb=$("#kmDiaB");if(kdb)kdb.onclick=()=>{S.kmDia={id:v.id,dia:dayKey(new Date()),vals:{}};renderVeiculo();const b=$("#kmDiaBox");if(b)b.scrollIntoView({block:"start"})};
+  if(S.kmDia&&S.kmDia.id===v.id){bindKmDia(v);const b=$("#kmDiaBox");if(b&&!S.kmDia.vis){S.kmDia.vis=true;setTimeout(()=>b.scrollIntoView({block:"start"}),50)}}
   const kc=$("#kmCorr");if(kc)kc.onclick=()=>{S.kmCorr={id:v.id};renderVeiculo();const b=$("#kmCorrBox");if(b){b.scrollIntoView({block:"nearest"});$("#kcKm").focus()}};
   const kx=$("#kcX");if(kx)kx.onclick=()=>{S.kmCorr=null;renderVeiculo()};
   const ko=$("#kcOk");if(ko)ko.onclick=async()=>{const er=$("#kcErr");er.textContent="";const kmS=$("#kcKm").value.trim(),mot=$("#kcMot").value.trim();S.kmCorr.km=kmS;S.kmCorr.mot=mot;
@@ -5400,7 +5470,7 @@ function renderRota(){
   ok.onclick=async()=>{const er=$("#rtErr");er.textContent="";const km=Math.round(Number(String(A.km).trim()));
     if(!String(A.km).trim()||!isFinite(km)||km<0){er.textContent="Informe o km do painel.";return}
     const ant=r.status==="saida"?r.kmSaida:r.status==="em_rota"?(r.kmInicio!=null?r.kmInicio:r.kmSaida):r.kmFim;
-    if(ant!=null&&km<ant){er.textContent="O km ("+fKm(km)+") não pode ser menor que o anterior ("+fKm(ant)+").";return}
+    if(ant!=null&&km<ant){er.textContent="O km ("+fKm(km)+") não pode ser menor que o da saída ("+fKm(ant)+"). Se o km da saída foi digitado errado, peça para a coordenação corrigir (página do veículo › Corrigir km de um dia) e depois registre aqui.";return}
     if(ant!=null&&km-ant>800&&!A.kmOk){A.kmOk=true;er.textContent="Deu "+fKm(km-ant)+" nesta etapa. Confira o painel. Se estiver certo, toque de novo.";return}
     let Q;try{Q=horaISO(A,r.status==="saida"?r.saidaEm:r.status==="em_rota"?(nv?ultEnt():r.inicioEm):r.fimEm)}catch(e){er.textContent=e.message;return}
     const ob=Q.manual?{obs:((r.obs||"")+"\n"+({saida:"Início",em_rota:nv?"Volta à base":"Fim",retorno:"Devolução"}[r.status])+Q.nota).trim()}:{};

@@ -607,3 +607,10 @@ Não precisa rodar nada no Supabase.
 - **Ativar:** na primeira vez, o celular mostra o cartão **Ative o aviso de nova missão**. Toque em **Ativar avisos** e permita as notificações. **Testar som** toca o aviso.
 - Arquivo novo `sw.js` (mostra as notificações). O app Android passa a entregar as notificações (pasta `android`): gere e instale o APK novo.
 - Com o app **fechado** de vez, o Android pode não avisar (isso precisa de notificação por servidor, o "push"; fica para uma próxima etapa).
+
+## Atualização 61 · Corrigir o km de um dia (sem excluir nada)
+**Rodar o script `supabase/33_recalcular_km.sql` no SQL Editor do Supabase** (uma vez; mostra 1 linha OK).
+- Na página do veículo, botão **Corrigir km de um dia**: escolhe o dia e aparecem todos os km registrados naquele dia (saída e volta das rotas, OS, conferências e serviços). Corrija só o que está errado, escreva o motivo e salve.
+- Nada é excluído: as OS, as rotas e os horários continuam iguais. No histórico de cada OS (e na observação da rota) fica o valor antigo, o novo, quem corrigiu e o motivo.
+- Depois de salvar, o km atual do veículo é recalculado com os km certos.
+- Atalho: na OS com veículo, botão **Corrigir km**, que abre a correção já no dia da OS. Quando o km da chegada fica menor que o da saída, a mensagem leva direto para essa correção.
