@@ -73,10 +73,13 @@ const nowISO=()=>new Date().toISOString();
 const dayKey=d=>{d=new Date(d);return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
 const codigo=o=>"OS-"+String(o.numero||0).padStart(4,"0");
 const tolMs=()=>(Number(S.config.toleranciaMin)||0)*60000;
-function prazo(o){return T(o.previstoAte)||((T(o.agendadoPara)||NaN)+2*3600000)}
-function atrasada(o){ // aberta e passou do prazo
-  if(!ABERTOS.includes(o.status))return false;const p=prazo(o);return isFinite(p)&&Date.now()>p+tolMs()}
-function concluidaComAtraso(o){if(o.status!=="concluida")return false;const p=prazo(o);return isFinite(p)&&T(o.concluidoEm)>p+tolMs()}
+// v57: na logística o atraso conta só na SAÍDA (horário marcado para começar).
+// O fim da missão é medido pelo tempo médio dos serviços iguais (acimaMedia).
+function prazo(o){return T(o.agendadoPara)}
+function atrasada(o){ // ainda não saiu e passou do horário marcado
+  if(!["registrada","agendada"].includes(o.status))return false;const p=prazo(o);return isFinite(p)&&Date.now()>p+tolMs()}
+function concluidaComAtraso(o){ // já saiu (ou terminou), mas saiu depois do horário marcado
+  if(!["em_rota","concluida"].includes(o.status)||!o.iniciadoEm)return false;const p=prazo(o);return isFinite(p)&&T(o.iniciadoEm)>p+tolMs()}
 function tResposta(o){const a=T(o.agendadaEm),s=T(o.solicitadoEm||o.criadoEm);return a-s}
 function tExec(o){return T(o.concluidoEm)-T(o.iniciadoEm)}
 const nomeP=p=>p.localId?nomeLocal(p.localId):(p.detalhe||"—");
@@ -98,7 +101,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=56;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=57;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -577,8 +580,8 @@ function renderPainel(){
     ${kpi("OS no período",val.length,"",canc?canc+" cancelada"+(canc>1?"s":""):"Sem cancelamentos")}
     ${kpi("Concluídas",conc.length,"",val.length?Math.round(conc.length/val.length*100)+"% do período":"—")}
     ${kpi("Em aberto agora",abertasAgora.length,"",countSt(abertasAgora))}
-    ${kpi("Atrasadas agora",atrasAgora.length,"","Passaram da previsão de término",atrasAgora.length?"alert":"")}
-    ${kpi("Concluídas no prazo",pct==null?"—":pct,pct==null?"":"%",comPrazo.length?noPrazo.length+" de "+comPrazo.length+" OS":"Sem conclusões no período",pct!=null&&pct>=90?"good":(pct!=null&&pct<75?"alert":""))}
+    ${kpi("Atrasadas agora",atrasAgora.length,"","Passaram do horário de saída",atrasAgora.length?"alert":"")}${(()=>{const ac=S.os.filter(o=>o.status==="em_rota"&&acimaMedia(o));return kpi("Acima do tempo médio",ac.length,"",ac.length?ac.slice(0,3).map(codigo).join(", ")+(ac.length>3?"…":""):"missões em andamento",ac.length?"alert":"")})()}
+    ${kpi("Saíram no horário",pct==null?"—":pct,pct==null?"":"%",comPrazo.length?noPrazo.length+" de "+comPrazo.length+" OS":"Sem conclusões no período",pct!=null&&pct>=90?"good":(pct!=null&&pct<75?"alert":""))}
     ${kpi("Tempo de resposta",durNum(tr),durUnit(tr),"Do pedido ao agendamento")}
     ${kpi("Tempo de execução",durNum(te),durUnit(te),"Da saída à conclusão com foto")}
     ${(()=>{const kmT=conc.reduce((s2,o)=>s2+(kmRodados(o)||0),0);const comKm=conc.filter(o=>kmRodados(o)!=null).length;return kpi("Km rodados",kmT?kmT.toLocaleString("pt-BR"):"0","km",comKm?comKm+(comKm>1?" missões":" missão")+" com km · média "+fKm(Math.round(kmT/comKm)):"Sem missões com km no período")})()}
@@ -611,7 +614,7 @@ function renderPainel(){
 
   h+=pendenciasHTML(["log"],"Fila de pendências da logística");
   const rotas=groupCount(val,o=>o.origemId+"|"+o.destinoId).slice(0,8);
-  h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Rotas mais frequentes</h2><span class="sub">origem → destino</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Rota</th><th class="r">OS</th><th class="r">Concluídas</th><th class="r">No prazo</th><th class="r">Execução média</th></tr></thead><tbody>
+  h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Rotas mais frequentes</h2><span class="sub">origem → destino</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Rota</th><th class="r">OS</th><th class="r">Concluídas</th><th class="r">Saíram no horário</th><th class="r">Execução média</th></tr></thead><tbody>
   ${rotas.map(([k,l])=>{const [o,d]=k.split("|");const c=l.filter(x=>x.status==="concluida");const cp=c.filter(x=>isFinite(prazo(x)));const np=cp.filter(x=>!concluidaComAtraso(x)).length;
     return `<tr><td><b>${esc(nomeLocal(o))}</b> <span class="arrow">→</span> <b>${esc(nomeLocal(d))}</b></td><td class="r num">${l.length}</td><td class="r num">${c.length}</td><td class="r num">${cp.length?Math.round(np/cp.length*100)+"%":"—"}</td><td class="r num">${fDur(avg(c.map(tExec)))}</td></tr>`}).join("")}
   </tbody></table></div></section>`;
@@ -624,7 +627,7 @@ function renderPainel(){
     ${porVeic.length?porVeic.map(([k,l])=>{const c=l.filter(o=>o.status==="concluida");const hrs=c.reduce((s,o)=>s+(isFinite(tExec(o))?tExec(o):0),0)/3600000;const km=c.reduce((s,o)=>s+(kmRodados(o)||0),0);
       return `<tr><td><b>${esc(nomeVeic(k))}</b></td><td class="r num">${l.length}</td><td class="r num">${hrs.toFixed(1).replace(".",",")}</td><td class="r num">${km?km.toLocaleString("pt-BR"):"—"}</td><td class="r num">${l.reduce((s2,o)=>s2+((o.checklist&&o.checklist.problemas)||0),0)||"—"}</td></tr>`}).join(""):`<tr><td colspan="5">Nenhum veículo informado.</td></tr>`}
     </tbody></table></div></section>
-    <section class="card"><div class="card-h"><h2>Equipe</h2><span class="sub">participação nas OS</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Pessoa</th><th class="r">OS</th><th class="r">Concluídas</th><th class="r">No prazo</th></tr></thead><tbody>
+    <section class="card"><div class="card-h"><h2>Equipe</h2><span class="sub">participação nas OS</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Pessoa</th><th class="r">OS</th><th class="r">Concluídas</th><th class="r">Saíram no horário</th></tr></thead><tbody>
     ${porEq.length?porEq.map(([k,l])=>{const c=l.filter(o=>o.status==="concluida");const cp=c.filter(o=>isFinite(prazo(o)));const np=cp.filter(o=>!concluidaComAtraso(o)).length;const p=byId(S.equipe,k);
       return `<tr><td><b>${esc(p?p.nome:"—")}</b>${p&&p.funcao?` <span style="color:var(--faint)">${esc(p.funcao)}</span>`:""}</td><td class="r num">${l.length}</td><td class="r num">${c.length}</td><td class="r num">${cp.length?Math.round(np/cp.length*100)+"%":"—"}</td></tr>`}).join(""):`<tr><td colspan="4">Nenhuma equipe informada.</td></tr>`}
     </tbody></table></div></section>
@@ -645,7 +648,7 @@ function statusSplit(list){
   const late=list.filter(o=>atrasada(o)||concluidaComAtraso(o)).length;
   return `<div class="split" role="img" aria-label="Distribuição por situação">${keys.filter(k=>c[k]).map(k=>`<i style="width:${c[k]/tot*100}%;background:var(--s-${{concluida:"ok",em_rota:"rota",agendada:"age",registrada:"reg",cancelada:"can"}[k]})" title="${ST[k]}: ${c[k]}"></i>`).join("")}</div>
   <table class="t"><tbody>${keys.map(k=>`<tr><td><span class="st ${k}">${ST[k]}</span></td><td class="r num"><b>${c[k]||0}</b></td><td class="r num" style="color:var(--faint)">${Math.round((c[k]||0)/tot*100)}%</td></tr>`).join("")}
-  <tr><td><span class="late">Com atraso (abertas ou concluídas)</span></td><td class="r num"><b>${late}</b></td><td class="r num" style="color:var(--faint)">${Math.round(late/tot*100)}%</td></tr></tbody></table>`;
+  <tr><td><span class="late">Saída atrasada</span></td><td class="r num"><b>${late}</b></td><td class="r num" style="color:var(--faint)">${Math.round(late/tot*100)}%</td></tr></tbody></table>`;
 }
 function hbars(rows){
   if(!rows.length)return `<p style="color:var(--mute)">Sem dados no período.</p>`;
@@ -778,7 +781,7 @@ function rowHTML(o){
     <span class="rt"><b>${esc(origemTxt(o))} <span class="arrow">→</span> ${esc(destinoTxt(o))}${extraParadas(o)}</b><span>${esc(itensResumo(o))}</span></span>
     <span class="meta"><div><b class="num">${fDH(o.agendadoPara)}</b>${o.prioridade&&o.prioridade!=="normal"?` · <span class="prio-${o.prioridade}">${o.prioridade==="urgente"?"Urgente":"Alta"}</span>`:""}</div><div>${esc(nomeSetor(o.setorId))}${o.solicitante?" · "+esc(o.solicitante):""}</div></span>
     <span class="meta meta2"><div>${esc(nomeEquipe(o.equipeIds))}</div><div>${esc(nomeVeic(o.veiculoId))}</div></span>
-    <span class="stc"><span class="st ${o.status}">${ST[o.status]||o.status}</span>${late?`<span class="late">Atrasada</span>`:lateC?`<span class="late">Concluída com atraso</span>`:""}</span>
+    <span class="stc"><span class="st ${o.status}">${esc(stTxt(o))}</span>${late?`<span class="late">Atrasada</span>`:lateC?`<span class="late">Saiu com atraso</span>`:""}${acimaMedia(o)?`<span class="late">Acima do tempo médio</span>`:""}</span>
   </button>`;
 }
 function itensResumo(o){const it=o.itens||[];if(ehTraslado(o)){const n=paxDe(o);const nm=it.filter(i=>i.un==="pessoa"&&Number(i.qtd)===1).map(i=>i.desc);return n?plural(n,"pessoa","pessoas")+(nm.length?": "+nm.slice(0,3).join(", ")+(nm.length>3?"…":""):""):"Pessoas a confirmar"}if(!it.length)return "Sem itens informados";const s=it.slice(0,3).map(i=>(i.qtd?i.qtd+" "+(i.un||"")+" ":"")+(i.desc||"")).join(", ");return s+(it.length>3?" e mais "+(it.length-3):"")}
@@ -1029,14 +1032,15 @@ function renderDrawer(){
   const tl=(o.historico||[]).slice().reverse().map(h=>`<li><time class="num">${fDH(h.em)}</time><span><span class="st ${h.s}">${ST[h.s]||h.s}</span>${h.nota?` · ${esc(h.nota)}`:""}${h.por&&S.names[h.por]?` <span style="color:var(--faint)">por ${esc(S.names[h.por])}</span>`:""}</span></li>`).join("");
   let acts="";
   const copyBtn=`<button class="btn" data-act="copiar">Copiar resumo</button>`;
-  const avisarBtn=isLog()&&o.status==="concluida"?`<button class="btn ${o.avisadoEm?"":"wa"}" data-act="avisar">${o.avisadoEm||o.avisoStatus==="enviado"?"Avisar de novo no WhatsApp":"Avisar no WhatsApp"}</button>`:"";
+  const avisarBtn=isLog()&&(o.status==="concluida"||entregue(o))?`<button class="btn ${o.avisadoEm?"":"wa"}" data-act="avisar">${o.avisadoEm||o.avisoStatus==="enviado"?"Avisar de novo no WhatsApp":"Avisar no WhatsApp"}</button>`:"";
   const extraActs=isLog()?(o.status!=="cancelada"?`<button class="btn" data-act="extras">Custos extras${(o.custosExtra||[]).length?" ("+fBRL(somaExtras(o.custosExtra))+")":""}</button>`:"")+avisarBtn+`<button class="btn" data-act="duplicar">Duplicar</button><button class="btn ghost danger" data-act="excluir">Excluir</button>`:"";
   if(isLog()){
     if(o.status==="registrada") acts=`<button class="btn pri" data-act="editar">Agendar equipe e veículo</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
     if(o.status==="agendada") acts=`<button class="btn pri" data-act="iniciar">Iniciar rota</button><button class="btn" data-act="editar">Editar</button><button class="btn danger" data-act="cancelar">Cancelar OS</button>`;
     if(o.status==="em_rota"){const ps=paradasDe(o),nx=proximaParada(o),ult=ps[ps.length-1];
-      acts=(nx>=0?`<button class="btn pri" data-parada="${nx}">Registrar ${pLbl(o,ps[nx].tipo).toLowerCase()} em ${esc(nomeP(ps[nx]))}</button>`
-        :`<button class="btn pri" data-act="concluir">Concluir ${pLbl(o,ult.tipo).toLowerCase()} em ${esc(nomeP(ult))}</button>`)+`<button class="btn" data-act="editar">Editar</button>`;}
+      acts=(voltando(o)?`<button class="btn pri" data-act="retorno">Registrar volta à base · ${esc(baseNome(baseDe(o)))}</button>`
+        :nx>=0?`<button class="btn pri" data-parada="${nx}">Registrar ${pLbl(o,ps[nx].tipo).toLowerCase()} em ${esc(nomeP(ps[nx]))}</button>`
+        :`<button class="btn pri" data-act="concluir">${voltaBase(o)?"Registrar":"Concluir"} ${pLbl(o,ult.tipo).toLowerCase()} em ${esc(nomeP(ult))}</button>`)+`<button class="btn" data-act="editar">Editar</button>`;}
     if(o.status==="cancelada") acts=`<button class="btn" data-act="reabrir">Reabrir OS</button>`;
   }
   const A=S.action;
@@ -1045,7 +1049,7 @@ function renderDrawer(){
       <div class="field"><label class="${o.veiculoId?"req":""}" for="kmI">Km inicial (odômetro na saída)</label><input type="number" id="kmI" inputmode="numeric" min="0" value="${esc(A.kmI==null?"":A.kmI)}" placeholder="${o.veiculoId?"Ex.: 124300":"Sem veículo definido"}">
         <span class="hint">${(()=>{const u=o.veiculoId?ultimoKm(o.veiculoId,o.id):null;return u?"Último registro deste veículo: "+fKm(u.km)+" ("+kmOrigem(u)+(u.em?", "+fDH(u.em):"")+")":o.veiculoId?"Primeiro registro deste veículo":""})()}</span></div></div>
       <p class="hint" style="margin:0">As fotos são tiradas em cada parada: na retirada, a mercadoria; na entrega, o material entregue a quem recebeu.</p>
-      ${quandoPanHTML(A,"Quando saiu")}
+      ${quandoPanHTML(A,"Quando saiu",null,o)}
       <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk">Confirmar saída</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
   if(A&&A.t==="concluir") panel=`<div class="panel" id="pan"><h3>${(()=>{const ps=paradasDe(o),u=ps[ps.length-1];return (ehTraslado(o)?pLbl(o,u.tipo):u.tipo==="retirada"?"Retirada final":"Entrega")+" em "+esc(nomeP(u))+(ps.length>1?` · parada ${ps.length} de ${ps.length}`:"")})()}</h3>
       ${ehTraslado(o)?"":`      <div class="field"><span class="lbl">${paradasDe(o).slice(-1)[0].tipo==="retirada"?"Fotos da mercadoria":"Fotos do material entregue"} <i class="opc">opcional</i></span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upC" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upCg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div><span class="hint">Mostre os itens no local, de preferência com quem recebeu. Ao menos uma foto.</span></div>
@@ -1053,11 +1057,22 @@ function renderDrawer(){
         <div class="actions"><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div></div>
 `}
       <div class="fg">${ehTraslado(o)?"":`<div class="field"><label for="rec">Recebido por</label><input type="text" id="rec" value="${esc(A.rec||"")}" placeholder="Nome de quem recebeu"></div>
-      `}<div class="field"><label class="${o.veiculoId?"req":""}" for="kmF">Km final (odômetro na chegada)</label><input type="number" id="kmF" inputmode="numeric" min="0" value="${esc(A.kmF||"")}" placeholder="${o.kmInicial!=null?"Saída: "+o.kmInicial:"Ex.: 124360"}">
-        <span class="hint" id="kmHint">${o.kmInicial!=null?"Saída: "+fKm(o.kmInicial)+(A.kmF&&Number(A.kmF)>=o.kmInicial?" · rodou "+fKm(Number(A.kmF)-o.kmInicial):""):""}</span></div>
+      `}${voltaBase(o)?"":`<div class="field"><label class="${o.veiculoId?"req":""}" for="kmF">Km final (odômetro na chegada)</label><input type="number" id="kmF" inputmode="numeric" min="0" value="${esc(A.kmF||"")}" placeholder="${o.kmInicial!=null?"Saída: "+o.kmInicial:"Ex.: 124360"}">
+        <span class="hint" id="kmHint">${o.kmInicial!=null?"Saída: "+fKm(o.kmInicial)+(A.kmF&&Number(A.kmF)>=o.kmInicial?" · rodou "+fKm(Number(A.kmF)-o.kmInicial):""):""}</span></div>`}
       <div class="field full"><label for="cObs">${ehTraslado(o)?"Observações do traslado":"Observações da entrega"}</label><textarea id="cObs" placeholder="${ehTraslado(o)?"Atrasos, alguém faltou…":"Divergências, avarias, itens faltantes…"}">${esc(A.obs||"")}</textarea></div></div>
-      ${quandoPanHTML(A,ehTraslado(o)?"Quando terminou o traslado":"Quando foi entregue",ultimoFeito(o),o)}
-      <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>Encerrar OS</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
+      ${quandoPanHTML(A,ehTraslado(o)?"Quando desembarcaram":"Quando foi entregue",ultimoFeito(o))}
+      ${voltaBase(o)?`<p class="hint" style="margin:0">A OS fica <b>Voltando à base</b> e só termina quando o veículo voltar para ${esc(baseNome(baseDe(o)))}. A volta entra no tempo e no km da missão.</p>`:""}
+      <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy?" disabled":""}>${voltaBase(o)?(ehTraslado(o)?"Registrar desembarque":"Registrar entrega"):"Encerrar OS"}</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;
+  if(A&&A.t==="retorno"){const rr=o.rotaId?byId(S.rotas||[],o.rotaId):null;const rAb=rr&&rotaAberta(rr);const L=rAb?osDaRota(rr).filter(x=>x.status!=="cancelada"):[o];
+    const falta=L.filter(x=>x.status!=="concluida"&&!entregue(x));const kmIni=rAb?(rr.kmInicio!=null?rr.kmInicio:rr.kmSaida):o.kmInicial;const M=soloRota(o)?mediaServ(o):null;
+    panel=`<div class="panel" id="pan"><h3>Volta à base · ${esc(baseNome(baseDe(o)))}</h3>
+      ${rAb&&L.length>1?`<p class="hint" style="margin:0">Rota ${esc(codR(rr))}: ${L.map(x=>esc(codigo(x))).join(", ")} voltam juntas e são encerradas agora.</p>`:""}
+      ${falta.length?`<p class="err" style="margin:0">Ainda falta registrar a entrega de ${falta.map(x=>esc(codigo(x))).join(", ")} nesta rota.</p>`:""}
+      <div class="fg"><div class="field"><label class="${o.veiculoId||rAb?"req":""}" for="kmF">Km na chegada à base</label><input type="number" id="kmF" inputmode="numeric" min="0" value="${esc(A.kmF||"")}" placeholder="${kmIni!=null?"Saída: "+kmIni:"Ex.: 124360"}">
+        <span class="hint" id="kmHint">${kmIni!=null?"Saída: "+fKm(kmIni)+(A.kmF&&Number(A.kmF)>=kmIni?" · rodou "+fKm(Number(A.kmF)-kmIni):""):""}</span></div></div>
+      ${quandoPanHTML(A,"Quando chegou na base",o.entregueEm||ultimoFeito(o))}
+      ${M&&M.media?`<p class="hint" style="margin:0">Tempo médio deste serviço: ${fDur(M.media)} (${plural(M.n,"serviço igual","serviços iguais")}).</p>`:""}
+      <span class="err" id="pErr" role="alert"></span><div class="actions"><button class="btn pri" id="pOk"${A.busy||falta.length?" disabled":""}>Encerrar OS</button><button class="btn ghost" id="pNo">Voltar</button></div></div>`;}
   if(A&&A.t==="parada"){const pp=paradasDe(o)[A.idx];const ent=pp.tipo==="entrega";
     panel=`<div class="panel" id="pan"><h3>${pLbl(o,pp.tipo)} em ${esc(nomeP(pp))} · parada ${A.idx+1} de ${paradasDe(o).length}</h3>
       ${ehTraslado(o)?"":`      <div class="field"><span class="lbl">${ent?"Fotos do material entregue":"Fotos da mercadoria retirada"} <i class="opc">opcional</i></span>${fotosHTML(A.fotos||[],true)}<div class="upl-row"><label class="upl"><input type="file" accept="image/*" capture="environment" id="upP" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><span>Tirar foto</span></label><label class="upl alt"><input type="file" accept="image/*" multiple id="upPg" data-up><svg class="upl-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg><span>Escolher da galeria</span></label></div></div>
@@ -1084,7 +1099,7 @@ function renderDrawer(){
 
   layer.innerHTML=`<div class="ov" id="ov"><aside class="dr" role="dialog" aria-modal="true" aria-labelledby="drT">
     <div class="dr-h"><div class="row1"><div><h2 id="drT" class="num">${codigo(o)}</h2><p>${esc(o.tipo||"")}${o.prioridade&&o.prioridade!=="normal"?" · Prioridade "+(o.prioridade==="urgente"?"urgente":"alta"):""}</p></div><button class="cl" id="drX" aria-label="Fechar">×</button></div>
-      <span class="stl"><span class="st ${o.status}">${ST[o.status]}</span></span>${late?` <span class="stl"><span class="late">Atrasada</span></span>`:lateC?` <span class="stl"><span class="late">Concluída com atraso</span></span>`:""}</div>
+      <span class="stl"><span class="st ${o.status}">${esc(stTxt(o))}</span></span>${late?` <span class="stl"><span class="late">Atrasada</span></span>`:lateC?` <span class="stl"><span class="late">Saiu com atraso</span></span>`:""}${acimaMedia(o)?` <span class="stl"><span class="late">Acima do tempo médio</span></span>`:""}</div>
     <div class="dr-b">
       ${o.criadaNoCampo?(o.revisadaEm?`<p class="hint" style="margin:0 0 10px">${ic("van","ic sm")} Criada no campo pela equipe · revisada em ${esc(fDH(o.revisadaEm))}</p>`:`<div class="banner campo-n"><b>Criada no campo pela equipe.</b> O pedido chegou durante a missão${o.solicitante?" (pedido por "+esc(o.solicitante)+")":""}. Confira endereço, itens e setor; se precisar, edite. ${isLog()?`<button class="btn sm" type="button" data-act="revisar">Marcar como revisada</button>`:""}</div>`):""}
       ${!A?`<div class="actions">${acts}${copyBtn}${extraActs}</div>`:""}${S.copyOpen&&!A?copyPanel(o):""}${panel}${emgBoxDrawer("log",o)}
@@ -1094,6 +1109,9 @@ function renderDrawer(){
         <div><dt>Previsão de término</dt><dd class="num">${fDH(o.previstoAte)}</dd></div>
         <div><dt>Equipe</dt><dd>${(o.equipeIds||[]).length&&["agendada","em_rota"].includes(o.status)?equipeCiencia(o):esc(nomeEquipe(o.equipeIds))}</dd></div>
         <div><dt>Veículo</dt><dd>${esc(nomeVeic(o.veiculoId))}${o.veiculoId?` <span style="color:var(--faint);font-weight:500">· carga ${o.carga==="pesada"?"pesada":"leve"}</span>`:""}</dd></div>
+        ${voltaBase(o)&&baseDe(o)?`<div><dt>Base</dt><dd>${esc(baseNome(baseDe(o)))} <span style="color:var(--faint);font-weight:500">· sai e volta para cá</span></dd></div>`:""}
+        ${o.entregueEm?`<div><dt>${ehTraslado(o)?"Desembarque":"Entrega"}</dt><dd class="num">${fDH(o.entregueEm)}</dd></div>`:""}${o.retornoEm?`<div><dt>Volta à base</dt><dd class="num">${fDH(o.retornoEm)}</dd></div>`:""}
+        ${tempoMissaoHTML(o)}
         ${o.rotaId?(()=>{const rr=byId(S.rotas||[],o.rotaId);if(!rr)return "";const pr=partRota(o);const outras=osDaRota(rr).filter(x=>x.id!==o.id);return `<div><dt>Rota</dt><dd><a class="lnk" href="#rotas-dia" data-rdia="${esc(dayKey(rr.saidaEm))}">${esc(codR(rr))}</a> · ${esc(ROTA_ST[rr.status].toLowerCase())}${outras.length?` · junto com ${outras.map(x=>esc(codigo(x))).join(", ")}`:""}${pr?`<br><span style="color:var(--mute)">${fNum(pr.s*100)}% do custo da rota (${pr.metodo==="distancia"?"pela distância":"pelas paradas"})</span>`:""}</dd></div>`})():""}
         ${o.manutencaoId?`<div><dt>Transporte da frota</dt><dd>${o.transporte==="volta"?"Buscar":"Levar"} o veículo · <button type="button" class="lnk" data-mopen="${esc(o.manutencaoId)}">${esc((m=>m?codM(m):"OS da frota")(byId(S.manutencoes,o.manutencaoId)))}</button></dd></div>`:""}
         <div><dt>Setor solicitante</dt><dd>${esc(nomeSetor(o.setorId))}</dd></div>
@@ -1209,11 +1227,11 @@ const durAtr=ms=>{const m=Math.max(1,Math.round(ms/60000));if(m<60)return m+" mi
 const pzOS=o=>{const p=prazo(o);return isFinite(p)?p+tolMs():NaN};
 const pzPassou=o=>isFinite(pzOS(o))&&Date.now()>pzOS(o);
 function pzTxt(o,iso){const p=prazo(o);if(!o||!isFinite(p))return "";const t=T(iso);if(!isFinite(t))return "";const pd=esc(fDH(new Date(p).toISOString()));
-  return t<=pzOS(o)?`<span class="pz ok">${ic("ok","ic sm")}Com este horário a OS fica <b>no prazo</b> (prazo ${pd}).</span>`
-    :`<span class="pz late">Com este horário a OS fica <b>atrasada ${esc(durAtr(t-p))}</b> (prazo ${pd}). Se terminou antes, coloque o horário real.</span>`}
+  return t<=pzOS(o)?`<span class="pz ok">${ic("ok","ic sm")}Com este horário a saída fica <b>no horário</b> (marcada para ${pd}).</span>`
+    :`<span class="pz late">Com este horário a saída fica <b>atrasada ${esc(durAtr(t-p))}</b> (marcada para ${pd}). Se saiu antes, coloque o horário real.</span>`}
 function quandoPanHTML(A,txt,min,o){const pz=o&&isFinite(prazo(o))?o:null;A._pz=pz;
   if(pz&&!A.qMan&&!A.q&&pzPassou(pz))A.qAviso=true;const v=A.q||toInput(nowISO());
-  return `<div class="field qd-pan${A.qAviso?" qd-at":""}">${A.qAviso?`<p class="qd-av"><b>O prazo desta OS já passou</b> (${esc(fDH(new Date(prazo(pz)).toISOString()))}). Se a equipe terminou antes e só está registrando agora, coloque aqui o dia e a hora reais, para ela não ficar como atrasada.</p>`:""}<label for="pQ">${esc(txt)}</label><input type="datetime-local" id="pQ" value="${esc(v)}" max="${esc(toInput(nowISO()))}"${min?` min="${esc(toInput(min))}"`:""}>
+  return `<div class="field qd-pan${A.qAviso?" qd-at":""}">${A.qAviso?`<p class="qd-av"><b>O horário de saída desta OS já passou</b> (${esc(fDH(new Date(prazo(pz)).toISOString()))}). Se a equipe saiu antes e só está registrando agora, coloque aqui o dia e a hora reais da saída, para ela não ficar como atrasada.</p>`:""}<label for="pQ">${esc(txt)}</label><input type="datetime-local" id="pQ" value="${esc(v)}" max="${esc(toInput(nowISO()))}"${min?` min="${esc(toInput(min))}"`:""}>
     ${pz?`<p class="qd-pz" id="pQz">${pzTxt(pz,new Date(v).toISOString())}</p>`:""}
     <span class="hint">Se foi agora, deixe como está. Se a equipe ficou sem bateria ou sem internet, informe o dia e a hora em que aconteceu${min?" (depois de "+esc(fDH(min))+")":""}. Fica marcado no histórico.</span></div>`}
 function bindQuandoPan(A){const q=$("#pQ");if(q)q.oninput=q.onchange=()=>{A.q=q.value;A.qMan=true;const z=$("#pQz");if(z&&A._pz){const t=new Date(q.value);z.innerHTML=isFinite(t)?pzTxt(A._pz,t.toISOString()):""}}}
@@ -1234,7 +1252,7 @@ function bindPanel(o){
     const r=await enviarAvisoAuto(byId(S.os,o.id)||o);
     if(r&&r.ok){S.action=null;toast("Aviso enviado no WhatsApp para "+fFone(tel));renderDrawer();}
     else{pa.disabled=false;pa.textContent="Enviar automaticamente";err.textContent="Não foi enviado: "+((r&&(r.detalhe||r.erro))||"sem resposta")+". Confira em Cadastros → Regras ou envie pelo seu WhatsApp.";}};
-  const kf=$("#kmF");if(kf)kf.oninput=()=>{const h=$("#kmHint");if(!h||o.kmInicial==null)return;const v=Number(kf.value);h.textContent="Saída: "+fKm(o.kmInicial)+(kf.value!==""&&v>=o.kmInicial?" · rodou "+fKm(v-o.kmInicial):kf.value!==""?" · valor menor que a saída":"")};
+  const kf=$("#kmF");if(kf)kf.oninput=()=>{const h=$("#kmHint");const rr=A.t==="retorno"&&o.rotaId?byId(S.rotas||[],o.rotaId):null;const ki=rr&&rotaAberta(rr)?(rr.kmInicio!=null?rr.kmInicio:rr.kmSaida):o.kmInicial;if(!h||ki==null)return;const v=Number(kf.value);h.textContent="Saída: "+fKm(ki)+(kf.value!==""&&v>=ki?" · rodou "+fKm(v-ki):kf.value!==""?" · valor menor que a saída":"")};
   $$("[data-ck]",layer).forEach(b=>b.onclick=()=>{syncPanelFields();const c=A.ck[+b.dataset.ck];c.ok=b.dataset.v==="1";if(c.ok)c.obs="";renderDrawer();const f=$("#ck-o-"+b.dataset.ck);if(f)f.focus()});
   $("#pNo").onclick=()=>{S.action=null;renderDrawer()};
   const exA=$("#exAdd");if(exA)exA.onclick=()=>{syncPanelFields();A.custos.push({desc:"",qtd:1,valor:""});renderDrawer();const ins=$$("#exL input[type=text]");if(ins.length)ins[ins.length-2].focus()};
@@ -1262,8 +1280,8 @@ function bindPanel(o){
         await saveOS(o.id,{status:"em_rota",iniciadoEm:Q.iso,kmInicial:km,checklist,atualizadoEm:nowISO(),historico:hist(o,"em_rota","Saída do veículo"+Q.nota+(probs?" · checklist com "+probs+" problema"+(probs>1?"s":""):""))});
         S.action=null;toast(codigo(o)+" em rota");}
       if(A.t==="concluir"){
-        const kmTxt=String(A.kmF==null?"":A.kmF).trim();
-        if(o.veiculoId&&kmTxt===""){err.textContent="Informe o km final do veículo (odômetro na chegada).";return}
+        const kmTxt=voltaBase(o)?"":String(A.kmF==null?"":A.kmF).trim();
+        if(o.veiculoId&&!voltaBase(o)&&kmTxt===""){err.textContent="Informe o km final do veículo (odômetro na chegada).";return}
         const km=kmTxt===""?null:Math.round(Number(kmTxt));
         if(km!=null&&(!isFinite(km)||km<0)){err.textContent="Km final inválido.";return}
         if(km!=null&&o.kmInicial!=null&&km<o.kmInicial){err.textContent="O km final ("+fKm(km)+") é menor que o km de saída ("+fKm(o.kmInicial)+").";return}
@@ -1278,8 +1296,11 @@ function bindPanel(o){
           else { try{assinatura=await enviarArquivo(b,"png","image/png")}catch(e){btn.disabled=false;btn.textContent="Encerrar OS";err.textContent="Falha ao enviar a assinatura. Tente novamente.";return} }}
         const extraP={};
         {const ps=JSON.parse(JSON.stringify(paradasDe(o)));const u=ps.length-1;ps[u]=Object.assign(ps[u],{status:"feita",feitoEm:Q.iso,fotos:A.fotos,assinatura,pessoa:(A.rec||"").trim(),obs:(A.obs||"").trim()});extraP.paradas=ps;}
-        await saveOS(o.id,Object.assign(extraP,{status:"concluida",concluidoEm:Q.iso,kmFinal:km,conclusao:{fotos:A.fotos,assinatura,recebidoPor:(A.rec||"").trim(),obs:(A.obs||"").trim()},atualizadoEm:nowISO(),historico:hist(o,"concluida",(ehTraslado(o)?"Traslado concluído":"Entrega confirmada")+Q.nota)}));
-        S.action=null;toast(codigo(o)+" concluída");
+        const conclusao={fotos:A.fotos,assinatura,recebidoPor:(A.rec||"").trim(),obs:(A.obs||"").trim()};
+        if(voltaBase(o)){await saveOS(o.id,Object.assign(extraP,{entregueEm:Q.iso,conclusao,atualizadoEm:nowISO(),historico:hist(o,"em_rota",(ehTraslado(o)?"Desembarque confirmado":"Entrega confirmada")+" · voltando à base"+Q.nota)}));
+          S.action=null;toast((ehTraslado(o)?"Desembarque":"Entrega")+" registrad"+(ehTraslado(o)?"o":"a")+". Falta a volta à base.")}
+        else{await saveOS(o.id,Object.assign(extraP,{status:"concluida",concluidoEm:Q.iso,kmFinal:km,conclusao,atualizadoEm:nowISO(),historico:hist(o,"concluida",(ehTraslado(o)?"Traslado concluído":"Entrega confirmada")+Q.nota)}));
+          S.action=null;toast(codigo(o)+" concluída")}
         const o2=byId(S.os,o.id)||o; const fone=telefoneSugerido(o2);
         if(S.config.whatsappAuto&&foneValido(fone)){
           if(!o2.solicitanteTelefone){ try{await saveOS(o2.id,{solicitanteTelefone:fone})}catch(e){} }
@@ -1288,6 +1309,20 @@ function bindPanel(o){
           if(r&&r.ok){ toast("Aviso enviado no WhatsApp para "+fFone(fone)); renderDrawer(); return; }
           S.action={t:"avisar",fone,msg:msgConclusao(o2),falhaAuto:(r&&(r.detalhe||r.erro))||"sem resposta"};
         } else S.action={t:"avisar",fone,msg:msgConclusao(o2)}; }
+      if(A.t==="retorno"){
+        const rr=o.rotaId?byId(S.rotas||[],o.rotaId):null;const rAb=rr&&rotaAberta(rr);const L=rAb?osDaRota(rr).filter(x=>x.status!=="cancelada"):[o];
+        const falta=L.filter(x=>x.status!=="concluida"&&!entregue(x));if(falta.length){err.textContent="Registre antes a entrega de "+falta.map(codigo).join(", ")+".";return}
+        const kmTxt=String(A.kmF==null?"":A.kmF).trim();const kmIni=rAb?(rr.kmInicio!=null?rr.kmInicio:rr.kmSaida):o.kmInicial;
+        if((o.veiculoId||rAb)&&kmTxt===""){err.textContent="Informe o km do painel na chegada à base.";return}
+        const km=kmTxt===""?null:Math.round(Number(kmTxt));if(km!=null&&(!isFinite(km)||km<0)){err.textContent="Km inválido.";return}
+        if(km!=null&&kmIni!=null&&km<kmIni){err.textContent="O km da chegada ("+fKm(km)+") é menor que o da saída ("+fKm(kmIni)+").";return}
+        if(km!=null&&kmIni!=null&&km-kmIni>1500&&!A.kmOk){A.kmOk=true;err.textContent="Ficaria com "+fKm(km-kmIni)+" rodados. Confira o odômetro. Se estiver certo, toque em Encerrar OS de novo.";return}
+        let Q;try{Q=quandoPan(A,L.map(x=>x.entregueEm||ultimoFeito(x)).filter(Boolean).sort().pop()||null)}catch(e){err.textContent=e.message;return}
+        btn.disabled=true;btn.textContent="Salvando…";
+        for(const x of L){if(x.status==="concluida")continue;
+          await saveOS(x.id,Object.assign({status:"concluida",concluidoEm:Q.iso,retornoEm:Q.iso,atualizadoEm:nowISO(),historico:hist(x,"concluida","Voltou à base ("+baseNome(baseDe(x))+")"+Q.nota)},rAb?{}:{kmFinal:km}))}
+        if(rAb)await salvarRota(rr.id,Object.assign({status:"devolvida",kmDevolucao:km,devolvidoEm:Q.iso},rr.kmFim==null?{kmFim:km}:{},rr.fimEm?{}:{fimEm:Q.iso},rr.kmInicio==null?{kmInicio:rr.kmSaida}:{}));
+        S.action=null;toast(L.length>1?plural(L.length,"OS encerrada","OS encerradas"):codigo(o)+" encerrada");renderDrawer();return}
       if(A.t==="parada"){
         const ps=JSON.parse(JSON.stringify(paradasDe(o)));const pp=ps[A.idx];const ent=pp.tipo==="entrega";
         const temSig=(A.sig||[]).some(st=>st.length>1);
@@ -1480,8 +1515,8 @@ function msgConclusao(o){
   const nome=(o.solicitante||"").trim().split(/\s+/)[0];
   const it=(o.itens||[]).slice(0,6).map(i=>"• "+[i.qtd===""||i.qtd==null?"":String(i.qtd).replace(".",","),i.un||"",i.desc].filter(Boolean).join(" ")).join("\n");
   const foto=(c.fotos||[])[0];
-  return [`Olá${nome?", "+nome:""}! Sua solicitação *${codigo(o)}* foi concluída ✅`,
-    ehTraslado(o)?`Traslado concluído: ${plural(paxDe(o),"pessoa","pessoas")} deixada${paxDe(o)>1?"s":""} em ${nomeP(fim.localId?fim:{localId:o.destinoId,detalhe:o.destinoDetalhe})} em ${fDH(o.concluidoEm)}.`:`Entregue em ${nomeLocal(fim.localId||o.destinoId)}${fim.detalhe||o.destinoDetalhe?" ("+(fim.detalhe||o.destinoDetalhe)+")":""} em ${fDH(o.concluidoEm)}${c.recebidoPor?", recebido por "+c.recebidoPor:""}.`,
+  return [`Olá${nome?", "+nome:""}! Sua solicitação *${codigo(o)}* foi ${ehTraslado(o)?"concluída":"entregue"} ✅`,
+    ehTraslado(o)?`Traslado concluído: ${plural(paxDe(o),"pessoa","pessoas")} deixada${paxDe(o)>1?"s":""} em ${nomeP(fim.localId?fim:{localId:o.destinoId,detalhe:o.destinoDetalhe})} em ${fDH(o.entregueEm||o.concluidoEm)}.`:`Entregue em ${nomeLocal(fim.localId||o.destinoId)}${fim.detalhe||o.destinoDetalhe?" ("+(fim.detalhe||o.destinoDetalhe)+")":""} em ${fDH(o.entregueEm||o.concluidoEm)}${c.recebidoPor?", recebido por "+c.recebidoPor:""}.`,
     it?(ehTraslado(o)?"Passageiros:\n":"Itens:\n")+it:"",
     foto&&/^https?:/.test(foto.url)?"Foto da entrega: "+foto.url:"",
     "Logística · Grupo Monte Carlo"].filter(Boolean).join("\n\n");
@@ -1612,8 +1647,8 @@ const CAD={
       return [l?l.nome:(x.unidade||"Sem local"),nO||nM?[nO?nO+" OS de logística":"",nM?nM+" de manutenção":""].filter(Boolean).join(" · "):""]}},
   solicitantes:{t:"Solicitantes",col:"solicitantes",desc:"Quem pede serviços à logística. O WhatsApp cadastrado recebe o aviso de conclusão.",
     f:[["nome","Nome","text"],["telefone","WhatsApp","tel"],["setorId","Setor","setor"]],m:x=>[fFone(x.telefone),x.setorId?nomeSetor(x.setorId):""]},
-  equipe:{t:"Equipe",col:"equipe",desc:"Motoristas, ajudantes, técnicos e coordenação que executam as OS. A área define em qual lista a pessoa aparece.",
-    f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["area","Área","select",AREAS],["telefone","Telefone","tel"],["custoHora","Custo por hora (R$)","money"],["especialidades","Especialidades na manutenção (pode marcar mais de uma)","multi",ESPECIALIDADES]],m:x=>[[x.funcao,(AREAS.find(a=>a[0]===(x.area||"logistica"))||[,""])[1]].filter(Boolean).join(" · ")+((x.especialidades||[]).length?" · "+x.especialidades.join(", "):""),[x.telefone,nOuNull(x.custoHora)!=null?fBRL(x.custoHora)+"/h":"Custo/h: padrão"].filter(Boolean).join(" · ")]},
+  equipe:{t:"Equipe",col:"equipe",desc:"Motoristas, ajudantes, técnicos e coordenação que executam as OS. A área define em qual lista a pessoa aparece. A base é de onde o motorista sai com o veículo e para onde volta (a OS termina na volta).",
+    f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["area","Área","select",AREAS],["telefone","Telefone","tel"],["baseLocalId","Base (onde pega e devolve o veículo)","local"],["custoHora","Custo por hora (R$)","money"],["especialidades","Especialidades na manutenção (pode marcar mais de uma)","multi",ESPECIALIDADES]],m:x=>[[x.funcao,(AREAS.find(a=>a[0]===(x.area||"logistica"))||[,""])[1]].filter(Boolean).join(" · ")+((x.especialidades||[]).length?" · "+x.especialidades.join(", "):""),[x.telefone,nOuNull(x.custoHora)!=null?fBRL(x.custoHora)+"/h":"Custo/h: padrão"].filter(Boolean).join(" · ")]},
   prestadores:{t:"Prestadores",col:"prestadores",desc:"Empresas e profissionais terceirizados da manutenção. O painel soma OS e custos por prestador.",
     f:[["nome","Nome","text"],["especialidade","Especialidade","select",MCATS.concat(["Veículos"])],["telefone","Telefone","tel"],["contato","Contato","text"],["documento","CNPJ / CPF","text"]],m:x=>[[x.especialidade,x.telefone].filter(Boolean).join(" · "),x.contato||x.documento]},
   veiculos:{t:"Veículos",col:"veiculos",desc:"Frota usada nas movimentações. Toque em Editar para o cadastro completo, ou veja tudo em Frota.",
@@ -1769,6 +1804,7 @@ function bindCad(){
     if(S.cadTab==="setores"&&!d.localId) d.localId=null;
     for(const [k,,t] of C.f){ if(t!=="money")continue; if(d[k]===""){d[k]=null;continue} const n=numBR(d[k]); if(n===""||n<0){toast("Valor inválido em "+C.f.find(f=>f[0]===k)[1]+". Use vírgula, por exemplo 1,80.");return} d[k]=n; }
     if(S.cadTab==="equipe"&&S.missing.manutencoes) delete d.area;
+    if(S.cadTab==="equipe"){if(!d.baseLocalId)d.baseLocalId=null;if(!temVolta())delete d.baseLocalId}
     if(S.cadTab==="solicitantes"){ if(!foneValido(d.telefone)){toast("Informe o WhatsApp com DDD.");return} if(!d.setorId) d.setorId=null; }
     const id=f.dataset.form||novoId();
     try{
@@ -1929,7 +1965,7 @@ function renderRelatorio(){
   h+=`<div class="kpis">
     <div class="kpi"><div class="k">OS no mês</div><div class="v num">${A.val.length}</div><div class="delta">${dlt(A.val.length,B.val.length,num)}</div></div>
     <div class="kpi"><div class="k">Concluídas</div><div class="v num">${A.conc.length}</div><div class="delta">${dlt(A.conc.length,B.conc.length,num)}</div></div>
-    <div class="kpi ${A.pct!=null&&A.pct<75?"alert":A.pct>=90?"good":""}"><div class="k">No prazo</div><div class="v num">${A.pct==null?"—":A.pct}${A.pct==null?"":"<small>%</small>"}</div><div class="delta">${dlt(A.pct,B.pct,x=>Math.round(x)+" p.p.")}</div></div>
+    <div class="kpi ${A.pct!=null&&A.pct<75?"alert":A.pct>=90?"good":""}"><div class="k">Saíram no horário</div><div class="v num">${A.pct==null?"—":A.pct}${A.pct==null?"":"<small>%</small>"}</div><div class="delta">${dlt(A.pct,B.pct,x=>Math.round(x)+" p.p.")}</div></div>
     <div class="kpi"><div class="k">Tempo de resposta</div><div class="v num">${durNum(A.tr)}<small>${durUnit(A.tr)}</small></div><div class="delta">${dlt(A.tr,B.tr,fDur,true)}</div></div>
     <div class="kpi"><div class="k">Tempo de execução</div><div class="v num">${durNum(A.te)}<small>${durUnit(A.te)}</small></div><div class="delta">${dlt(A.te,B.te,fDur,true)}</div></div>
     <div class="kpi"><div class="k">Km rodados</div><div class="v num">${A.km?A.km.toLocaleString("pt-BR"):"—"}</div><div class="delta">${dlt(A.km||null,B.km||null,x=>Math.round(x).toLocaleString("pt-BR")+" km")}</div></div>
@@ -1943,8 +1979,8 @@ function renderRelatorio(){
   <div class="grid2">
     <section class="card"><div class="card-h"><h2>Rotas principais</h2></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>Rota</th><th class="r">OS</th><th class="r">Execução média</th></tr></thead><tbody>
       ${rotas.map(([x,l])=>{const [a,b]=x.split("|");return `<tr><td><b>${esc(nomeLocal(a))}</b> <span class="arrow">→</span> <b>${esc(nomeLocal(b))}</b></td><td class="r num">${l.length}</td><td class="r num">${fDur(avg(l.filter(o=>o.status==="concluida").map(tExec)))}</td></tr>`}).join("")}</tbody></table></div></section>
-    <section class="card"><div class="card-h"><h2>Concluídas com atraso</h2><span class="sub">${A.late.length} OS</span></div><div class="card-b tbl-wrap">${A.late.length?`<table class="t"><thead><tr><th>OS</th><th>Rota</th><th class="r">Atraso</th></tr></thead><tbody>
-      ${A.late.sort((a,b)=>(T(b.concluidoEm)-prazo(b))-(T(a.concluidoEm)-prazo(a))).slice(0,10).map(o=>`<tr><td><button class="lnk num" data-open="${esc(o.id)}" type="button">${codigo(o)}</button></td><td>${esc(origemTxt(o))} <span class="arrow">→</span> ${esc(destinoTxt(o))}</td><td class="r num">${fDur(T(o.concluidoEm)-prazo(o))}</td></tr>`).join("")}</tbody></table>`:`<p style="color:var(--mute)">Nenhuma OS concluída com atraso. Bom trabalho.</p>`}</div></section></div>`;
+    <section class="card"><div class="card-h"><h2>Saíram com atraso</h2><span class="sub">${A.late.length} OS</span></div><div class="card-b tbl-wrap">${A.late.length?`<table class="t"><thead><tr><th>OS</th><th>Rota</th><th class="r">Atraso</th></tr></thead><tbody>
+      ${A.late.sort((a,b)=>(T(b.iniciadoEm)-prazo(b))-(T(a.iniciadoEm)-prazo(a))).slice(0,10).map(o=>`<tr><td><button class="lnk num" data-open="${esc(o.id)}" type="button">${codigo(o)}</button></td><td>${esc(origemTxt(o))} <span class="arrow">→</span> ${esc(destinoTxt(o))}</td><td class="r num">${fDur(T(o.iniciadoEm)-prazo(o))}</td></tr>`).join("")}</tbody></table>`:`<p style="color:var(--mute)">Nenhuma OS saiu atrasada. Bom trabalho.</p>`}</div></section></div>`;
   if(isLog()){
     const ps=S.pedidos.filter(p=>mesKey(p.criadoEm)===k);
     if(ps.length){const cv=ps.filter(p=>p.status==="convertido");
@@ -2776,7 +2812,7 @@ function dadosArea(k,ar){
 function pontosArea(A,B,ar){
   const P=[];const atual=A.k===mesKey(new Date());const nm=G_AREA[ar].nome;
   const v=variacao(A.total,B.total);if(v!=null&&v>=20)P.push({n:2,t:`O custo da ${nm.toLowerCase()} subiu ${Math.round(v)}% em relação a ${mesNome(B.k).toLowerCase()} (${fBRL(B.total)} → ${fBRL(A.total)}).`});
-  if(A.pct!=null&&B.pct!=null&&B.pct-A.pct>=10)P.push({n:2,t:`Conclusões no prazo caíram de ${B.pct}% para ${A.pct}%.`});
+  if(A.pct!=null&&B.pct!=null&&B.pct-A.pct>=10)P.push({n:2,t:A.ar==="log"?`Saídas no horário caíram de ${B.pct}% para ${A.pct}%.`:`Conclusões no prazo caíram de ${B.pct}% para ${A.pct}%.`});
   if(ar!=="frota"){
     unidades().forEach(l=>{const orc=nOuNull(l.orcamentoMensal);if(!orc)return;const g=(A.porU[l.id]||{}).v||0;const u=g/orc*100;
       if(u>=80)P.push({n:u>=100?3:2,t:`${l.nome}: a ${nm.toLowerCase()} sozinha já usou ${Math.round(u)}% do orçamento da unidade (${fBRL(g)} de ${fBRL(orc)}).`})});
@@ -2829,7 +2865,7 @@ function resumoArea(A,B,P){
   const ar=A.ar,g=G_AREA[ar];const L=[`*${g.nome} · ${mesNome(A.k)}*`,``,`Custo: ${fBRL(A.total)} · ${deltaTxt(A.total,B.total).toLowerCase()}`];
   if(ar==="frota"){L.push(`• OS da frota: ${fBRL(A.cOs)} em ${A.n} OS`,`• Serviços lançados: ${fBRL(A.cServ)}`,`• Combustível: ${fBRL(A.cComb)}${A.litros?" ("+Math.round(A.litros)+" litros)":""}`,``,`*Por veículo*`);
     Object.entries(A.porV).sort((a,b)=>b[1].total-a[1].total).forEach(([id,x])=>L.push(`• ${nomeVid(id)}: ${fBRL(x.total)}`))}
-  else{L.push(`${A.n} OS concluídas · no prazo: ${pctTxt(A.pct)}`,``,`*Por unidade*`);
+  else{L.push(`${A.n} OS concluídas · ${A.ar==="log"?"saíram no horário":"no prazo"}: ${pctTxt(A.pct)}`,``,`*Por unidade*`);
     unidades().forEach(l=>{const x=A.porU[l.id];if(!x)return;const orc=nOuNull(l.orcamentoMensal);L.push(`• ${l.sigla||l.nome}: ${fBRL(x.v)}${orc?" ("+Math.round(x.v/orc*100)+"% do orçamento da unidade)":""}`)});
     if(A.porU[""])L.push(`• Sem unidade: ${fBRL(A.porU[""].v)}`)}
   const pp=P.filter(p=>p.n>0).slice(0,3);if(pp.length){L.push(``,`*Pontos de atenção*`);pp.forEach(p=>L.push("• "+p.t))}
@@ -2846,7 +2882,7 @@ function imprimirArea(A,B,P){
     :`<h2>Custo por unidade</h2><table><thead><tr><th>Unidade</th><th class="r">OS</th><th class="r">Custo</th><th class="r">Orçamento da unidade</th><th class="r">Parte usada</th></tr></thead><tbody>${unidades().map(l=>{const x=A.porU[l.id];const orc=nOuNull(l.orcamentoMensal);if(!x)return "";return `<tr><td>${esc(l.nome)}</td><td class="r">${x.n}</td><td class="r"><b>${fBRL(x.v)}</b></td><td class="r">${orc?fBRL(orc):"—"}</td><td class="r">${orc?Math.round(x.v/orc*100)+"%":"—"}</td></tr>`}).join("")}${A.porU[""]?`<tr><td>Sem unidade</td><td class="r">${A.porU[""].n}</td><td class="r"><b>${fBRL(A.porU[""].v)}</b></td><td class="r">—</td><td class="r">—</td></tr>`:""}</tbody></table>`;
   const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(g.nome)} · ${esc(mesNome(A.k))}</title><style>@page{size:A4;margin:14mm}body{font-family:Montserrat,Arial,sans-serif;color:#140C0B;font-size:10.5pt}h1{font-size:18pt;margin:0;color:#420804}h2{font-size:12pt;margin:18px 0 6px;color:#420804}.k{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.k div{border:1px solid #E4DED8;border-radius:6px;padding:8px}.k small{color:#5A5250;display:block}.k b{font-size:14pt}table{width:100%;border-collapse:collapse}td,th{padding:5px 6px;border-bottom:1px solid #E4DED8;text-align:left}th{font-size:9pt;color:#5A5250}.r{text-align:right}li{margin-bottom:4px}.s{color:#5A5250;margin:2px 0 0}</style></head><body>
     <h1>${esc(g.nome)} · ${esc(mesNome(A.k))}</h1><p class="s">Facilities · Grupo Monte Carlo · gerado em ${fDH(nowISO())}</p>
-    <div class="k"><div><small>Custo no mês</small><b>${fBRL(A.total)}</b><small>${esc(deltaTxt(A.total,B.total))}</small></div><div><small>OS concluídas</small><b>${A.n}</b><small>${A.n?"média "+fBRL((A.ar==="frota"?A.cOs:A.total)/A.n)+" por OS":""}</small></div><div><small>No prazo</small><b>${pctTxt(A.pct)}</b><small>das OS com prazo</small></div></div>
+    <div class="k"><div><small>Custo no mês</small><b>${fBRL(A.total)}</b><small>${esc(deltaTxt(A.total,B.total))}</small></div><div><small>OS concluídas</small><b>${A.n}</b><small>${A.n?"média "+fBRL((A.ar==="frota"?A.cOs:A.total)/A.n)+" por OS":""}</small></div><div><small>${A.ar==="log"?"Saíram no horário":"No prazo"}</small><b>${pctTxt(A.pct)}</b><small>${A.ar==="log"?"das OS com horário marcado":"das OS com prazo"}</small></div></div>
     <h2>Pontos de atenção</h2>${P.length?`<ul>${P.slice(0,8).map(p=>`<li>${esc(p.t)}</li>`).join("")}</ul>`:"<p>Nenhum ponto de atenção.</p>"}
     ${tab}<h2>Onde está o custo</h2><table><tbody>${compLinhas(A).map(([n,v])=>`<tr><td>${esc(n)}</td><td class="r">${fBRL(v)}</td></tr>`).join("")}</tbody></table></body></html>`;
   const fr=document.createElement("iframe");fr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0";document.body.appendChild(fr);
@@ -2878,7 +2914,7 @@ function renderGestao(){
   if(carregando){app.innerHTML=h+`<div class="empty"><h3>Carregando…</h3></div>`;bindGestao(A,B,P);return}
   if(S.gRes) h+=`<div class="panel copybox" style="margin-bottom:16px"><h3>Resumo de ${esc(mesNome(k))}</h3><label class="lbl" for="gResT">Revise e envie para a gerência.</label><textarea id="gResT" rows="12">${esc(resumoArea(A,B,P))}</textarea>
     <div class="actions"><button class="btn" id="gCopy" type="button">Copiar</button><a class="btn wa" id="gWa" href="https://wa.me/?text=${encodeURIComponent(resumoArea(A,B,P))}" target="_blank" rel="noopener">Abrir no WhatsApp</a><button class="btn ghost" id="gResX" type="button">Fechar</button></div></div>`;
-  const kpiPz=kpi("Concluídas no prazo",A.pct==null?"—":A.pct,A.pct==null?"":"%",B.pct!=null&&A.pct!=null?"mês anterior "+B.pct+"%":"das OS com prazo",A.pct!=null&&A.pct>=90?"good":A.pct!=null&&A.pct<75?"alert":"");
+  const kpiPz=kpi(A.ar==="log"?"Saíram no horário":"Concluídas no prazo",A.pct==null?"—":A.pct,A.pct==null?"":"%",B.pct!=null&&A.pct!=null?"mês anterior "+B.pct+"%":"das OS com prazo",A.pct!=null&&A.pct>=90?"good":A.pct!=null&&A.pct<75?"alert":"");
   if(ar==="log")h+=`<div class="kpis">
     ${kpi("Custo no mês",fBRL(A.total),"",deltaTxt(A.total,B.total),"money-k")}
     ${kpi("OS concluídas",String(A.n),"",(A.trasl?A.trasl+" traslado"+(A.trasl>1?"s":"")+" de funcionários · ":"")+deltaTxt(A.n,B.n).toLowerCase())}
@@ -2903,7 +2939,7 @@ function renderGestao(){
   h+=`<section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Pontos de atenção</h2><span class="sub">${esc(mesNome(k))}</span></div><div class="card-b">${P.length?`<ul class="pts">${P.slice(0,8).map(p=>`<li class="pt${p.n}"><span class="pt-i">${p.n>=3?"Crítico":p.n===2?"Atenção":p.n===1?"Observar":"Dados"}</span>${esc(p.t)}</li>`).join("")}</ul>`:`<p style="color:var(--mute);margin:0">Nenhum ponto de atenção neste mês.</p>`}</div></section>
   <section class="card" style="margin-bottom:16px"><div class="card-h"><h2>Custo mensal</h2><span class="sub">últimos 12 meses${ar==="frota"?"":" · OS concluídas"}</span></div><div class="card-b">
     <div class="chart" id="chG"></div>
-    <details class="tbl-d"><summary class="btn sm">Ver em tabela</summary><div class="tbl-wrap"><table class="t"><thead><tr><th>Mês</th><th class="r">Custo</th><th class="r">OS</th><th class="r">No prazo</th></tr></thead><tbody>
+    <details class="tbl-d"><summary class="btn sm">Ver em tabela</summary><div class="tbl-wrap"><table class="t"><thead><tr><th>Mês</th><th class="r">Custo</th><th class="r">OS</th><th class="r">${A.ar==="log"?"Saíram no horário":"No prazo"}</th></tr></thead><tbody>
       ${serie.slice().reverse().map(m=>`<tr><td>${esc(mesNome(m.k))}</td><td class="r money"><b>${fBRL(m.total)}</b></td><td class="r num">${m.n}</td><td class="r num">${pctTxt(m.pct)}</td></tr>`).join("")}</tbody></table></div></details></div></section>`;
   if(ar==="frota"){
     const vs=Object.keys(A.porV).concat(Object.keys(B.porV).filter(id=>!A.porV[id]));
@@ -3045,7 +3081,8 @@ const tituloMs=x=>x.k==="log"?paradasDe(x.o).map(nomeP).join(" → "):tituloM(x.
 const subMs=x=>x.k==="log"?(itensResumo(x.o)+(x.o.veiculoId?" · "+nomeVeic(x.o.veiculoId):"")):ondeM(x.o);
 function estadoMs(x){const o=x.o;
   if(o.status==="agendada"&&!cienteEm(o))return {cls:"new",txt:"Nova · confirme que está ciente",acao:"Ver e confirmar"};
-  if(x.k==="log"){if(o.status==="em_rota"){const ps=paradasDe(o),nx=proximaParada(o);return {cls:"run",txt:"Em andamento",acao:nx>=0?"Continuar · parada "+(nx+1)+" de "+ps.length:"Continuar · entrega final"}}
+  if(x.k==="log"){if(voltando(o))return {cls:"run",txt:"Entregue · volte para "+baseNome(baseDe(o)),acao:o.rotaId?"Ver a rota":"Registrar chegada na base"};
+    if(o.status==="em_rota"){const ps=paradasDe(o),nx=proximaParada(o);return {cls:"run",txt:"Em andamento",acao:nx>=0?"Continuar · parada "+(nx+1)+" de "+ps.length:"Continuar · entrega final"}}
     return {cls:"wait",txt:o.status==="registrada"?"Aguardando confirmação":"Programada",acao:"Começar missão"}}
   if(o.status==="em_execucao")return {cls:"run",txt:"Em andamento",acao:"Continuar serviço"};
   if(o.status==="aguardando")return {cls:"hold",txt:"Pausado · "+String(o.aguardandoMotivo||"aguardando").split(":")[0],acao:"Ver serviço"};
@@ -3126,7 +3163,10 @@ function renderMissao(){
   const key=x.k+x.o.id+x.o.status+(x.k==="log"?proximaParada(x.o):"");
   if(!(S.ms&&S.ms.fim&&S.ms.id===x.o.id)&&(!S.ms||S.ms.key!==key)){S.ms={key,fotos:[],sig:[],ck:null,busy:false,modo:null}}
   const A=S.ms;const o=x.o;
-  if(A.fim){app.innerHTML=`<div class="ms-fim">${ic("ok","ic xl")}<h1>${esc(A.fim)}</h1><p>Obrigado! A coordenação já está vendo.</p>${A.rota&&byId(S.rotas||[],A.rota)?`<a class="ms-cta" href="#rota/${esc(A.rota)}">Voltar para a rota</a>`:`<a class="ms-cta" href="#missoes">Voltar para minhas missões</a>`}</div>`;return}
+  if(A.fim){const rt=A.rota&&byId(S.rotas||[],A.rota);
+    app.innerHTML=`<div class="ms-fim">${ic("ok","ic xl")}<h1>${esc(A.fim)}</h1>${A.volta?`<p>Agora volte para <b>${esc(baseNome(baseDe(o)))}</b>. A OS só termina quando você registrar a chegada na base${rt?", na rota":""}.</p>`:`<p>Obrigado! A coordenação já está vendo.</p>`}
+      ${rt?`<a class="ms-cta" href="#rota/${esc(A.rota)}">Voltar para a rota</a>`:A.volta?`<button class="ms-cta" id="msVB" type="button">${ic("van","ic lg")}Registrar chegada na base</button><a class="ms-cta sec" href="#missoes" style="margin-top:10px">Voltar para minhas missões</a>`:`<a class="ms-cta" href="#missoes">Voltar para minhas missões</a>`}</div>`;
+    const vb=$("#msVB");if(vb)vb.onclick=()=>{S.ms=null;renderMissao()};return}
   if(o.status==="agendada"&&!cienteEm(o)){renderCiencia(x);return}
   let h="";
   if(x.k==="log"){
@@ -3135,7 +3175,7 @@ function renderMissao(){
     const tr=ehTraslado(o);const itens=(o.itens||[]).length?`<div class="ms-box"><span class="ms-lbl">${tr?"Passageiros · "+paxDe(o):"O que levar"}</span><ul class="ms-itens">${o.itens.map(i=>`<li><b class="num">${esc(i.qtd===""||i.qtd==null?"":String(i.qtd).replace(".",","))} ${esc(i.un||"")}</b> ${esc(i.desc||"")}</li>`).join("")}</ul></div>`:"";
     const obs=o.observacoes?`<div class="ms-box warn"><span class="ms-lbl">Atenção</span>${esc(o.observacoes)}</div>`:"";
     if((o.status==="agendada"||o.status==="registrada")&&o.status==="agendada"&&!A.legado){const mr=minhaRota();
-      horaAuto(A,o.agendadoPara);
+      horaAuto(A,o.agendadoPara,pzPassou(o));if(isFinite(prazo(o)))A._pz=o;
       h+=`<h1 class="ms-h">${mr?"Incluir na rota "+esc(codR(mr)):"Pronto para sair?"}</h1>${itens}${obs}
         ${mr?`<div class="ms-box"><span class="ms-lbl">Rota em andamento</span><b>${esc(codR(mr))} · ${esc(nomeVeic(mr.veiculoId))}</b><p style="margin:6px 0 0;color:var(--mute)">${esc(ROTA_ST[mr.status])} · ${plural(osDaRota(mr).length,"OS")} na rota</p></div>`
           :o.veiculoId?`<div class="ms-box"><span class="ms-lbl">Veículo</span><b>${esc(nomeVeic(o.veiculoId))}</b><p style="margin:6px 0 0;color:var(--mute)">Registre a saída do veículo com o checklist rápido e o km. Depois você escolhe esta e as outras OS que vão juntas.</p></div>`:""}
@@ -3150,19 +3190,26 @@ function renderMissao(){
         <div class="ms-box"><span class="ms-lbl">Confira o veículo</span>${A.ck.map((c,i)=>`<div class="ms-ck"><span>${esc(c.nome)}</span><span class="ms-ckb"><button type="button" class="${c.ok===true?"on ok":""}" data-mck="${i}" data-v="1">OK</button><button type="button" class="${c.ok===false?"on pb":""}" data-mck="${i}" data-v="0">Problema</button></span>${c.ok===false?`<input type="text" class="ms-in" id="mck-${i}" placeholder="O que está com problema?" value="${esc(c.obs||"")}">`:""}</div>`).join("")}</div>
         ${o.veiculoId?`<div class="ms-box"><label class="ms-lbl" for="msKm">Quilometragem no painel agora</label><input class="ms-in big num" id="msKm" type="number" inputmode="numeric" value="${esc(A.km||"")}" placeholder="Ex.: 124300"></div>`:""}
         ${horaHTML(A,"Quando você saiu?")}<p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button">${ic("van","ic lg")}Saí para a missão</button>`}`;
+    } else if(voltando(o)){const r=o.rotaId?byId(S.rotas||[],o.rotaId):null;const b=baseNome(baseDe(o));
+      if(r&&rotaAberta(r)){h+=`<h1 class="ms-h">${tr?"Desembarque feito":"Entrega feita"}! Volte para ${esc(b)}</h1><div class="ms-box"><p style="margin:0">A chegada na base é registrada na rota <b>${esc(codR(r))}</b>, com o km do painel. A OS termina nessa hora.</p></div><a class="ms-cta" href="#rota/${esc(r.id)}">${ic("van","ic lg")}Ir para a rota</a>`}
+      else{if(A.km==null)A.km="";horaAuto(A,o.entregueEm||ultimoFeito(o));const M=soloRota(o)?mediaServ(o):null;
+        h+=`<h1 class="ms-h">Voltar para ${esc(b)}</h1><p class="ms-sub">${tr?"Desembarque feito":"Entrega feita"} às ${esc(fHora(o.entregueEm||ultimoFeito(o)))}. Quando chegar na base, registre aqui. A OS termina nessa hora.</p>
+          ${o.veiculoId?`<div class="ms-box"><label class="ms-lbl" for="msKm">Km no painel na chegada à base</label><input class="ms-in big num" id="msKm" type="number" inputmode="numeric" value="${esc(A.km||"")}" placeholder="${o.kmInicial!=null?"Saída: "+o.kmInicial:"Ex.: 124360"}"></div>`:""}
+          ${M&&M.media?`<p class="ms-sub">${ic("clock","ic sm")} Tempo médio deste serviço: ${fDur(M.media)}.</p>`:""}
+          ${horaHTML(A,"Quando chegou na base?",o.entregueEm||ultimoFeito(o))}<p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button"${A.busy?" disabled":""}>${ic("ok","ic lg")}Cheguei na base</button>`}
     } else {
       const nx=proximaParada(o);const fin=nx<0;const idx=fin?ps.length-1:nx;const p=ps[idx];const ent=p.tipo==="entrega";
-      if(tr&&A.pax==null)A.pax=String(paxDe(o)||"");horaAuto(A,ultimoFeito(o)||o.agendadoPara,fin&&pzPassou(o));if(fin&&isFinite(prazo(o)))A._pz=o;
+      if(tr&&A.pax==null)A.pax=String(paxDe(o)||"");horaAuto(A,ultimoFeito(o)||o.agendadoPara);const vb=voltaBase(o);
       h+=`<h1 class="ms-h">${pLbl(o,p.tipo)} em ${esc(nomeP(p))}</h1><p class="ms-sub">Parada ${idx+1} de ${ps.length}${p.detalhe&&p.localId?" · "+esc(p.detalhe):""}${(byId(S.locais,p.localId)||{}).endereco?"<br>"+esc(byId(S.locais,p.localId).endereco):""}</p>
         ${rotaBtns(p.localId,p.localId?"":p.detalhe)}${(byId(S.locais,p.localId)||{}).contato?`<div class="ms-box"><span class="ms-lbl">Contato no local</span>${esc(byId(S.locais,p.localId).contato)}</div>`:""}${idx===0||ent?itens:""}${obs}
         ${tr?`<div class="ms-box"><label class="ms-lbl" for="msPax">${ent?"Quantas pessoas desceram aqui?":"Quantas pessoas embarcaram?"}</label><div class="ms-hrs"><button type="button" data-pax="-1" aria-label="Menos uma pessoa">−</button><input class="ms-in big num" id="msPax" type="number" inputmode="numeric" min="0" value="${esc(A.pax||"")}"><button type="button" data-pax="1" aria-label="Mais uma pessoa">+</button></div><span class="ms-sub">Traslado de pessoas: não precisa de foto nem de assinatura.</span></div>`:`${fotoCtl("p",A.fotos,!!(A.obs||"").trim(),(ent?"Foto do material entregue":"Foto da mercadoria retirada")+((A.obs||"").trim()?"":" (opcional: só se houver problema)"))}
         <div class="ms-box"><label class="ms-lbl" for="msRec">${ent?"Nome de quem recebeu":"Nome de quem entregou a mercadoria"}${ent&&fin?"":" <i>opcional</i>"}</label><input class="ms-in" id="msRec" type="text" value="${esc(A.rec||"")}" autocomplete="off"></div>
         ${ent?`<div class="ms-box"><span class="ms-lbl">Assinatura de quem recebeu ${fin?"<i>é o comprovante da entrega</i>":"<i>opcional</i>"}</span><div class="sig" id="sigBox"><canvas id="sigC" aria-label="Área de assinatura"></canvas><span class="sig-ph" id="sigPh"${(A.sig||[]).length?" hidden":""}>Peça para assinar aqui com o dedo</span></div><button type="button" class="btn sm ghost" id="sigClr">Limpar assinatura</button></div>`:""}`}
-        ${o.rotaId?`<p class="ms-sub">${ic("van","ic sm")} Rota ${esc(codR(byId(S.rotas||[],o.rotaId)||{}))}: o km é registrado no fim da rota.</p>`:""}
-        ${fin&&o.veiculoId&&!o.rotaId?`<div class="ms-box"><label class="ms-lbl" for="msKm">Quilometragem no painel na chegada</label><input class="ms-in big num" id="msKm" type="number" inputmode="numeric" value="${esc(A.km||"")}" placeholder="${o.kmInicial!=null?"Saída: "+o.kmInicial:"Ex.: 124360"}"></div>`:""}
+        ${fin&&vb?`<div class="ms-box ms-volta">${ic("van","ic")}<span>Depois de confirmar, volte para <b>${esc(baseNome(baseDe(o)))}</b>. A OS só termina quando você registrar a chegada na base${o.rotaId?" (na rota, com o km do painel)":""}.</span></div>`:o.rotaId?`<p class="ms-sub">${ic("van","ic sm")} Rota ${esc(codR(byId(S.rotas||[],o.rotaId)||{}))}: o km é registrado na volta à base.</p>`:""}
+        ${fin&&o.veiculoId&&!o.rotaId&&!vb?`<div class="ms-box"><label class="ms-lbl" for="msKm">Quilometragem no painel na chegada</label><input class="ms-in big num" id="msKm" type="number" inputmode="numeric" value="${esc(A.km||"")}" placeholder="${o.kmInicial!=null?"Saída: "+o.kmInicial:"Ex.: 124360"}"></div>`:""}
         <details class="ms-more"${A.obs?" open":""}><summary>${tr?"Teve algum problema? (atraso, alguém faltou)":"Teve algum problema? (avaria, falta)"}</summary><textarea class="ms-in" id="msObs" rows="3" placeholder="${tr?"Ex.: um funcionário não estava no ponto":"Ex.: faltou 1 caixa; embalagem avariada"}">${esc(A.obs||"")}</textarea>${tr?"":`<p class="ms-sub">Com problema relatado, a foto passa a ser obrigatória.</p>`}</details>
-        ${horaHTML(A,fin?"Quando terminou?":tr?(ent?"Quando desembarcaram?":"Quando embarcaram?"):ent?"Quando entregou?":"Quando retirou?",ultimoFeito(o))}
-        <p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button"${A.busy?" disabled":""}>${ic("ok","ic lg")}${fin?(tr?"Finalizar traslado":"Finalizar missão"):tr?(ent?"Confirmar desembarque":"Confirmar embarque"):ent?"Confirmar entrega":"Confirmar retirada"}</button>`;
+        ${horaHTML(A,fin&&!vb?"Quando terminou?":tr?(ent?"Quando desembarcaram?":"Quando embarcaram?"):ent?"Quando entregou?":"Quando retirou?",ultimoFeito(o))}
+        <p class="err" id="msErr" role="alert"></p><button class="ms-cta" id="msOk" type="button"${A.busy?" disabled":""}>${ic("ok","ic lg")}${fin&&!vb?(tr?"Finalizar traslado":"Finalizar missão"):tr?(ent?"Confirmar desembarque":"Confirmar embarque"):ent?"Confirmar entrega":"Confirmar retirada"}</button>`;
     }
   } else {
     const eq=o.equipamentoId?byId(S.equipamentos,o.equipamentoId):null;
@@ -3239,6 +3286,12 @@ function bindMissao(x){
         await saveOS(o.id,{status:"em_rota",iniciadoEm:now,kmInicial:km,checklist:{itens:A.ck.map(c=>({nome:c.nome,ok:c.ok,obs:(c.obs||"").trim()})),problemas:probs,em:now,por:S.uid||null},atualizadoEm:agora,historico:hist(o,"em_rota","Saída do veículo (app de campo)"+qn+(probs?" · checklist com "+probs+" problema"+(probs>1?"s":""):""))});
         S.ms=null;toast("Boa viagem! Siga para a primeira parada.");renderMissao();return;
       }
+      if(x.k==="log"&&voltando(o)){let km=null;
+        if(o.veiculoId){const t=String(A.km||"").trim();if(!t){err.textContent="Informe o km do painel na chegada à base.";return}km=Math.round(Number(t));if(!isFinite(km)||km<0){err.textContent="Km inválido.";return}
+          if(o.kmInicial!=null&&km<o.kmInicial){err.textContent="O km da chegada ("+fKm(km)+") não pode ser menor que o da saída ("+fKm(o.kmInicial)+").";return}
+          if(o.kmInicial!=null&&km-o.kmInicial>1500&&!A.kmOk){A.kmOk=true;err.textContent="Deu "+fKm(km-o.kmInicial)+" rodados. Confira o painel. Se estiver certo, toque de novo.";return}}
+        trava();await saveOS(o.id,{status:"concluida",concluidoEm:now,retornoEm:now,kmFinal:km,atualizadoEm:agora,historico:hist(o,"concluida","Voltou à base ("+baseNome(baseDe(o))+", app de campo)"+qn)});
+        S.ms={key:"fim",id:o.id,fim:"Missão concluída",rota:null,fotos:[],sig:[]};renderMissao();return}
       if(x.k==="log"){
         const ps=JSON.parse(JSON.stringify(paradasDe(o)));const nx=proximaParada(o);const fin=nx<0;const idx=fin?ps.length-1:nx;const p=ps[idx];const ent=p.tipo==="entrega";
         const tr=ehTraslado(o);const rec=tr?"":(A.rec||"").trim();const temSig=!tr&&(A.sig||[]).some(st=>st.length>1);
@@ -3248,12 +3301,14 @@ function bindMissao(x){
         if(fin&&ent&&!temSig&&!A.fotos.length){err.textContent="Peça a assinatura de quem recebeu. Se não for possível, tire uma foto da entrega.";return}
         if(fin&&ent&&!rec){err.textContent="Escreva o nome de quem recebeu.";return}
         if(temSig&&!rec){err.textContent="Escreva o nome de quem assinou.";return}}
-        let km=null;if(fin&&o.veiculoId&&!o.rotaId){const t=String(A.km||"").trim();if(!t){err.textContent="Informe a quilometragem do painel na chegada.";return}km=Math.round(Number(t));
+        let km=null;if(fin&&o.veiculoId&&!o.rotaId&&!voltaBase(o)){const t=String(A.km||"").trim();if(!t){err.textContent="Informe a quilometragem do painel na chegada.";return}km=Math.round(Number(t));
           if(!isFinite(km)||km<0){err.textContent="Quilometragem inválida.";return}if(o.kmInicial!=null&&km<o.kmInicial){err.textContent="A chegada ("+fKm(km)+") não pode ser menor que a saída ("+fKm(o.kmInicial)+").";return}
           if(o.kmInicial!=null&&km-o.kmInicial>1500&&!A.kmOk){A.kmOk=true;err.textContent="Deu "+fKm(km-o.kmInicial)+" rodados. Confira o painel. Se estiver certo, toque de novo.";return}}
         trava();let assinatura=null;try{assinatura=await sigUpload(A)}catch(e){solta();err.textContent="Não foi possível enviar a assinatura. Tente de novo.";return}
         Object.assign(p,{status:"feita",feitoEm:now,fotos:tr?[]:A.fotos,assinatura,pessoa:rec,obs:(A.obs||"").trim()},pax!=null?{pessoas:pax}:{});
         const pn=pax!=null?" · "+plural(pax,"pessoa","pessoas"):"";
+        if(fin&&voltaBase(o)){await saveOS(o.id,{paradas:ps,entregueEm:now,conclusao:{fotos:tr?[]:A.fotos,assinatura,recebidoPor:rec||null,obs:(A.obs||"").trim(),pessoas:pax},atualizadoEm:agora,historico:hist(o,"em_rota",(tr?"Desembarque confirmado"+pn:"Entrega confirmada")+" · voltando à base (app de campo)"+qn)});
+          S.ms={key:"fim",id:o.id,fim:tr?"Desembarque registrado":"Entrega registrada",volta:true,rota:o.rotaId&&rotaAberta(byId(S.rotas||[],o.rotaId))?o.rotaId:null,fotos:[],sig:[]};renderMissao();return}
         if(fin){await saveOS(o.id,{paradas:ps,status:"concluida",concluidoEm:now,kmFinal:km,conclusao:{fotos:tr?[]:A.fotos,assinatura,recebidoPor:rec||null,obs:(A.obs||"").trim(),pessoas:pax},atualizadoEm:agora,historico:hist(o,"concluida",(tr?"Desembarque confirmado, traslado concluído"+pn:"Entrega confirmada")+" (app de campo)"+qn)});
           S.ms={key:"fim",id:o.id,fim:tr?"Traslado concluído":"Missão concluída",rota:o.rotaId||null,fotos:[],sig:[]};renderMissao();return}
         await saveOS(o.id,{paradas:ps,atualizadoEm:agora,historico:hist(o,"em_rota",pLbl(o,p.tipo)+" em "+nomeP(p)+" registrado"+(tr?"":"a")+pn+" (parada "+(idx+1)+", app de campo)"+qn)});
@@ -3293,7 +3348,7 @@ function horaAuto(Q,ref,prazoPassou){if(Q.qInit)return;Q.qInit=true;if(prazoPass
 function horaHTML(Q,txt,min){
   if(!Q.qOn)return `<button type="button" class="ms-link qd-l" id="qdOn">${ic("clock","ic sm")} Aconteceu em outro horário?</button>`;
   const pz=Q._pz&&isFinite(prazo(Q._pz))?Q._pz:null;
-  return `<div class="ms-box qd${Q.qAuto?" auto":""}">${Q.qAuto?(Q.qPz&&pz?`<p class="qd-av"><b>O prazo desta OS já passou</b> (${esc(fDH(new Date(prazo(pz)).toISOString()))}). Se você terminou antes e só está registrando agora, coloque o dia e a hora em que terminou, para ela não ficar como atrasada.</p>`:`<p class="qd-av"><b>Está registrando depois?</b> Troque para o dia e a hora em que isso aconteceu. Se foi agora mesmo, deixe como está.</p>`):""}<label class="ms-lbl" for="qdIn">${esc(txt||"Quando aconteceu?")}</label>
+  return `<div class="ms-box qd${Q.qAuto?" auto":""}">${Q.qAuto?(Q.qPz&&pz?`<p class="qd-av"><b>O horário de saída já passou</b> (marcado para ${esc(fDH(new Date(prazo(pz)).toISOString()))}). Se você saiu antes e só está registrando agora, coloque o dia e a hora em que saiu, para não ficar como atrasada.</p>`:`<p class="qd-av"><b>Está registrando depois?</b> Troque para o dia e a hora em que isso aconteceu. Se foi agora mesmo, deixe como está.</p>`):""}<label class="ms-lbl" for="qdIn">${esc(txt||"Quando aconteceu?")}</label>
     <input class="ms-in big num" id="qdIn" type="datetime-local" value="${esc(Q.quando||"")}" max="${esc(toInput(nowISO()))}" min="${esc(toInput(min&&Date.now()-T(min)<7*DIA_MS?min:new Date(Date.now()-7*DIA_MS).toISOString()))}">
     ${pz?`<p class="qd-pz" id="qdPz">${pzTxt(pz,Q.quando?new Date(Q.quando).toISOString():nowISO())}</p>`:""}
     <span class="hint">Use quando o celular ficou sem bateria ou sem internet. Pode ser até 7 dias atrás${min?", depois de "+esc(fDH(min)):""}. Fica marcado no histórico como horário informado.</span>
@@ -4435,7 +4490,7 @@ function loadDemo(){
   S.solicitantes=[{id:"c1",nome:"Laura Souza",telefone:"(11) 99999-8888",setorId:"s4",ativo:true},{id:"c2",nome:"Marcos Lima",telefone:"(11) 98888-7777",setorId:"s1",ativo:true}];
   S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
     modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];
-  loadDemoMan(); loadDemoFrota(); loadDemoEmg(); loadDemoEfic(); loadDemoPainel(); loadDemoRotas();
+  loadDemoMan(); loadDemoFrota(); loadDemoEmg(); loadDemoEfic(); loadDemoPainel(); loadDemoRotas(); loadDemoVolta();
   S.relatorios=[{id:pm.getFullYear()+"-"+pad(pm.getMonth()+1),geradoEm:new Date(now-12*86400000).toISOString(),resumo:"Exemplo de fechamento. O volume cresceu puxado por Eventos e Bar, e a rota CD → Mirage concentrou a maior parte das transferências. O tempo de resposta caiu, mas um terço das OS concluídas passou da previsão de término, quase todas em retiradas de fornecedor.",destaques:["Rever a previsão de término das retiradas em fornecedor, que costumam levar mais de 2 h.","Concentrar as entregas CD → Mirage em uma rota fixa pela manhã."]}];
 }
 
@@ -4708,7 +4763,7 @@ function renderEficiencia(){
   let h=`<div class="head"><div><h1>Controle de <em>Eficiência</em></h1><p>Consumo de cada veículo, tempo e número de missões de cada funcionário e quanto custou cada serviço.</p></div>
     <div class="act">${isFrota()?`<a class="btn" href="#f-comb">Lançar combustível</a>`:""}${adm?`<button class="btn" type="button" id="efCsv">Exportar CSV</button>`:""}</div></div>${banner()}${aviso24()}
     <div class="filters"><div class="field"><label for="efPer">Período</label><select id="efPer">${optsS(PER_EF,per)}</select></div></div>
-    <div class="ef-tabs" role="tablist">${[["veiculos","Veículos"],["pessoas","Funcionários"]].concat(adm?[["missoes","Custo por missão"],["salarios","Salários"]]:[]).map(([k,l])=>`<button type="button" role="tab" aria-selected="${tab===k}" data-eft="${k}">${l}</button>`).join("")}</div>`;
+    <div class="ef-tabs" role="tablist">${[["veiculos","Veículos"],["pessoas","Funcionários"],["tempos","Tempo por serviço"]].concat(adm?[["missoes","Custo por missão"],["salarios","Salários"]]:[]).map(([k,l])=>`<button type="button" role="tab" aria-selected="${tab===k}" data-eft="${k}">${l}</button>`).join("")}</div>`;
   if(tab==="veiculos"){const V=efVeiculos(a,b);const comPct=V.filter(x=>x.pct!=null).sort((x,y)=>y.pct-x.pct);const comR=V.filter(x=>x.rKm!=null).sort((x,y)=>x.rKm-y.rKm);
     const melhor=comPct[0],pior=comPct.length>1?comPct[comPct.length-1]:null;
     const gasto=V.reduce((s,x)=>s+x.valor,0),lit=V.reduce((s,x)=>s+x.litros,0),km=V.reduce((s,x)=>s+x.km,0);
@@ -4724,6 +4779,21 @@ function renderEficiencia(){
       <section class="card"><div class="card-h"><h2>Funcionários</h2><span class="sub">missões concluídas no período (logística e manutenção interna)</span></div><div class="card-b tbl-wrap"><table class="t"><thead><tr><th>#</th><th>Funcionário</th><th>Função</th><th class="r">Missões</th><th class="r">Logística</th><th class="r">Manutenção</th><th class="r">Horas</th><th class="r">Média por missão</th><th>Missão mais longa</th><th class="r">Km</th>${adm?`<th class="r">Custo/hora</th><th class="r">Custo no período</th>`:""}</tr></thead><tbody>
       ${porN.map((x,i)=>`<tr><td class="rk">${x.n?i+1+"º":""}</td><td><a class="lnk" href="#funcionario/${esc(x.p.id)}">${esc(x.p.nome)}</a></td><td>${esc(x.p.funcao||"—")}</td><td class="r num"><b>${x.n}</b></td><td class="r num">${x.nLog||"—"}</td><td class="r num">${x.nMan||"—"}</td><td class="r num">${fHrs(x.horas)}</td><td class="r num">${fHrs(x.media)}</td><td>${x.maior&&isFinite(x.maior.h)?`<button type="button" class="lnk" ${x.maior.k==="log"?`data-efo="${esc(x.maior.o.id)}"`:`data-efm="${esc(x.maior.o.id)}"`}>${esc(x.maior.k==="log"?codigo(x.maior.o):codM(x.maior.o))}</button> ${esc(fHrs(x.maior.h))}`:"—"}</td><td class="r num">${x.km?fNum(x.km):"—"}</td>${adm?`<td class="r num">${x.ch?fBRL(x.ch):"—"}${x.temSal?"":` <small title="Sem salário cadastrado: usa o custo por hora do cadastro ou o padrão">padrão</small>`}</td><td class="r num">${x.horas&&x.ch?fBRL(x.horas*x.ch):"—"}</td>`:""}</tr>`).join("")}</tbody></table>
       <p class="hint" style="margin:10px 0 0">Tempo da missão: do início ao fim registrados no celular. Na manutenção, as horas de trabalho lançadas na OS.</p></div></section>`}
+  if(tab==="tempos"){const M=amostrasServ();
+    const linhas=[...M.entries()].map(([k,L])=>{const ds=L.map(x=>x.d);return {k,o:L[0].o,n:L.length,m:L.length>=MIN_AMOSTRAS?mediaDe(L.slice(0,15)):null,min:Math.min(...ds),max:Math.max(...ds),ult:L[0]}}).sort((x,y)=>y.n-x.n||(y.m||0)-(x.m||0));
+    const and=S.os.filter(o=>o.status==="em_rota"&&acimaMedia(o));const per=S.os.filter(o=>o.status==="concluida"&&T(o.concluidoEm)>=a&&T(o.concluidoEm)<b&&acimaMedia(o));
+    const linhaAc=o=>{const x=acimaMedia(o);return `<tr><td><button type="button" class="lnk num" data-efo="${esc(o.id)}">${esc(codigo(o))}</button></td><td>${esc(nomeServ(o))}</td><td>${esc(nomeEquipe(o.equipeIds))}</td><td class="r num">${fDur(x.d)}</td><td class="r num">${fDur(x.media)}</td><td class="r num"><span class="late">+${fDur(x.mais)}</span></td></tr>`};
+    const thAc=`<thead><tr><th>OS</th><th>Serviço</th><th>Equipe</th><th class="r">Tempo</th><th class="r">Média</th><th class="r">Acima</th></tr></thead>`;
+    h+=`<div class="kpis">${kpi("Serviços com média",linhas.filter(x=>x.m!=null).length,"",plural(linhas.length,"serviço diferente","serviços diferentes")+" já feitos")}${kpi("Em andamento acima da média",and.length,"",and.length?"veja abaixo":"nenhuma agora",and.length?"alert":"good")}${kpi("Concluídas acima da média",per.length,"","no período",per.length?"alert":"")}</div>
+      ${and.length?`<section class="card"><div class="card-h"><h2>Em andamento acima do tempo médio</h2><span class="sub">agora</span></div><div class="card-b tbl-wrap"><table class="t">${thAc}<tbody>${and.map(linhaAc).join("")}</tbody></table></div></section>`:""}
+      <section class="card"><div class="card-h"><h2>Tempo médio de cada serviço</h2><span class="sub">da saída da base até a volta à base</span></div><div class="card-b tbl-wrap">${linhas.length?`<table class="t"><thead><tr><th>Serviço</th><th class="r">Vezes</th><th class="r">Tempo médio</th><th class="r">Mais rápido</th><th class="r">Mais lento</th><th class="r">Última vez</th></tr></thead><tbody>
+        ${linhas.map(x=>`<tr><td>${esc(nomeServ(x.o))}</td><td class="r num">${x.n}</td><td class="r num"><b>${x.m!=null?fDur(x.m):"—"}</b>${x.m==null?`<br><small style="color:var(--faint)">faltam ${MIN_AMOSTRAS-x.n}</small>`:""}</td><td class="r num">${fDur(x.min)}</td><td class="r num">${fDur(x.max)}</td><td class="r num">${esc(fData(x.ult.o.retornoEm))}</td></tr>`).join("")}</tbody></table>`:`<p class="fr-none">Ainda não há serviços concluídos com a volta à base. A partir de agora, cada OS com veículo termina quando o motorista volta para a base, e o tempo de cada serviço começa a ser medido.</p>`}</div></section>
+      ${per.length?`<section class="card"><div class="card-h"><h2>Concluídas acima do tempo médio</h2><span class="sub">no período</span></div><div class="card-b tbl-wrap"><table class="t">${thAc}<tbody>${per.sort((x,y)=>acimaMedia(y).mais-acimaMedia(x).mais).map(linhaAc).join("")}</tbody></table></div></section>`:""}
+      <section class="card"><div class="card-h"><h2>Como funciona</h2></div><div class="card-b ef-como">
+        <p><b>Serviço igual:</b> mesmo tipo (material ou traslado), mesma base e as mesmas paradas, na mesma ordem. Ex.: Monte Carlo → Roldão Osasco → Mirage → Monte Carlo.</p>
+        <p><b>Tempo da missão:</b> da saída com o veículo até a volta à base. A média usa os ${15} serviços iguais mais recentes; com 6 ou mais, o mais rápido e o mais lento ficam de fora.</p>
+        <p><b>Aviso:</b> a missão fica "Acima do tempo médio" quando passa 15% da média (no mínimo 10 minutos). A média aparece depois de ${MIN_AMOSTRAS} serviços iguais. OS que foram juntas numa mesma rota não entram na média.</p>
+        <p><b>Atraso:</b> conta só na saída. A OS fica atrasada quando a equipe sai depois do horário marcado (com a tolerância das Regras).</p></div></section>`}
   if(tab==="missoes"&&adm){const L=S.os.filter(o=>o.status==="concluida"&&T(o.concluidoEm)>=a&&T(o.concluidoEm)<b).sort((x,y)=>T(y.concluidoEm)-T(x.concluidoEm));const C=L.map(custoMissao);const sum=k=>C.reduce((s,c)=>s+(c[k]||0),0);const km=sum("km");
     h+=`<div class="kpis">${kpi("Custo total",fBRL(sum("total")),"",plural(L.length,"missão concluída","missões concluídas"),"money-k")}${kpi("Custo médio por missão",L.length?fBRL(sum("total")/L.length):"—","","","money-k")}${kpi("Custo por km",km?fBRL(sum("total")/km):"—","",fNum(km)+" km rodados","money-k")}${kpi("Equipe",fBRL(sum("eq")),"",sum("total")?fNum(sum("eq")/sum("total")*100)+"% do custo":"","money-k")}</div>
       <div class="ef-comp">${[["Equipe (salário por hora)",sum("eq")],["Combustível",sum("comb")],["Óleo e filtro",sum("oleo")],["Pneus",sum("pneu")],["Veículo (custo por km do cadastro)",C.filter(c=>!c.detalhado).reduce((s,c)=>s+c.veic,0)],["Extras (pedágio, estacionamento…)",sum("ex")]].filter(x=>x[1]>0).map(([l,v])=>`<div><span>${esc(l)}</span><b class="num">${fBRL(v)}</b></div>`).join("")}</div>
@@ -5071,6 +5141,46 @@ function loadDemoPainel(){
    Várias OS no mesmo percurso dividem um custo só.
    ===================================================================== */
 const CK_SAIDA=["Pneus","Combustível","Limpeza","Luzes e setas","Avarias (lataria e vidros)","Documentos do veículo"];
+/* =====================================================================
+   v57 · A OS COM VEÍCULO TERMINA NA VOLTA À BASE
+   A base é o local onde o motorista pega e devolve o carro (quem é do
+   Monte Carlo volta ao Monte Carlo; quem é do Mirage volta ao Mirage).
+   Na última entrega a OS fica "Voltando à base"; ela só é concluída
+   quando o motorista registra a chegada na base, com o km e a hora.
+   Assim o tempo e o km da volta entram no custo da missão.
+   ===================================================================== */
+const temVolta=()=>S.demo||!S.os.length||("entregueEm" in S.os[0]);           // script 31 rodado
+const voltaBase=o=>!!o&&!!(o.veiculoId||o.rotaId)&&temVolta();                   // OS que só fecha na volta
+const entregue=o=>{if(!o)return false;if(o.entregueEm)return true;const ps=paradasDe(o);return o.status==="em_rota"&&ps.length>0&&ps[ps.length-1].status==="feita"};
+const voltando=o=>!!o&&o.status==="em_rota"&&voltaBase(o)&&entregue(o);
+const stTxt=o=>voltando(o)?"Voltando à base":(ST[o.status]||o.status);
+function baseDePessoa(id){const p=byId(S.equipe,id);return p&&p.baseLocalId?p.baseLocalId:""}
+function baseDe(o){const r=o&&o.rotaId?byId(S.rotas||[],o.rotaId):null;if(r&&r.baseLocalId)return r.baseLocalId;for(const id of (o&&o.equipeIds)||[]){const b=baseDePessoa(id);if(b)return b}return ""}
+const baseNome=id=>id&&byId(S.locais,id)?nomeLocal(id):"a base";
+// ---------- tempo médio dos serviços iguais ----------
+// Serviço igual = mesmo tipo (traslado ou material), mesma base e mesmas paradas, na mesma ordem.
+// Entram na média só as OS que voltaram à base (têm retornoEm) e que foram sozinhas na rota.
+function chaveServ(o){const ps=paradasDe(o).map(p=>p.localId||("e:"+normTxt(p.detalhe||"")));if(!ps.length)return "";return (ehTraslado(o)?"T":"M")+"|"+baseDe(o)+"|"+ps.join(">")}
+const nomeServ=o=>(ehTraslado(o)?"Traslado: ":"")+baseNome(baseDe(o))+" → "+paradasDe(o).map(nomeP).join(" → ")+" → "+baseNome(baseDe(o));
+function duracaoOS(o){const a=T(o.iniciadoEm);if(!isFinite(a))return null;
+  if(o.status==="concluida"){const b=T(o.retornoEm||o.concluidoEm);return isFinite(b)&&b>a?b-a:null}
+  return o.status==="em_rota"?Math.max(0,Date.now()-a):null}
+const soloRota=o=>{if(!o.rotaId)return true;const r=byId(S.rotas||[],o.rotaId);return !r||osDaRota(r).filter(x=>x.status!=="cancelada").length<=1};
+let _tmC=null;
+function amostrasServ(){if(_tmC)return _tmC;_tmC=new Map();setTimeout(()=>{_tmC=null},0);
+  S.os.forEach(o=>{if(o.status!=="concluida"||!o.retornoEm||!soloRota(o))return;const k=chaveServ(o),d=duracaoOS(o);if(!k||!d)return;if(!_tmC.has(k))_tmC.set(k,[]);_tmC.get(k).push({o,d,t:T(o.retornoEm)})});
+  _tmC.forEach(L=>L.sort((a,b)=>b.t-a.t));return _tmC}
+const MIN_AMOSTRAS=3;
+function mediaDe(L){let ds=L.map(x=>x.d).sort((a,b)=>a-b);if(ds.length>=6)ds=ds.slice(1,-1);return ds.reduce((s,x)=>s+x,0)/ds.length}
+function mediaServ(o){const k=chaveServ(o);if(!k)return null;const L=(amostrasServ().get(k)||[]).filter(x=>x.o.id!==o.id&&(!o.iniciadoEm||x.t<=Math.max(T(o.retornoEm||o.concluidoEm)||Date.now(),T(o.iniciadoEm)))).slice(0,15);
+  return {n:L.length,media:L.length>=MIN_AMOSTRAS?mediaDe(L):null}}
+function acimaMedia(o){if(!o||!["em_rota","concluida"].includes(o.status)||!voltaBase(o)||!soloRota(o))return null;const d=duracaoOS(o);if(!d)return null;
+  const M=mediaServ(o);if(!M||!M.media)return null;const lim=Math.max(M.media*1.15,M.media+10*60000);return d>lim?{d,media:M.media,n:M.n,mais:d-M.media}:null}
+function tempoMissaoHTML(o){if(!voltaBase(o))return "";const d=duracaoOS(o);if(d==null)return "";const solo=soloRota(o);const M=solo?mediaServ(o):null;const ac=acimaMedia(o);
+  return `<div><dt>Tempo da missão</dt><dd>${fDur(d)}${o.status==="em_rota"?" até agora":""}${o.status==="concluida"&&!o.retornoEm?` <span style="color:var(--faint);font-weight:500">(até a entrega)</span>`:""}
+    ${!solo?`<br><small style="color:var(--faint)">Foi numa rota junto com outras OS: não entra na média.</small>`:M&&M.media?`<br><small style="color:var(--mute)">Média de ${fDur(M.media)} em ${plural(M.n,"serviço igual","serviços iguais")} (${esc(nomeServ(o))})</small>`:M?`<br><small style="color:var(--faint)">A média aparece depois de ${MIN_AMOSTRAS} serviços iguais concluídos com a volta à base (${M.n} até agora).</small>`:""}
+    ${ac?`<br><span class="late">${fDur(ac.mais)} acima da média</span>`:""}</dd></div>`}
+
 const ROTA_ST={saida:"Veículo retirado",em_rota:"Em rota",retorno:"Voltando",devolvida:"Devolvida",cancelada:"Cancelada"};
 const codR=r=>"R-"+String(r&&r.numero||0).padStart(4,"0");
 const rotaAberta=r=>r&&["saida","em_rota","retorno"].includes(r.status);
@@ -5102,7 +5212,8 @@ function rotaCardHTML(){const r=minhaRota();const id=meuEquipeId();
   const minhas=S.os.filter(o=>(o.equipeIds||[]).includes(id)&&o.status==="agendada"&&!o.rotaId);
   if(!r){if(!minhas.some(o=>o.veiculoId))return "";return `<a class="ms-rota" href="#rota/nova">${ic("van","ic lg")}<span><b>Sair com o veículo</b><small>Checklist rápido e km do painel. Depois você escolhe as OS da rota.</small></span><span class="ms-go">›</span></a>`}
   const L=osDaRota(r),feitas=L.filter(o=>o.status==="concluida").length;
-  const prox=r.status==="saida"?"Começar a rota":r.status==="em_rota"?(L.length&&feitas===L.length?"Terminar a rota":"Ver a rota · "+feitas+" de "+L.length+" feitas"):"Devolver o veículo";
+  const ent=L.filter(o=>o.status==="concluida"||entregue(o)).length;
+  const prox=r.status==="saida"?"Começar a rota":r.status==="em_rota"?(temVolta()?(L.length&&ent===L.length?"Voltar para "+baseNome(r.baseLocalId||baseDePessoa(id)):"Ver a rota · "+ent+" de "+L.length+" entregues"):(L.length&&feitas===L.length?"Terminar a rota":"Ver a rota · "+feitas+" de "+L.length+" feitas")):"Devolver o veículo";
   return `<a class="ms-rota on" href="#rota/${esc(r.id)}">${ic("van","ic lg")}<span><b>${esc(codR(r))} · ${esc(nomeVeic(r.veiculoId))}</b><small>${esc(ROTA_ST[r.status])} desde ${esc(fHora(r.saidaEm))}</small></span><span class="ms-go">${esc(prox)} ›</span></a>`}
 async function salvarRota(id,dados){
   if(S.demo){let r=id?byId(S.rotas,id):null;if(!r){r=Object.assign({id:novoId(),numero:(S.rotas||[]).reduce((m,x)=>Math.max(m,x.numero||0),0)+1,status:"saida",saidaEm:nowISO(),checklist:{},osIds:[]},dados);S.rotas.unshift(r)}else Object.assign(r,dados);
@@ -5122,18 +5233,29 @@ function renderRota(){
   if(arg==="nova"){const ab=minhaRota();if(ab){location.hash="#rota/"+ab.id;return}
     if(!S.rt||S.rt.k!=="nova"){const prox=S.os.filter(o=>(o.equipeIds||[]).includes(meu)&&o.status==="agendada"&&o.veiculoId).sort((a,b)=>(T(a.agendadoPara)||9e15)-(T(b.agendadoPara)||9e15))[0];
       const vid=(S.rtVeic&&byId(S.veiculos,S.rtVeic)?S.rtVeic:null)||(prox&&prox.veiculoId)||"";const u=vid?ultimoKm(vid):null;
-      S.rt={k:"nova",vid,ck:CK_SAIDA.map(nome=>({nome,ok:null,obs:""})),km:u?String(u.km):"",fotos:[]}}
+      const ultR=(S.rotas||[]).filter(r=>(r.equipeIds||[]).includes(meu)&&r.baseLocalId).sort((a,b)=>T(b.saidaEm)-T(a.saidaEm))[0];
+      S.rt={k:"nova",vid,ck:CK_SAIDA.map(nome=>({nome,ok:null,obs:""})),km:u?String(u.km):"",fotos:[],sel:null,base:baseDePessoa(meu)||(ultR&&ultR.baseLocalId)||""}}
     const A=S.rt;const emUso=new Set((S.rotas||[]).filter(rotaAberta).map(r=>r.veiculoId));
+    const nv=temVolta();const livN=S.os.filter(o=>(o.equipeIds||[]).includes(meu)&&o.status==="agendada"&&!o.rotaId).sort((a,b)=>(T(a.agendadoPara)||9e15)-(T(b.agendadoPara)||9e15));
+    if(nv&&A.sel==null)A.sel=livN.filter(o=>(!o.veiculoId||o.veiculoId===A.vid)&&(!o.agendadoPara||dayKey(o.agendadoPara)<=dayKey(new Date()))).map(o=>o.id);
+    if(nv&&!A.qInit){const o1=livN.filter(o=>(A.sel||[]).includes(o.id)&&isFinite(prazo(o))).sort((a,b)=>prazo(a)-prazo(b))[0];horaAuto(A,null,!!(o1&&pzPassou(o1)));if(o1)A._pz=o1}
+    const locsB=ativos(S.locais).slice().sort((x,y)=>{const ix=ORDEM_SIGLA.indexOf(x.sigla),iy=ORDEM_SIGLA.indexOf(y.sigla);return ((x.tipo==="Fornecedor")-(y.tipo==="Fornecedor"))||(ix<0?99:ix)-(iy<0?99:iy)||sortNome(x,y)});
+    const hojeK=dayKey(new Date()),livH=livN.filter(o=>!o.agendadoPara||dayKey(o.agendadoPara)<=hojeK),livD=livN.filter(o=>o.agendadoPara&&dayKey(o.agendadoPara)>hojeK);
+    const chkN=o=>`<label class="ms-chk"><input type="checkbox" data-nsel="${esc(o.id)}"${(A.sel||[]).includes(o.id)?" checked":""}><span><b>${esc(codigo(o))}</b> ${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(quandoTxt(o.agendadoPara))}${o.veiculoId&&o.veiculoId!==A.vid?" · marcada para "+esc(nomeVeic(o.veiculoId)):""}</small></span></label>`;
+    const osBox=nv?`<div class="ms-box"><span class="ms-lbl">Quais OS você vai fazer agora?</span>${livH.map(chkN).join("")}${livD.length?`<details class="ms-more"${livD.some(o=>(A.sel||[]).includes(o.id))?" open":""}><summary>OS dos próximos dias (${livD.length})</summary>${livD.map(chkN).join("")}</details>`:""}${!livN.length?`<p class="hint" style="margin:0">Nenhuma OS programada para você agora. Você pode criar uma no caminho.</p>`:!livH.length?`<p class="hint" style="margin:6px 0 0">Nenhuma OS para hoje. Se for adiantar uma, abra a lista acima.</p>`:""}</div>
+      <div class="ms-box"><label class="ms-lbl" for="rtBase">Base: de onde você sai e para onde volta</label><select class="ms-in" id="rtBase"><option value="">Escolha…</option>${locsB.map(l=>`<option value="${esc(l.id)}"${A.base===l.id?" selected":""}>${esc(l.nome)}</option>`).join("")}</select><span class="hint">A OS só termina quando você voltar para a base. A volta entra no tempo e no km da missão.</span></div>`:"";
     let h=bar+`<h1 class="ms-h">Sair com o veículo</h1><p class="ms-sub">Confira o veículo e anote o km do painel.</p>
       <div class="ms-box"><span class="ms-lbl">Veículo</span><div class="ms-tiles">${veicCampo().map(v=>`<button type="button" class="ms-tile${A.vid===v.id?" on":""}" data-rv="${esc(v.id)}"${emUso.has(v.id)?" disabled":""}><b>${esc(v.nome)}</b><small>${esc(v.placa||"")}${emUso.has(v.id)?" · em uso":""}</small></button>`).join("")}</div></div>
-      <div class="ms-box"><span class="ms-lbl">Checklist rápido</span><button type="button" class="ms-cta sec" id="rtTudo" style="margin:4px 0 10px">${ic("ok","ic")}Tudo OK</button>
+      ${osBox}<div class="ms-box"><span class="ms-lbl">Checklist rápido</span><button type="button" class="ms-cta sec" id="rtTudo" style="margin:4px 0 10px">${ic("ok","ic")}Tudo OK</button>
         ${A.ck.map((c,i)=>`<div class="ms-ck"><span>${esc(c.nome)}</span><span class="ms-ckb"><button type="button" class="${c.ok===true?"on ok":""}" data-rck="${i}" data-v="1">OK</button><button type="button" class="${c.ok===false?"on pb":""}" data-rck="${i}" data-v="0">Problema</button></span>${c.ok===false?`<input type="text" class="ms-in" id="rck-${i}" placeholder="O que está com problema?" value="${esc(c.obs||"")}">`:""}</div>`).join("")}</div>
       ${A.ck.some(c=>c.ok===false)?fotoCtl("rt",A.fotos,true,"Foto do problema"):""}
       <div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel agora</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}" placeholder="Ex.: 124300"></div>
       ${horaHTML(A,"Quando você saiu?")}<p class="err" id="rtErr" role="alert"></p><button class="ms-cta" id="rtOk" type="button">${ic("van","ic lg")}Saí com o veículo</button>`;
     app.innerHTML=`<div class="ms-wrap">${h}</div>`;
-    const sync=()=>{const k=$("#rtKm");if(k)A.km=k.value;A.ck.forEach((c,i)=>{const e=$("#rck-"+i);if(e)c.obs=e.value})};
-    $$("[data-rv]").forEach(b=>b.onclick=()=>{sync();A.vid=b.dataset.rv;const u=ultimoKm(A.vid);A.km=u?String(u.km):"";renderRota()});
+    const sync=()=>{const k=$("#rtKm");if(k)A.km=k.value;const bs=$("#rtBase");if(bs)A.base=bs.value;A.ck.forEach((c,i)=>{const e=$("#rck-"+i);if(e)c.obs=e.value})};
+    $$("[data-nsel]").forEach(c=>c.onchange=()=>{const id=c.dataset.nsel;A.sel=c.checked?(A.sel||[]).concat([id]):(A.sel||[]).filter(x=>x!==id)});
+    const bsS=$("#rtBase");if(bsS)bsS.onchange=()=>{A.base=bsS.value};
+    $$("[data-rv]").forEach(b=>b.onclick=()=>{sync();A.vid=b.dataset.rv;const u=ultimoKm(A.vid);A.km=u?String(u.km):"";if(nv)A.sel=null;renderRota()});
     $("#rtTudo").onclick=()=>{sync();A.ck.forEach(c=>{c.ok=true;c.obs=""});renderRota()};
     bindHora(A,()=>{sync();const y=window.scrollY;renderRota();window.scrollTo(0,y)});
     $$("[data-msrm]").forEach(b=>b.onclick=()=>{sync();A.fotos.splice(+b.dataset.msrm,1);renderRota()});
@@ -5142,6 +5264,8 @@ function renderRota(){
     $$("[data-rck]").forEach(b=>b.onclick=()=>{sync();const c=A.ck[+b.dataset.rck];c.ok=b.dataset.v==="1";if(c.ok)c.obs="";renderRota();const f=$("#rck-"+b.dataset.rck);if(f)f.focus()});
     $("#rtOk").onclick=async()=>{sync();const err=$("#rtErr");err.textContent="";
       if(!A.vid){err.textContent="Escolha o veículo.";return}
+      if(nv&&livN.length&&!(A.sel||[]).length){err.textContent="Marque as OS que você vai fazer agora.";return}
+      if(nv&&!A.base){err.textContent="Escolha a base: de onde você está saindo com o veículo.";return}
       const sem=A.ck.findIndex(c=>c.ok===null);if(sem>=0){err.textContent="Toque em OK ou Problema em: "+A.ck[sem].nome+". Se estiver tudo certo, toque em Tudo OK.";return}
       const so=A.ck.findIndex(c=>c.ok===false&&!(c.obs||"").trim());if(so>=0){err.textContent="Escreva qual é o problema em: "+A.ck[so].nome+".";return}
       if(A.busy){err.textContent="Aguarde a foto terminar de enviar.";return}
@@ -5150,33 +5274,38 @@ function renderRota(){
       let Q;try{Q=horaISO(A)}catch(e){err.textContent=e.message;return}
       const u=ultimoKm(A.vid);if(u&&km<u.km&&!A.kmOk){A.kmOk=true;err.textContent="O km está menor que o último registrado ("+fKm(u.km)+"). Confira o painel. Se estiver certo, toque de novo.";return}
       const probs=A.ck.filter(c=>!c.ok).length;const b=$("#rtOk");b.disabled=true;b.textContent="Salvando…";
-      try{const r=await salvarRota(null,{veiculoId:A.vid,equipeIds:[meu],kmSaida:km,saidaEm:Q.iso,obs:Q.manual?"Saída"+Q.nota:null,checklist:{itens:A.ck.map(c=>({nome:c.nome,ok:c.ok,obs:(c.obs||"").trim()})),problemas:probs,fotos:probs?A.fotos:[],em:Q.iso}});
-        S.rt=null;toast(probs?"Saída registrada. O problema foi enviado para a frota.":"Saída registrada. Agora escolha as OS da rota.");location.hash="#rota/"+r.id}
+      try{const sel=nv?(A.sel||[]).map(id=>byId(S.os,id)).filter(Boolean):[];
+        const r=await salvarRota(null,Object.assign({veiculoId:A.vid,equipeIds:[meu],kmSaida:km,saidaEm:Q.iso,obs:Q.manual?"Saída"+Q.nota:null,checklist:{itens:A.ck.map(c=>({nome:c.nome,ok:c.ok,obs:(c.obs||"").trim()})),problemas:probs,fotos:probs?A.fotos:[],em:Q.iso}},
+          nv?{status:"em_rota",kmInicio:km,inicioEm:Q.iso,osIds:sel.map(o=>o.id),baseLocalId:A.base}:{}));
+        for(const o of sel)await incluirNaRota(r,o,Q);
+        S.rt=null;toast(probs?"Saída registrada. O problema foi enviado para a frota.":nv?"Saída registrada. Boa viagem!":"Saída registrada. Agora escolha as OS da rota.");location.hash="#rota/"+r.id}
       catch(e){console.error(e);b.disabled=false;b.innerHTML=ic("van","ic lg")+"Saí com o veículo";err.textContent=erroRota(e)}};
     return}
   const r=byId(S.rotas||[],arg);
   if(!r){app.innerHTML=`<div class="ms-wrap">${bar}<div class="ms-empty"><h2>Rota não encontrada</h2><a class="btn pri" href="#missoes">Voltar</a></div></div>`;return}
   if(!S.rt||S.rt.k!==r.id+r.status)S.rt={k:r.id+r.status,sel:null,km:""};const A=S.rt;
   const L=osDaRota(r);const livres=S.os.filter(o=>(o.equipeIds||[]).includes(meu)&&o.status==="agendada"&&!o.rotaId).sort((a,b)=>(T(a.agendadoPara)||9e15)-(T(b.agendadoPara)||9e15));
-  const linhaOS=o=>`<button type="button" class="ms-ro ${o.status}" data-ro="${esc(o.id)}"><span class="ms-ro-c num">${esc(codigo(o))}</span><span class="ms-ro-t">${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(itensResumo(o))}</small></span><span class="ms-ro-s">${o.status==="concluida"?ic("ok","ic sm")+"Feita":"Fazer ›"}</span></button>`;
+  const linhaOS=o=>`<button type="button" class="ms-ro ${o.status}${entregue(o)?" ent":""}" data-ro="${esc(o.id)}"><span class="ms-ro-c num">${esc(codigo(o))}</span><span class="ms-ro-t">${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(itensResumo(o))}</small></span><span class="ms-ro-s">${o.status==="concluida"?ic("ok","ic sm")+"Feita":entregue(o)?ic("ok","ic sm")+(ehTraslado(o)?"Desembarcado":"Entregue"):"Fazer ›"}</span></button>`;
+  const nv=temVolta()&&["em_rota","devolvida"].includes(r.status);const bR=baseNome(r.baseLocalId||baseDePessoa(meu));
+  const ultEnt=()=>L.map(o=>o.entregueEm||ultimoFeito(o)).filter(Boolean).sort().pop()||r.inicioEm||r.saidaEm;
   let h=`<div class="ms-bar"><a class="ms-back" href="#missoes">${ic("back","ic")}Minhas missões</a><span class="ms-cod">${esc(codR(r))}</span></div>
     <p class="ms-sub">${esc(nomeVeic(r.veiculoId))} · ${esc(ROTA_ST[r.status])}</p>
-    <ol class="ms-steps rt" aria-label="Etapas da rota">${[["saida","Saída",r.kmSaida],["em_rota","Início",r.kmInicio],["retorno","Fim",r.kmFim],["devolvida","Devolução",r.kmDevolucao]].map(([k,l,km],i)=>{const f=km!=null;const at=!f&&["saida","em_rota","retorno","devolvida"].indexOf(r.status)+1===i;return `<li class="${f?"f":at?"n":""}"><span>${f?ic("ok","ic sm"):i+1}</span><small>${l}<br>${f?fKm(km):"—"}</small></li>`}).join("")}</ol>`;
+    ${nv?`<ol class="ms-steps rt" aria-label="Etapas da rota">${[["Saída",r.kmSaida!=null?fKm(r.kmSaida):"—",true],["Entregas",L.filter(o=>o.status==="concluida"||entregue(o)).length+" de "+L.length,L.length&&L.every(o=>o.status==="concluida"||entregue(o))],["Volta à base",r.kmDevolucao!=null?fKm(r.kmDevolucao):"—",r.kmDevolucao!=null]].map(([l,v,f],i,a)=>{const at=!f&&(i===0||a[i-1][2]);return `<li class="${f?"f":at?"n":""}"><span>${f?ic("ok","ic sm"):i+1}</span><small>${l}<br>${esc(v)}</small></li>`}).join("")}</ol>`:`<ol class="ms-steps rt" aria-label="Etapas da rota">${[["saida","Saída",r.kmSaida],["em_rota","Início",r.kmInicio],["retorno","Fim",r.kmFim],["devolvida","Devolução",r.kmDevolucao]].map(([k,l,km],i)=>{const f=km!=null;const at=!f&&["saida","em_rota","retorno","devolvida"].indexOf(r.status)+1===i;return `<li class="${f?"f":at?"n":""}"><span>${f?ic("ok","ic sm"):i+1}</span><small>${l}<br>${f?fKm(km):"—"}</small></li>`}).join("")}</ol>`}`;
   const err=`<p class="err" id="rtErr" role="alert"></p>`;
   if(r.status==="saida"){if(A.sel==null)A.sel=livres.filter(o=>!o.veiculoId||o.veiculoId===r.veiculoId).filter(o=>!o.agendadoPara||dayKey(o.agendadoPara)<=dayKey(new Date())).map(o=>o.id);if(!A.km)A.km=String(r.kmSaida!=null?r.kmSaida:"");
     h+=`<h1 class="ms-h">Começar a rota</h1><div class="ms-box"><span class="ms-lbl">Quais OS vão juntas nesta rota?</span>${livres.length?livres.map(o=>`<label class="ms-chk"><input type="checkbox" data-rsel="${esc(o.id)}"${A.sel.includes(o.id)?" checked":""}><span><b>${esc(codigo(o))}</b> ${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(quandoTxt(o.agendadoPara))} · ${esc(itensResumo(o))}</small></span></label>`).join(""):`<p class="hint">Nenhuma OS programada para você. Fale com a coordenação.</p>`}</div>
       <div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel no início da rota</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">Na saída: ${esc(fKm(r.kmSaida))}</span></div>
       ${(horaAuto(A,r.saidaEm),"")}${horaHTML(A,"Quando a rota começou?",r.saidaEm)}${err}<button class="ms-cta" id="rtOk" type="button">${ic("van","ic lg")}Começar a rota</button>`}
-  else if(r.status==="em_rota"){const pend=L.filter(o=>o.status!=="concluida");
-    h+=`<h1 class="ms-h">${pend.length?"Rota em andamento":"Tudo feito! Termine a rota"}</h1><div class="ms-box"><span class="ms-lbl">OS desta rota · ${L.length-pend.length} de ${L.length} feitas</span>${L.map(linhaOS).join("")||`<p class="hint">Nenhuma OS na rota.</p>`}</div>
+  else if(r.status==="em_rota"){const pend=L.filter(o=>o.status!=="concluida"&&!(nv&&entregue(o)));
+    h+=`<h1 class="ms-h">${pend.length?"Rota em andamento":nv?"Tudo entregue! Volte para "+esc(bR):"Tudo feito! Termine a rota"}</h1><div class="ms-box"><span class="ms-lbl">OS desta rota · ${L.length-pend.length} de ${L.length} ${nv?"entregues":"feitas"}</span>${L.map(linhaOS).join("")||`<p class="hint">Nenhuma OS na rota.</p>`}</div>
       ${livres.length?`<details class="ms-more"${A.add?" open":""}><summary>Incluir outra OS nesta rota</summary>${livres.map(o=>`<button type="button" class="ms-ro add" data-radd="${esc(o.id)}"><span class="ms-ro-c num">${esc(codigo(o))}</span><span class="ms-ro-t">${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(quandoTxt(o.agendadoPara))}</small></span><span class="ms-ro-s">+ Incluir</span></button>`).join("")}</details>`:""}
       ${ncBtnHTML("Pediram outro serviço no trajeto? Ele entra nesta rota.")}
-      ${pend.length?`${err}<p class="ms-sub" style="text-align:center">Toque em cada OS para registrar retirada e entrega. Quando todas estiverem feitas, aparece o botão para terminar a rota.</p>`:`<div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel no fim da rota</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">No início: ${esc(fKm(r.kmInicio))}</span></div>${(horaAuto(A,r.inicioEm),"")}${horaHTML(A,"Quando a rota terminou?",r.inicioEm)}${err}<button class="ms-cta" id="rtOk" type="button">${ic("ok","ic lg")}Terminei a rota</button>`}`}
+      ${pend.length?`${err}<p class="ms-sub" style="text-align:center">Toque em cada OS para registrar retirada e entrega. ${nv?"Depois da última entrega, volte para "+esc(bR)+" e registre a chegada aqui.":"Quando todas estiverem feitas, aparece o botão para terminar a rota."}</p>`:nv?`<div class="ms-box ms-volta">${ic("van","ic")}<span>A OS só termina quando você chegar em <b>${esc(bR)}</b>. A volta entra no tempo e no km da missão.</span></div><div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel na chegada à base</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">Na saída: ${esc(fKm(r.kmInicio!=null?r.kmInicio:r.kmSaida))}</span></div>${(horaAuto(A,ultEnt()),"")}${horaHTML(A,"Quando chegou na base?",ultEnt())}${err}<button class="ms-cta" id="rtOk" type="button">${ic("ok","ic lg")}Cheguei na base</button>`:`<div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel no fim da rota</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">No início: ${esc(fKm(r.kmInicio))}</span></div>${(horaAuto(A,r.inicioEm),"")}${horaHTML(A,"Quando a rota terminou?",r.inicioEm)}${err}<button class="ms-cta" id="rtOk" type="button">${ic("ok","ic lg")}Terminei a rota</button>`}`}
   else if(r.status==="retorno"){
     h+=`<h1 class="ms-h">Devolver o veículo</h1><div class="ms-box"><span class="ms-lbl">Rota terminada às ${esc(fHora(r.fimEm))}</span>${L.map(linhaOS).join("")}</div>
       <div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel na devolução</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">No fim da rota: ${esc(fKm(r.kmFim))} · a hora da devolução é registrada sozinha</span></div>
       ${(horaAuto(A,r.fimEm),"")}${horaHTML(A,"Quando devolveu o veículo?",r.fimEm)}${err}<button class="ms-cta" id="rtOk" type="button">${ic("ok","ic lg")}Devolvi o veículo</button>`}
-  else{const km=rotaKm(r);h+=`<div class="ms-fim" style="padding-top:12px">${ic("ok","ic xl")}<h1>Rota encerrada</h1><p>${esc(fKm(km||0))} rodados · ${L.length} OS · devolvida às ${esc(fHora(r.devolvidoEm))}</p><a class="ms-cta" href="#missoes">Voltar para minhas missões</a></div>`}
+  else{const km=rotaKm(r);h+=`<div class="ms-fim" style="padding-top:12px">${ic("ok","ic xl")}<h1>Rota encerrada</h1><p>${esc(fKm(km||0))} rodados · ${L.length} OS · ${nv?"chegou em "+esc(bR)+" às":"devolvida às"} ${esc(fHora(r.devolvidoEm))}</p><a class="ms-cta" href="#missoes">Voltar para minhas missões</a></div>`}
   app.innerHTML=`<div class="ms-wrap">${h}</div>`;
   $$("[data-ro]").forEach(b=>b.onclick=()=>{location.hash="#missao/log_"+b.dataset.ro});
   $$("[data-rsel]").forEach(c=>c.onchange=()=>{const id=c.dataset.rsel;A.sel=c.checked?A.sel.concat([id]):A.sel.filter(x=>x!==id)});
@@ -5187,11 +5316,11 @@ function renderRota(){
   const ok=$("#rtOk");if(!ok)return;
   ok.onclick=async()=>{const er=$("#rtErr");er.textContent="";const km=Math.round(Number(String(A.km).trim()));
     if(!String(A.km).trim()||!isFinite(km)||km<0){er.textContent="Informe o km do painel.";return}
-    const ant=r.status==="saida"?r.kmSaida:r.status==="em_rota"?r.kmInicio:r.kmFim;
+    const ant=r.status==="saida"?r.kmSaida:r.status==="em_rota"?(r.kmInicio!=null?r.kmInicio:r.kmSaida):r.kmFim;
     if(ant!=null&&km<ant){er.textContent="O km ("+fKm(km)+") não pode ser menor que o anterior ("+fKm(ant)+").";return}
     if(ant!=null&&km-ant>800&&!A.kmOk){A.kmOk=true;er.textContent="Deu "+fKm(km-ant)+" nesta etapa. Confira o painel. Se estiver certo, toque de novo.";return}
-    let Q;try{Q=horaISO(A,r.status==="saida"?r.saidaEm:r.status==="em_rota"?r.inicioEm:r.fimEm)}catch(e){er.textContent=e.message;return}
-    const ob=Q.manual?{obs:((r.obs||"")+"\n"+({saida:"Início",em_rota:"Fim",retorno:"Devolução"}[r.status])+Q.nota).trim()}:{};
+    let Q;try{Q=horaISO(A,r.status==="saida"?r.saidaEm:r.status==="em_rota"?(nv?ultEnt():r.inicioEm):r.fimEm)}catch(e){er.textContent=e.message;return}
+    const ob=Q.manual?{obs:((r.obs||"")+"\n"+({saida:"Início",em_rota:nv?"Volta à base":"Fim",retorno:"Devolução"}[r.status])+Q.nota).trim()}:{};
     const t=ok.innerHTML;ok.disabled=true;ok.textContent="Salvando…";
     try{
       if(r.status==="saida"){if(!A.sel.length){throw new Error("__sel")}
@@ -5199,6 +5328,9 @@ function renderRota(){
         await salvarRota(r.id,Object.assign({status:"em_rota",kmInicio:km,inicioEm:Q.iso,osIds:sel.map(o=>o.id)},ob));
         for(const o of sel)await incluirNaRota(r,o,Q);
         toast("Rota começada com "+plural(sel.length,"OS","OS")+". Boa viagem!")}
+      else if(r.status==="em_rota"&&nv){
+        for(const o of L.filter(o=>o.status==="em_rota"))await saveOS(o.id,{status:"concluida",concluidoEm:Q.iso,retornoEm:Q.iso,atualizadoEm:nowISO(),historico:hist(o,"concluida","Voltou à base ("+bR+", rota "+codR(r)+", app de campo)"+Q.nota)});
+        await salvarRota(r.id,Object.assign({status:"devolvida",kmFim:km,kmDevolucao:km,fimEm:Q.iso,devolvidoEm:Q.iso},r.kmInicio==null?{kmInicio:r.kmSaida}:{},ob));toast("Chegada na base registrada. Missão encerrada!")}
       else if(r.status==="em_rota"){await salvarRota(r.id,Object.assign({status:"retorno",kmFim:km,fimEm:Q.iso},ob));toast("Rota terminada. Ao chegar, registre a devolução.")}
       else{await salvarRota(r.id,Object.assign({status:"devolvida",kmDevolucao:km,devolvidoEm:Q.iso},ob));toast("Veículo devolvido. Obrigado!")}
       S.rt=null;renderRota();window.scrollTo(0,0)}
@@ -5325,6 +5457,26 @@ function loadDemoRotas(){
       saidaEm:new Date(ini).toISOString(),kmSaida:ks,checklist:{itens:CK_SAIDA.map(nome=>({nome,ok:true})),problemas:0},inicioEm:new Date(ini+600000).toISOString(),kmInicio:ks+3,
       fimEm:new Date(fim-600000).toISOString(),kmFim:ks+3+kr,devolvidoEm:new Date(fim).toISOString(),kmDevolucao:ks+6+kr,osIds:L.map(o=>o.id)};
     S.rotas.push(r);L.forEach(o=>{o.rotaId=r.id;o.kmInicial=null;o.kmFinal=null})});
+}
+
+// v57: base de cada pessoa, volta à base nas OS concluídas e serviços repetidos para a média de tempo
+function loadDemoVolta(){
+  const bases={e0:"mc",e1:"mg",e2:"mc",e3:"mg"};S.equipe.forEach(p=>{if(bases[p.id])p.baseLocalId=bases[p.id]});
+  (S.rotas||[]).forEach(r=>{r.baseLocalId=baseDePessoa((r.equipeIds||[])[0])||"mc"});
+  S.os.forEach(o=>{if(o.status!=="concluida"||!o.veiculoId||!o.concluidoEm)return;const r=o.rotaId?byId(S.rotas,o.rotaId):null;
+    o.entregueEm=o.concluidoEm;const ret=r&&r.devolvidoEm?T(r.devolvidoEm):T(o.concluidoEm)+(15+(T(o.concluidoEm)/60000%25))*60000;o.retornoEm=o.concluidoEm=new Date(ret).toISOString();if(o.kmFinal!=null)o.kmFinal+=9});
+  // o mesmo serviço feito várias vezes: Monte Carlo → Fornecedor → Mirage → Monte Carlo
+  const solo=S.os.filter(o=>o.status==="concluida"&&o.veiculoId&&!o.rotaId&&!ehTraslado(o)).slice(0,7);
+  const mins=[92,105,88,99,110,95,101];
+  solo.forEach((o,i)=>{const ini=new Date(Date.now()-(3+i*3)*DIA_MS);ini.setHours(9,0,0,0);const d=mins[i]*60000;
+    Object.assign(o,{equipeIds:["e0","e2"],veiculoId:"v1",origemId:"fo",destinoId:"mg",paradas:null,agendadoPara:ini.toISOString(),iniciadoEm:ini.toISOString(),entregueEm:new Date(ini.getTime()+d-25*60000).toISOString(),retornoEm:new Date(ini.getTime()+d).toISOString(),concluidoEm:new Date(ini.getTime()+d).toISOString(),kmInicial:30000+i*90,kmFinal:30000+i*90+46})});
+  // uma missão desse serviço em andamento há 2h50 (acima da média) e outra já entregue, voltando para a base
+  const em=S.os.filter(o=>o.status==="em_rota"&&!o.rotaId&&!ehTraslado(o)).concat(S.os.filter(o=>o.status==="agendada"&&!o.rotaId&&!ehTraslado(o)&&T(o.agendadoPara)>Date.now()+DIA_MS).slice(-2));
+  em.slice(0,2).forEach(o=>{o.status="em_rota";o.historico=(o.historico||[]).concat([{s:"em_rota",em:nowISO(),nota:"Saída do veículo"}])});
+  if(em[0]){const ini=new Date(Date.now()-170*60000);Object.assign(em[0],{equipeIds:["e0","e2"],veiculoId:"v1",origemId:"fo",destinoId:"mg",paradas:null,agendadoPara:new Date(ini.getTime()-10*60000).toISOString(),iniciadoEm:ini.toISOString(),kmInicial:30700,cientes:{e0:ini.toISOString()}})}
+  if(em[1]){const ini=new Date(Date.now()-80*60000);const ps=[novaParada("retirada","cd2","Doca 2"),novaParada("entrega","mc","Recebimento")];Object.assign(ps[0],{status:"feita",feitoEm:new Date(ini.getTime()+25*60000).toISOString()});Object.assign(ps[1],{status:"feita",feitoEm:new Date(ini.getTime()+60*60000).toISOString(),pessoa:"Ana"});
+    Object.assign(em[1],{equipeIds:["e1","e3"],veiculoId:"v2",origemId:"cd2",destinoId:"mc",paradas:ps,iniciadoEm:ini.toISOString(),entregueEm:ps[1].feitoEm,kmInicial:41200,cientes:{e1:ini.toISOString()}})}
+  _tmC=null;
 }
 
 /* ---------- Início ---------- */

@@ -1234,7 +1234,7 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"56"}
+:root{--versao-css:"57"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}
@@ -1298,3 +1298,8 @@ button.pf-row,a.pf-row{cursor:pointer}button.pf-row:hover,a.pf-row:hover{backgro
 .pz.ok{color:var(--s-ok,#1E7A46)}
 .pz.late{color:var(--s-late,#B42318)}
 .qd-pan.qd-at{padding:12px 14px;border:2px solid var(--gold-ink,#A87420);border-radius:12px;background:var(--warn-surface,#FFF7E6)}
+
+/* v57 · volta à base */
+.ms-box.ms-volta{display:flex;gap:10px;align-items:flex-start;background:var(--soft);border-color:var(--line-strong)}
+.ms-box.ms-volta .ic{flex:none;margin-top:2px;color:var(--accent)}
+.ms-ro.ent .ms-ro-s{color:var(--s-ok,#1E7A46)}

@@ -577,3 +577,12 @@ Não precisa rodar nada no Supabase.
 - O atraso da OS sempre foi calculado pelo horário de conclusão informado (não pela hora em que se registra). O risco era esquecer de trocar o horário, que vem preenchido com "agora".
 - Na última etapa (entrega final ou desembarque), se o prazo da OS já passou, o campo **"Quando terminou?"** abre sozinho com o aviso **"O prazo desta OS já passou"**, no celular da equipe e no painel da coordenação.
 - Enquanto a pessoa escolhe o dia e a hora, aparece na hora: **"Com este horário a OS fica no prazo"** (verde) ou **"fica atrasada 1 h 09 min"** (vermelho), com o prazo ao lado.
+
+## Atualização 57 · A OS da logística termina na volta à base
+**Rodar o script `supabase/31_volta_base.sql` no SQL Editor do Supabase** (uma vez; o resultado mostra 4 linhas OK).
+- **Base de cada pessoa:** em Cadastros › Equipe, cada motorista ganha o campo **Base (onde pega e devolve o veículo)**. Quem é do Monte Carlo sai e volta ao Monte Carlo; quem é do Mirage sai e volta ao Mirage.
+- **Celular do motorista, mais simples:** "Sair com o veículo" agora faz tudo numa tela só: veículo, OS que vai fazer, base, checklist e km. Acabou a tela separada "Começar a rota".
+- **Na última entrega a OS não encerra:** ela fica **Voltando à base**. A OS só termina quando o motorista toca **Cheguei na base** e informa o km. Acabaram as telas "Terminei a rota" e "Devolvi o veículo": a chegada na base faz as duas coisas.
+- **Painel da coordenação:** na última parada o botão é "Registrar entrega" (sem km). Depois aparece **Registrar volta à base**, com o km e a hora. O aviso no WhatsApp já pode ser enviado na entrega.
+- **Atraso só na saída:** a OS fica "Atrasada" quando ainda não saiu e passou do horário marcado. Depois que saiu, não conta mais atraso. Indicadores: "Saíram no horário".
+- **Tempo médio por serviço:** o sistema compara cada missão com a média dos serviços iguais (mesma base, mesmas paradas, mesmo tipo) e avisa **Acima do tempo médio** (15% acima da média, no mínimo 10 minutos). A média aparece depois de 3 serviços iguais. Nova aba em Controle de Eficiência › **Tempo por serviço**, e um indicador no Painel.
