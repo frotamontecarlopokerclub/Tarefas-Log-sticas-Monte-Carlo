@@ -1,0 +1,32 @@
+FACILITIES MC · CÓPIA COMPLETA DO SISTEMA · VERSÃO 60
+Gerada em 25/11/2026.
+
+O que tem aqui
+- Sistema web (o que roda na Vercel): index.html, app.js, styles.css, sw.js,
+  manifest.webmanifest, vercel.json, ícones e a pasta assets.
+- supabase/  : scripts do banco, de 01 a 32, na ordem em que foram rodados,
+               e a função "enviar-whatsapp" (supabase/functions).
+- android/   : projeto do app Android (APK).
+- .github/   : a automação que gera o APK (aba Ações do GitHub).
+- .well-known/assetlinks.json : liga o app Android ao site (tela cheia).
+- README.md  : o histórico de todas as atualizações, da primeira à 60.
+- WHATSAPP-AUTOMATICO.md : como ligar o aviso automático no WhatsApp.
+
+O que NÃO está aqui, de propósito (guarde em lugar seguro, separado)
+1. config.js com o endereço e a chave do seu Supabase.
+   Aqui vai só o modelo vazio, com o nome config.exemplo.js.
+   O seu config.js de verdade está no GitHub. Para restaurar, renomeie o
+   modelo para config.js e cole a URL e a chave "anon public" do Supabase
+   (Project Settings › API). Nunca cole a chave "service_role".
+2. A chave de assinatura do app Android (facilities-mc-chave-android-GUARDAR.zip)
+   e a senha dela. Sem ela não dá para atualizar o app já instalado.
+3. Os dados do sistema (OS, cadastros, fotos). Eles ficam no Supabase.
+   Para guardar uma cópia dos dados, use o backup do próprio Supabase.
+
+Como restaurar num repositório novo do GitHub
+1. Crie o repositório e use Código › Adicionar arquivo › Carregar arquivos,
+   arrastando TODO o conteúdo desta pasta (inclusive .github e .well-known).
+2. Crie o config.js como explicado acima.
+3. Ligue o repositório na Vercel.
+4. Em Settings › Secrets and variables › Actions, cadastre de novo
+   ANDROID_KEYSTORE_BASE64 e ANDROID_KEYSTORE_SENHA.
