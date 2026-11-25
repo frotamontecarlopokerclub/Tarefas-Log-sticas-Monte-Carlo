@@ -27,6 +27,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       - name: Numerar a versão do app
         working-directory: android
@@ -34,11 +35,23 @@ jobs:
           sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/" app/build.gradle
           sed -i "s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" app/build.gradle
 
+      # Às vezes o servidor do Google ou do Maven falha no meio do download das
+      # peças do Android. Por isso o passo tenta até 3 vezes antes de desistir.
       - name: Montar o APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          for tentativa in 1 2 3; do
+            if ./gradlew assembleRelease --no-daemon --stacktrace \
+                 -Dorg.gradle.internal.repository.max.retries=6 \
+                 -Dorg.gradle.internal.repository.initial.backoff=2000; then
+              exit 0
+            fi
+            echo "::warning::Tentativa $tentativa falhou (provável falha de rede ao baixar as peças do Android). Tentando de novo em 30 segundos..."
+            sleep 30
+          done
+          echo "::error::O APK não montou depois de 3 tentativas. Procure por 'Could not' ou 'error:' no registro acima."
+          exit 1
 
       - name: Assinar o APK
         env:
