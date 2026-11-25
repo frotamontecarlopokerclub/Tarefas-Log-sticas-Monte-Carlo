@@ -9,7 +9,7 @@ const PRIOS=[["normal","Normal"],["alta","Alta"],["urgente","Urgente"]];
 const CANAIS=["WhatsApp","Telefone","E-mail","Pessoalmente","Pedido no sistema","Outro"];
 const UNIDADES=["un","cx","kg","L","pct","fardo","peça","palete","engradado","barril"];
 const LOCAL_TIPOS=["Clube","Restaurante","Centro de distribuição","Escritório","Prédio","Residência da chefia","Residência de funcionário","Fornecedor","Outro"];
-const FUNCOES=["Motorista","Ajudante","Coordenador","Operador","Eletricista","Encanador","Técnico de refrigeração","Técnico de ar-condicionado","Pedreiro","Pintor","Marceneiro","Serralheiro","Manutenção geral","Supervisor de manutenção"];
+const FUNCOES=["Motorista","Ajudante","Coordenador","Operador","Eletricista","Encanador","Técnico de refrigeração","Técnico de ar-condicionado","Pedreiro","Pintor","Marceneiro","Serralheiro","Manutenção geral","Supervisor de manutenção","Manobrista","Lavador","Auxiliar"];
 const ST={registrada:"Registrada",agendada:"Agendada",em_rota:"Em rota",concluida:"Concluída",cancelada:"Cancelada"};
 const ABERTOS=["registrada","agendada","em_rota"];
 const MCATS=["Elétrica","Hidráulica","Ar-condicionado","Refrigeração","Cozinha industrial","Civil / alvenaria","Pintura","Marcenaria","Serralheria","Gerador / energia","Incêndio / segurança","Elevador","TI / telefonia","Jardinagem","Limpeza técnica","Outros"];
@@ -23,7 +23,11 @@ const FREQS=[["semanal","Semanal",{d:7}],["quinzenal","Quinzenal",{d:14}],["mens
 const SLA_PADRAO={urgente:4,alta:24,normal:72,baixa:168};
 const CUSTO_TIPOS=["Peça","Material","Serviço de terceiro","Mão de obra","Outro"];
 const ESPERAS=["Peça ou material","Orçamento","Prestador","Liberação do setor","Outro"];
-const AREAS=[["logistica","Logística"],["manutencao","Manutenção"],["ambas","Logística e manutenção"]];
+const AREAS=[["logistica","Logística"],["manutencao","Manutenção"],["frota","Frota"],["estacionamento","Estacionamento"],["ambas","Logística e manutenção"],["outro","Outro setor"]];
+// v58: quem aparece em cada lista de execução
+const naLog=p=>["logistica","ambas","frota"].includes((p&&p.area)||"logistica");      // motoristas e ajudantes da logística
+const naMan=p=>["manutencao","ambas"].includes((p&&p.area)||"logistica");              // técnicos da manutenção
+const areaPadrao=()=>S.area==="man"?"manutencao":S.area==="frota"?"frota":"logistica";
 
 /* ---------- Estado ---------- */
 const S={areaAcesso:"ambas",veiculo_conferencias:[],veiculo_servicos:[],frotaDias:7,vServ:null,cf:null,lv:null,gm:null,gRes:false,os:[],locais:[],setores:[],equipe:[],veiculos:[],config:{toleranciaMin:15},
@@ -101,7 +105,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=57;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=58;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -798,7 +802,7 @@ function renderOrdens(){
     <div class="field"><label for="lSet">Setor</label><select id="lSet">${optsSetores(f.setor,"Todos")}</select></div>
     <div class="field"><label for="lLoc">Unidade</label><select id="lLoc">${opts(ativos(S.locais),f.local,"Todas")}</select></div>
     <div class="field"><label for="lTip">Tipo</label><select id="lTip"><option value="">Todos</option>${optsS(TIPOS,f.tipo)}</select></div>
-    <div class="field"><label for="lEq">Funcionário</label><select id="lEq">${optsEquipe(f.eq)}</select></div>
+    <div class="field"><label for="lEq">Funcionário</label><select id="lEq">${optsEquipe(f.eq,naLog)}</select></div>
   </div></details></div>${f.eq?eqAtalhoHTML(f.eq):""}`;
   if(L){app.innerHTML=h+L;bindOrdens();return}
   let list=filtraLista();
@@ -942,7 +946,7 @@ function refreshFormOptions(){
   $("#setor").innerHTML=optsSetores(FD.setorId,"Selecione…");
   renderFEsc();
 }
-const eqLogF=()=>S.equipe.filter(p=>(p.ativo!==false&&(p.area||"logistica")!=="manutencao")||FD.equipeIds.includes(p.id));
+const eqLogF=()=>S.equipe.filter(p=>(p.ativo!==false&&naLog(p))||FD.equipeIds.includes(p.id));
 function renderFEsc(){const b=$("#fEsc");if(!b)return;b.innerHTML=motHTML("f",FD.equipeIds,eqLogF())+veicSelHTML("veic",FD.veiculoId)+`<div class="esc-full">${ajHTML("f",FD.equipeIds,eqLogF())}</div>`;
   bindEscala("f",FD.equipeIds,()=>{FD.veiculoId=$("#veic").value;renderFEsc()});
   $("#veic").onchange=e=>{FD.veiculoId=e.target.value;$("#veicI").innerHTML=veicInfo(e.target.value)}}
@@ -1648,7 +1652,7 @@ const CAD={
   solicitantes:{t:"Solicitantes",col:"solicitantes",desc:"Quem pede serviços à logística. O WhatsApp cadastrado recebe o aviso de conclusão.",
     f:[["nome","Nome","text"],["telefone","WhatsApp","tel"],["setorId","Setor","setor"]],m:x=>[fFone(x.telefone),x.setorId?nomeSetor(x.setorId):""]},
   equipe:{t:"Equipe",col:"equipe",desc:"Motoristas, ajudantes, técnicos e coordenação que executam as OS. A área define em qual lista a pessoa aparece. A base é de onde o motorista sai com o veículo e para onde volta (a OS termina na volta).",
-    f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["area","Área","select",AREAS],["telefone","Telefone","tel"],["baseLocalId","Base (onde pega e devolve o veículo)","local"],["custoHora","Custo por hora (R$)","money"],["especialidades","Especialidades na manutenção (pode marcar mais de uma)","multi",ESPECIALIDADES]],m:x=>[[x.funcao,(AREAS.find(a=>a[0]===(x.area||"logistica"))||[,""])[1]].filter(Boolean).join(" · ")+((x.especialidades||[]).length?" · "+x.especialidades.join(", "):""),[x.telefone,nOuNull(x.custoHora)!=null?fBRL(x.custoHora)+"/h":"Custo/h: padrão"].filter(Boolean).join(" · ")]},
+    f:[["nome","Nome","text"],["funcao","Função","select",FUNCOES],["area","Setor onde trabalha","select",AREAS],["telefone","Telefone","tel"],["baseLocalId","Base (onde pega e devolve o veículo)","local"],["custoHora","Custo por hora (R$)","money"],["especialidades","Especialidades na manutenção (pode marcar mais de uma)","multi",ESPECIALIDADES]],m:x=>[[x.funcao,(AREAS.find(a=>a[0]===(x.area||"logistica"))||[,""])[1]].filter(Boolean).join(" · ")+((x.especialidades||[]).length?" · "+x.especialidades.join(", "):""),[x.telefone,nOuNull(x.custoHora)!=null?fBRL(x.custoHora)+"/h":"Custo/h: padrão"].filter(Boolean).join(" · ")]},
   prestadores:{t:"Prestadores",col:"prestadores",desc:"Empresas e profissionais terceirizados da manutenção. O painel soma OS e custos por prestador.",
     f:[["nome","Nome","text"],["especialidade","Especialidade","select",MCATS.concat(["Veículos"])],["telefone","Telefone","tel"],["contato","Contato","text"],["documento","CNPJ / CPF","text"]],m:x=>[[x.especialidade,x.telefone].filter(Boolean).join(" · "),x.contato||x.documento]},
   veiculos:{t:"Veículos",col:"veiculos",desc:"Frota usada nas movimentações. Toque em Editar para o cadastro completo, ou veja tudo em Frota.",
@@ -1682,12 +1686,14 @@ function renderCadastros(){
     app.innerHTML=h;bindCad();bindFotosAntigas();return;
   }
   const C=CAD[tab];let list=S[tab].slice().sort((a,b)=>((a.ativo===false)-(b.ativo===false))||(tab==="locais"?grupoLocal(a)[0]-grupoLocal(b)[0]:0)||sortNome(a,b));
+  const eqAreaF=tab==="equipe"?`<div class="seg cad-area" role="group" aria-label="Filtrar por setor">${[["","Todos"]].concat(AREAS).map(([k,l])=>{const n=k?S.equipe.filter(p=>(p.area||"logistica")===k).length:S.equipe.length;return k&&!n?"":`<button type="button" data-carea="${k}" aria-pressed="${(S.cadArea||"")===k}">${esc(l)} <span>${n}</span></button>`}).join("")}</div>`:"";
+  if(tab==="equipe"&&S.cadArea)list=list.filter(p=>(p.area||"logistica")===S.cadArea);
   if(tab==="setores"){const at=gruposSetores(list.filter(x=>x.ativo!==false)).flatMap(g=>g.itens);list=at.concat(list.filter(x=>x.ativo===false))}
   const ed=S.cadEdit;
-  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${optsSetores((x||{})[k]||"","Sem setor")}</select>`:t==="local"?`<select id="ce-${k}">${opts(S.locais.filter(l=>l.ativo!==false||l.id===(x||{})[k]).sort(sortNome),(x||{})[k]||"","Sem local")}</select>`:t==="money"?`<input type="text" inputmode="decimal" id="ce-${k}" placeholder="Ex.: 1,80" value="${esc(nOuNull((x||{})[k])!=null?String((x||{})[k]).replace(".",","):"")}">`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||(Array.isArray(o[0])?o[0][0]:o[0]))}</select>`:t==="multi"?`<div class="chips" id="ce-${k}" role="group" aria-label="${esc(l)}">${o.map(v=>`<button type="button" class="chip" data-mv="${esc(v)}" aria-pressed="${((x||{})[k]||[]).includes(v)}">${esc(v)}</button>`).join("")}</div>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
+  const editor=(x,id)=>`<form class="cad-edit" data-form="${esc(id||"")}">${C.f.map(([k,l,t,o])=>`<div class="field"><label for="ce-${k}">${l}</label>${t==="setor"?`<select id="ce-${k}">${optsSetores((x||{})[k]||"","Sem setor")}</select>`:t==="local"?`<select id="ce-${k}">${opts(S.locais.filter(l=>l.ativo!==false||l.id===(x||{})[k]).sort(sortNome),(x||{})[k]||"","Sem local")}</select>`:t==="money"?`<input type="text" inputmode="decimal" id="ce-${k}" placeholder="Ex.: 1,80" value="${esc(nOuNull((x||{})[k])!=null?String((x||{})[k]).replace(".",","):"")}">`:t==="select"?`<select id="ce-${k}">${optsS(o,(x||{})[k]||(tab==="equipe"&&k==="area"?areaPadrao():Array.isArray(o[0])?o[0][0]:o[0]))}</select>${tab==="equipe"&&k==="area"?`<span class="hint">Manutenção: aparece para executar as OS da manutenção. Logística e Frota: aparecem como motorista ou ajudante.</span>`:""}`:t==="multi"?`<div class="chips" id="ce-${k}" role="group" aria-label="${esc(l)}">${o.map(v=>`<button type="button" class="chip" data-mv="${esc(v)}" aria-pressed="${((x||{})[k]||[]).includes(v)}">${esc(v)}</button>`).join("")}</div>`:`<input type="${t}" id="ce-${k}" value="${esc((x||{})[k]||"")}">`}</div>`).join("")}
     <div class="actions"><button class="btn pri sm" type="submit">Salvar</button><button class="btn sm ghost" type="button" data-cx>Cancelar</button></div></form>`;
   h+=`<section class="card"><div class="card-h"><h2>${C.t}</h2><span class="sub">${esc(C.desc)}</span></div><div class="card-b">
-    ${isStaff()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
+    ${eqAreaF}${isStaff()?(ed==="__new"?editor(null,""):`<button class="btn sm" data-new type="button">Adicionar</button>`):""}
     ${list.length?list.map((x,ix)=>cabCad(tab,list,ix)+(ed===x.id?editor(x,x.id):S.cadJoin===x.id?juntarHTML(tab,x):`<div class="cad-row${x.ativo===false?" off":""}"><span class="n">${esc(x.nome)}${x.ativo===false?` <span style="color:var(--faint);font-weight:500">desativado</span>`:""}</span><span class="m">${esc((C.m(x)[0])||"")}</span><span class="m">${esc((C.m(x)[1])||"")}</span>
       ${isStaff()?`<span class="actions"><button class="btn sm ghost" data-ed="${esc(x.id)}" type="button">Editar</button><button class="btn sm ghost" data-tg="${esc(x.id)}" type="button">${x.ativo===false?"Reativar":"Desativar"}</button>${(tab==="locais"||tab==="setores")&&(isAdmin()||S.demo)?`<button class="btn sm ghost" data-join="${esc(x.id)}" type="button" title="Juntar com outro cadastro repetido">Juntar com…</button>`:""}${isAdmin()||S.demo?`<button class="btn sm ghost danger-t" data-cdel="${esc(x.id)}" type="button" title="Excluir cadastro feito por engano">Excluir</button>`:""}</span>`:"<span></span>"}</div>${S.cadDel&&S.cadDel.id===x.id?excluirCadHTML(tab,x):""}`)).join(""):`<p style="color:var(--mute)">Nenhum cadastro ainda.</p>`}
   </div></section>`;
@@ -1799,6 +1805,7 @@ function bindCad(){
   $$("[data-cx]").forEach(b=>b.onclick=()=>{S.cadEdit=null;renderCadastros()});
   $$("[data-tg]").forEach(b=>b.onclick=async()=>{const x=byId(S[S.cadTab],b.dataset.tg);const on=x.ativo===false;S.cadDel=null;
     try{ if(S.demo){x.ativo=on;renderCadastros()} else { const {error}=await sb.from(CAD[S.cadTab].col).update({ativo:on}).eq("id",x.id); if(error)throw error; await carregar(CAD[S.cadTab].col); renderCadastros(); } }catch(e){toast("Não foi possível alterar.")}});
+  $$("[data-carea]").forEach(b=>b.onclick=()=>{S.cadArea=b.dataset.carea;renderCadastros()});
   $$("[data-form]").forEach(f=>f.onsubmit=async e=>{e.preventDefault();const C=CAD[S.cadTab];const d={};C.f.forEach(([k,,t])=>d[k]=t==="multi"?$$("#ce-"+k+" [data-mv]").filter(b=>b.getAttribute("aria-pressed")==="true").map(b=>b.dataset.mv):$("#ce-"+k).value.trim());
     if(!d.nome){toast("Informe o nome.");return}
     if(S.cadTab==="setores"&&!d.localId) d.localId=null;
@@ -2022,7 +2029,8 @@ const executorTxt=m=>m.executor==="terceiro"?(m.prestadorId?nomePrest(m.prestado
 const tituloM=m=>m.titulo||String(m.descricao||"").split("\n")[0].slice(0,90)||(m.tipo==="preventiva"?"Preventiva":"Manutenção");
 const ondeM=m=>[nomeLocal(m.localId)!=="—"?nomeLocal(m.localId):"",m.localDetalhe,m.setorId?nomeSetor(m.setorId).split(" · ")[0]:"",m.equipamentoId?nomeEquip(m.equipamentoId):""].filter(Boolean).join(" · ")||"Local não informado";
 const areaDe=p=>p.area||"logistica";
-const equipeMan=incl=>S.equipe.filter(p=>(p.ativo!==false&&areaDe(p)!=="logistica")||(incl||[]).includes(p.id)).sort(sortNome);
+// técnicos da manutenção (nas OS de veículo entra também quem é da frota)
+const equipeMan=(incl,frota)=>S.equipe.filter(p=>(p.ativo!==false&&(naMan(p)||(frota&&areaDe(p)==="frota")))||(incl||[]).includes(p.id)).sort(sortNome);
 const freqInfo=k=>(FREQS.find(f=>f[0]===k)||FREQS[2]);
 function mhist(m,s,nota){return (m.historico||[]).concat([{s,em:nowISO(),por:S.uid||null,nota:nota||""}])}
 const faltaMan=()=>!S.demo&&S.missing&&S.missing.manutencoes;
@@ -2061,18 +2069,24 @@ function optsEquip(localId,sel){
   return `<option value="">${lista.length?"Nenhum equipamento específico":"Nenhum equipamento cadastrado"+(localId?" neste local":"")}</option>`+lista.map(e=>`<option value="${esc(e.id)}"${e.id===sel?" selected":""}>${esc(e.nome)}${e.codigo?" · "+esc(e.codigo):""}${!localId&&e.localId?" ("+esc(siglaLocal(byId(S.locais,e.localId)))+")":""}</option>`).join("");
 }
 const optsPrest=sel=>`<option value="">Escolha o prestador…</option>`+S.prestadores.filter(p=>p.ativo!==false||p.id===sel).sort(sortNome).map(p=>`<option value="${esc(p.id)}"${p.id===sel?" selected":""}>${esc(p.nome)}${p.especialidade?" · "+esc(p.especialidade):""}</option>`).join("");
+// v58: escolher técnicos em caixa suspensa (a 1ª pessoa é quem faz; dá para juntar mais gente)
+function rotTec(X,t){const cat=X&&X.categoria;const fn=cat?(p=>(p.especialidades||[]).includes(cat)):(p=>false);
+  return {mot:{t:t||"Quem vai fazer",vazio:"A equipe escolhe no celular",g:cat?"Especialistas em "+cat:"Manutenção",fn},aj:{t:"Mais alguém",add:"Adicionar outra pessoa…",g:cat?"Especialistas em "+cat:"Manutenção",fn}}}
+function tecEscHTML(k,X,cls){X.equipeIds=X.equipeIds||[];const L=equipeMan(X.equipeIds,!!X.veiculoId);const R=rotTec(X);
+  if(!L.length)return `<p class="hint" style="margin:0">Nenhuma pessoa da manutenção cadastrada. Em Cadastros › Equipe, escolha o setor <b>Manutenção</b> para cada técnico.</p>`;
+  return motHTML(k,X.equipeIds,L,cls,R.mot)+ajHTML(k,X.equipeIds,L,cls,R.aj)}
+function bindTecEsc(k,X,box,cls){bindEscala(k,X.equipeIds,()=>{const b=$(box);if(b){b.innerHTML=tecEscHTML(k,X,cls);bindTecEsc(k,X,box,cls)}})}
 function execHTML(X){ // X: {executor,equipeIds,prestadorId}
-  const eq=equipeMan(X.equipeIds);
   return `<div class="field full"><span class="lbl">Quem executa</span><div class="seg2" role="group" aria-label="Quem executa"><button type="button" data-exe="interno" aria-pressed="${X.executor!=="terceiro"}">Equipe interna</button><button type="button" data-exe="terceiro" aria-pressed="${X.executor==="terceiro"}">Prestador (terceiro)</button></div></div>
-    <div class="field full" id="exInt"${X.executor==="terceiro"?" hidden":""}><span class="lbl">Técnicos <i class="opc">opcional: a equipe escolhe no celular da manutenção</i></span><div class="chips" id="exChips">${chipsTec(X)}</div>${qaHTML("equipe","exTec",{area:"manutencao",funcao:"Manutenção geral"})}</div>
+    <div class="field full" id="exInt"${X.executor==="terceiro"?" hidden":""}><span class="lbl">Técnicos <i class="opc">opcional: quem estiver na casa escolhe o próprio nome no celular da manutenção</i></span><div class="esc-g" id="exEsc">${tecEscHTML("ex",X)}</div>${qaHTML("equipe","exTec",{area:"manutencao",funcao:"Manutenção geral"})}</div>
     <div class="field full" id="exTer"${X.executor==="terceiro"?"":" hidden"}><label for="mPrest">Prestador</label><select id="mPrest">${optsPrest(X.prestadorId)}</select>${qaHTML("prestador","exPre")}</div>`;
 }
 function chipsTec(X){const eq=equipeMan(X.equipeIds);return eq.length?eq.map(p=>`<button type="button" class="chip" data-meq="${esc(p.id)}" aria-pressed="${(X.equipeIds||[]).includes(p.id)}">${esc(p.nome)}${p.funcao?`<small>${esc(p.funcao)}</small>`:""}${semApp(p)}</button>`).join(""):`<span class="hint">Nenhum técnico cadastrado ainda.</span>`}
 function bindExec(root,X){
   $$("[data-exe]",root).forEach(b=>b.onclick=()=>{X.executor=b.dataset.exe;$$("[data-exe]",root).forEach(x=>x.setAttribute("aria-pressed",x===b));$("#exInt",root).hidden=X.executor==="terceiro";$("#exTer",root).hidden=X.executor!=="terceiro"});
-  $$("[data-meq]",root).forEach(b=>b.onclick=()=>{const id=b.dataset.meq;X.equipeIds=X.equipeIds||[];const i=X.equipeIds.indexOf(id);if(i>=0)X.equipeIds.splice(i,1);else X.equipeIds.push(id);b.setAttribute("aria-pressed",i<0)});
+  X.equipeIds=X.equipeIds||[];if($("#exEsc",root))bindTecEsc("ex",X,"#exEsc");
   const ps=$("#mPrest",root);if(ps)ps.onchange=()=>{X.prestadorId=ps.value};
-  bindQA(root,{exTec:row=>{X.executor="interno";X.equipeIds=X.equipeIds||[];if(!X.equipeIds.includes(row.id))X.equipeIds.push(row.id);const c=$("#exChips",root);if(c){c.innerHTML=chipsTec(X);bindExec(root,X)}},
+  bindQA(root,{exTec:row=>{X.executor="interno";X.equipeIds=X.equipeIds||[];if(!X.equipeIds.includes(row.id))X.equipeIds.push(row.id);const c=$("#exEsc",root);if(c){c.innerHTML=tecEscHTML("ex",X);bindExec(root,X)}},
     exPre:row=>{X.executor="terceiro";X.prestadorId=row.id;const sel=$("#mPrest",root);if(sel)sel.innerHTML=optsPrest(row.id)}});
 }
 const executorOk=X=>X.executor==="terceiro"?!!X.prestadorId:true;
@@ -2119,7 +2133,7 @@ function renderMOrdens(){
     <div class="field"><label for="mLocF">Local</label><select id="mLocF">${opts(ativos(S.locais).filter(l=>l.tipo!=="Fornecedor"),f.local,"Todos")}</select></div>
     <div class="field"><label for="mCatF">Categoria</label><select id="mCatF"><option value="">Todas</option>${optsS(MCATS,f.cat)}</select></div>
     <div class="field"><label for="mTipF">Tipo</label><select id="mTipF">${optsS([["","Todos"],["corretiva","Corretiva"],["preventiva","Preventiva"]],f.tipo)}</select></div>
-    <div class="field"><label for="mEqF">Funcionário</label><select id="mEqF">${optsEquipe(f.eq)}</select></div>
+    <div class="field"><label for="mEqF">Funcionário</label><select id="mEqF">${optsEquipe(f.eq,naMan)}</select></div>
   </div></details></div>${f.eq?eqAtalhoHTML(f.eq):""}`;
   if(!S.demo&&!S.loaded.manutencoes&&!faltaMan()){app.innerHTML=h+`<div class="empty"><h3>Carregando manutenções…</h3></div>`;bindMOrdens();return}
   let list=filtraM();
@@ -3395,10 +3409,10 @@ function escSt(ids){let st=_escS.get(ids);if(!st){st={semMot:false};const P=id=>
 const motId=ids=>escSt(ids).semMot?"":ids[0]||"",ajIds=ids=>escSt(ids).semMot?ids.slice():ids.slice(1);
 const optEq=(x,sel)=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.nome)}${x.funcao?" · "+esc(x.funcao):""}${x.ativo===false?" (inativo)":""}</option>`;
 function optsGrupo(L,sel,rot,fn){L=L.slice().sort(sortNome);const a=L.filter(fn),b=L.filter(p=>!fn(p));return (a.length?`<optgroup label="${rot}">${a.map(p=>optEq(p,sel)).join("")}</optgroup>`:"")+(b.length?`<optgroup label="${a.length?"Outros da equipe":"Equipe"}">${b.map(p=>optEq(p,sel)).join("")}</optgroup>`:"")}
-function motHTML(k,ids,lista,cls){const mot=motId(ids);
-  return `<div class="field esc-f"><label for="${k}Mot">Motorista</label><select id="${k}Mot" class="${cls||""}"><option value="">A definir</option>${optsGrupo(lista,mot,"Motoristas",ehMot)}</select></div>`}
-function ajHTML(k,ids,lista,cls){const aj=ajIds(ids).map(id=>byId(S.equipe,id)).filter(Boolean);const livres=lista.filter(p=>!ids.includes(p.id));
-  return `<div class="field esc-f"><label for="${k}Aj">Ajudantes <i class="opc">opcional</i></label><select id="${k}Aj" class="${cls||""}"${livres.length?"":" disabled"}><option value="">${livres.length?(aj.length?"Adicionar mais alguém…":"Adicionar ajudante…"):"Toda a equipe já foi escolhida"}</option>${optsGrupo(livres,"","Ajudantes",ehAjud)}</select>
+function motHTML(k,ids,lista,cls,R){R=R||{};const mot=motId(ids);
+  return `<div class="field esc-f"><label for="${k}Mot">${R.t||"Motorista"}</label><select id="${k}Mot" class="${cls||""}"><option value="">${R.vazio||"A definir"}</option>${optsGrupo(lista,mot,R.g||"Motoristas",R.fn||ehMot)}</select></div>`}
+function ajHTML(k,ids,lista,cls,R){R=R||{};const aj=ajIds(ids).map(id=>byId(S.equipe,id)).filter(Boolean);const livres=lista.filter(p=>!ids.includes(p.id));
+  return `<div class="field esc-f"><label for="${k}Aj">${R.t||"Ajudantes"} <i class="opc">opcional</i></label><select id="${k}Aj" class="${cls||""}"${livres.length?"":" disabled"}><option value="">${livres.length?(aj.length?"Adicionar mais alguém…":(R.add||"Adicionar ajudante…")):"Toda a equipe já foi escolhida"}</option>${optsGrupo(livres,"",R.g2||R.g||"Ajudantes",R.fn2||R.fn||ehAjud)}</select>
     ${aj.length?`<div class="esc-pills">${aj.map(p=>`<span class="esc-pill"><b>${esc(p.nome)}</b>${p.funcao?`<small>${esc(p.funcao)}</small>`:""}<button type="button" data-ajx="${esc(p.id)}" aria-label="Tirar ${esc(p.nome)}" title="Tirar da OS">×</button></span>`).join("")}</div>`:""}</div>`}
 function bindEscala(k,ids,redraw){const st=escSt(ids);
   const m=$("#"+k+"Mot");if(m)m.onchange=()=>{const cur=motId(ids),v=m.value;if(cur)ids.splice(ids.indexOf(cur),1);
@@ -3426,12 +3440,12 @@ const PASSOS_LOG=[
       <div class="field" style="margin-top:14px"><label for="wzSol">Quem pediu <i class="opc">opcional</i></label><input type="text" id="wzSol" class="wz-in" list="dlWz" autocomplete="off" value="${esc(d.solicitante)}" placeholder="Comece a digitar o nome"><datalist id="dlWz">${S.solicitantes.filter(c=>c.ativo!==false).sort(sortNome).map(c=>`<option value="${esc(c.nome)}"></option>`).join("")}</datalist><span class="hint" id="wzSolH">${acharContato(d.solicitante)?"Contato cadastrado: setor e WhatsApp entram sozinhos":""}</span></div>`,
     bind:d=>{if(ehTraslado(d)){bindPaxWz(d);return}const t=$("#wzOque");if(t&&!t.value)t.focus();$$("[data-wcg]").forEach(b=>b.onclick=()=>{d.carga=b.dataset.wcg;$$("[data-wcg]").forEach(x=>x.classList.toggle("on",x===b))});const s2=$("#wzSol");s2.addEventListener("input",()=>{$("#wzSolH").textContent=acharContato(s2.value)?"Contato cadastrado: setor e WhatsApp entram sozinhos":""})},
     read:d=>{if(ehTraslado(d)){lerPaxWz(d);return}d.oQue=$("#wzOque").value.trim();d.solicitante=$("#wzSol").value.trim()},valid:d=>ehTraslado(d)?(Number(d.pax)>=1?null:"Informe quantas pessoas vão."):d.oQue?null:"Escreva o que vai ser levado."},
-  {q:"Quando e quem vai?",hint:"Com equipe e veículo, a OS já aparece no celular de quem foi escalado. Pode deixar para depois.",html:d=>{const eq=ativos(S.equipe).filter(p=>(p.area||"logistica")!=="manutencao");
+  {q:"Quando e quem vai?",hint:"Com equipe e veículo, a OS já aparece no celular de quem foi escalado. Pode deixar para depois.",html:d=>{const eq=ativos(S.equipe).filter(naLog);
       return quandoHTML(d,false)+`<div class="esc-box"><h3 class="esc-t">Equipe e veículo <i class="opc">opcional</i></h3><div class="esc-g" id="wzEsc">${wzEscHTML(d)}</div></div>`},
     bind:d=>{bindQuando(d);bindWzEsc(d)},
     read:d=>{lerQuando(d);if(!d.quandoK){d.quandoK="sem";d.quando=null}},valid:d=>d.quando||d.quandoK==="sem"?null:"Escolha o dia e a hora."},
 ];
-const eqLogWz=d=>ativos(S.equipe).filter(p=>(p.area||"logistica")!=="manutencao").concat(S.equipe.filter(p=>p.ativo===false&&d.equipeIds.includes(p.id)));
+const eqLogWz=d=>ativos(S.equipe).filter(naLog).concat(S.equipe.filter(p=>p.ativo===false&&d.equipeIds.includes(p.id)));
 const wzEscHTML=d=>motHTML("wz",d.equipeIds,eqLogWz(d),"wz-in")+veicSelHTML("wzVe",d.veiculoId,"wz-in")+`<div class="esc-full">${ajHTML("wz",d.equipeIds,eqLogWz(d),"wz-in")}</div>`;
 function bindWzEsc(d){bindEscala("wz",d.equipeIds,()=>{$("#wzEsc").innerHTML=wzEscHTML(d);bindWzEsc(d)});
   const v=$("#wzVe");if(v)v.onchange=()=>{d.veiculoId=v.value;d.veicOk=true;$("#wzVeI").innerHTML=veicInfo(v.value)}}
@@ -3467,12 +3481,12 @@ const PASSOS_MAN=[
     read:d=>{d.localId=$("#wzL").value;d.localDetalhe=$("#wzDet").value.trim()},valid:d=>d.localId?null:"Escolha o local."},
   {q:"Quem faz e quando?",html:d=>`<span class="lbl">Urgência</span><div class="wz-tiles col2">${MPRIO_SOL.map(([k,l])=>`<button type="button" class="wz-tile sm prio-${k}${d.prioridade===k?" on":""}" data-pr="${k}"><b>${esc(l.split(" · ")[0])}</b><small>${esc(l.split(" · ")[1]||"")}</small></button>`).join("")}</div>
       <span class="lbl" style="margin-top:16px;display:block">Quem faz</span><div class="wz-tiles col3">${[["interno","Equipe da manutenção"],["terceiro","Prestador"],["depois","Decidir depois"]].map(([k,l])=>`<button type="button" class="wz-tile sm${d.exec===k?" on":""}" data-ex="${k}"><b>${l}</b></button>`).join("")}</div>
-      <div id="wzExI"${d.exec==="interno"?"":" hidden"} style="margin-top:12px"><p class="hint" style="margin:0 0 8px">A equipe escolhe quem faz no celular da manutenção. Se quiser, já indique alguém:</p>${chipsEquipe(equipeMan(d.equipeIds),d.equipeIds,"wmq")}</div>
+      <div id="wzExI"${d.exec==="interno"?"":" hidden"} style="margin-top:12px"><p class="hint" style="margin:0 0 8px">Quem estiver na casa escolhe o próprio nome no celular da manutenção. Se quiser, já indique alguém:</p><div class="esc-g" id="wzMEsc">${tecEscHTML("wm",d,"wz-in")}</div></div>
       <div id="wzExT"${d.exec==="terceiro"?"":" hidden"} style="margin-top:12px"><select id="wzPr" class="wz-in">${optsPrest(d.prestadorId)}</select></div>
       <span class="lbl" style="margin-top:16px;display:block">Quando <i class="opc">opcional</i></span>${quandoHTML(d,true)}`,
     bind:d=>{$$("[data-pr]").forEach(b=>b.onclick=()=>{d.prioridade=b.dataset.pr;$$("[data-pr]").forEach(x=>x.classList.toggle("on",x===b))});
       $$("[data-ex]").forEach(b=>b.onclick=()=>{d.exec=b.dataset.ex;$$("[data-ex]").forEach(x=>x.classList.toggle("on",x===b));$("#wzExI").hidden=d.exec!=="interno";$("#wzExT").hidden=d.exec!=="terceiro"});
-      bindChips("wmq",d.equipeIds);$("#wzPr").onchange=e=>{d.prestadorId=e.target.value};bindQuando(d)},
+      bindTecEsc("wm",d,"#wzMEsc","wz-in");$("#wzPr").onchange=e=>{d.prestadorId=e.target.value};bindQuando(d)},
     read:d=>{lerQuando(d);if(!d.quandoK){d.quandoK="sem";d.quando=null}},
     valid:d=>!d.exec?"Escolha quem faz.":d.exec==="terceiro"&&!d.prestadorId?"Escolha o prestador, ou toque em Decidir depois.":d.quandoK&&d.quandoK!=="sem"&&!d.quando?"Escolha o dia e a hora.":null},
 ];
@@ -4412,7 +4426,7 @@ function loadDemoEmg(){
 function loadDemoMan(){
   const now=Date.now();let seed=11;const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};const pick=a=>a[Math.floor(rnd()*a.length)];
   S.equipe.forEach(p=>{p.custoHora=p.funcao==="Motorista"?32:p.funcao==="Coordenador"?55:24});
-  S.equipe.push(...[["Técnico Elétrica","Eletricista",38],["Técnico Hidráulica","Encanador",36],["Técnico Refrigeração","Técnico de refrigeração",42],["Manutenção geral","Manutenção geral",30]].map(([n,f,c],i)=>({id:"t"+i,nome:n,funcao:f,area:"manutencao",custoHora:c,ativo:true})));
+  S.equipe.push(...[["Técnico Elétrica","Eletricista",38],["Técnico Hidráulica","Encanador",36],["Técnico Refrigeração","Técnico de refrigeração",42],["Manutenção geral","Manutenção geral",30]].map(([n,f,c],i)=>({id:"t"+i,nome:n,funcao:f,area:"manutencao",custoHora:c,ativo:true})),{id:"est0",nome:"Manobrista Paulo",funcao:"Manobrista",area:"estacionamento",ativo:true});
   ({mc:22000,mg:14000,dr:6000,cm:5000,cd1:4000})&&S.locais.forEach(l=>{const o={mc:22000,mg:14000,dr:6000,cm:5000,cd1:4000}[l.id];if(o)l.orcamentoMensal=o});
   S.prestadores=[["Frio Total Climatização","Ar-condicionado"],["Hidro Já","Hidráulica"],["Eletro SP","Elétrica"]].map(([n,e],i)=>({id:"pr"+i,nome:n,especialidade:e,telefone:"(11) 3333-000"+i,ativo:true}));
   S.equipamentos=[["Ar split salão 1","AC-001","Ar-condicionado","mc","s0"],["Ar split salão 2","AC-002","Ar-condicionado","mc","s0"],["Câmara fria","RF-001","Refrigeração","mc","s1"],["Forno combinado","CZ-001","Cozinha industrial","mc","s1"],["Gerador 150 kVA","GE-001","Gerador / energia","mc",""],["Ar split VIP","AC-010","Ar-condicionado","mg","s6"],["Freezer bar VIP","RF-010","Refrigeração","mg","s6"],["Bomba de recalque","HD-001","Hidráulica","cm","s10"],["Coifa cozinha","CZ-020","Cozinha industrial","dr",""],["Elevador social","EL-001","Elevador","cm",""]]
@@ -4833,7 +4847,7 @@ function renderEficiencia(){
    OS da logística, rotas, OS da manutenção, OS da frota, conferências
    e lavagens/serviços que ela registrou, por período.
    ===================================================================== */
-function optsEquipe(sel){const L=S.equipe.filter(p=>p.ativo!==false||p.id===sel).slice().sort(sortNome);return `<option value="">Todos</option>`+L.map(p=>`<option value="${esc(p.id)}"${p.id===sel?" selected":""}>${esc(p.nome)}${p.ativo===false?" (inativo)":""}</option>`).join("")}
+function optsEquipe(sel,fn){const L=S.equipe.filter(p=>(p.ativo!==false&&(!fn||fn(p)))||p.id===sel).slice().sort(sortNome);return `<option value="">Todos</option>`+L.map(p=>`<option value="${esc(p.id)}"${p.id===sel?" selected":""}>${esc(p.nome)}${p.ativo===false?" (inativo)":""}</option>`).join("")}
 const eqAtalhoHTML=id=>{const p=byId(S.equipe,id);return p?`<p class="pf-at">Filtrando pelas OS de <b>${esc(p.nome)}</b>. <a class="lnk" href="#funcionario/${esc(id)}">Ver tudo o que ${esc(p.nome.split(" ")[0])} fez</a></p>`:""};
 const PF_PER=[["hoje","Hoje"],["7","Últimos 7 dias"],["q","Esta quinzena"],["qa","Quinzena anterior"],["mes","Este mês"],["mesant","Mês anterior"],["30","Últimos 30 dias"],["90","Últimos 90 dias"],["ano","Este ano"],["datas","Escolher as datas"]];
 const PF_CAT={log:["Logística","OS da logística"],rota:["Rota","Rotas"],man:["Manutenção","OS da manutenção"],frota:["Frota","OS da frota"],conf:["Conferência","Conferências"],serv:["Lavagem / serviço","Lavagens e serviços"]};
@@ -5073,7 +5087,7 @@ function renderMFila(){
   $$("[data-flt]").forEach(b=>b.onclick=()=>{S.flTab=b.dataset.flt;renderMFila()});
   $$("[data-fl]").forEach(b=>b.onclick=()=>{location.hash="#m-exec/"+b.dataset.fl});bindSairMs();
 }
-function pessoasMan(m){const cat=m.categoria||"";const eq=S.equipe.filter(p=>p.ativo!==false&&areaDe(p)!=="logistica").sort(sortNome);
+function pessoasMan(m){const cat=m.categoria||"";const eq=S.equipe.filter(p=>p.ativo!==false&&(naMan(p)||(m.veiculoId&&areaDe(p)==="frota"))).sort(sortNome);
   const ind=cat?eq.filter(p=>(p.especialidades||[]).includes(cat)):[];return {ind,outros:eq.filter(p=>!ind.includes(p))}}
 function chipPessoa(p,sel){return `<button type="button" class="chip big" data-px="${esc(p.id)}" aria-pressed="${sel.includes(p.id)}"><b>${esc(p.nome)}</b>${(p.especialidades||[]).length?`<small>${esc(p.especialidades.join(", "))}</small>`:p.funcao?`<small>${esc(p.funcao)}</small>`:""}</button>`}
 async function oficinaAcao(m,acao,pessoas,texto,fotos,quando){
@@ -5102,8 +5116,8 @@ function renderMExec(){
     ${m.descricao&&m.descricao!==tituloCurto(m)?`<div class="ms-box"><span class="ms-lbl">O problema</span><p style="margin:0;white-space:pre-line">${esc(m.descricao)}</p></div>`:""}
     ${(m.fotosAbertura||[]).length?`<div class="ms-box"><span class="ms-lbl">Fotos de quem pediu</span><div class="photos">${m.fotosAbertura.map((f,i)=>`<div class="ph"><button type="button" data-zoom="${esc(f.url)}" aria-label="Ampliar foto ${i+1}"><img src="${esc(f.url)}" alt="Foto ${i+1}"></button></div>`).join("")}</div></div>`:""}
     ${m.status==="aguardando"?`<div class="ms-box hold">Pausada: ${esc(m.aguardandoMotivo||"")}</div>`:""}`;
-  const escolher=()=>{const P=pessoasMan(m);return `<div class="ms-box"><span class="ms-lbl">Quem vai fazer? <i>toque em uma ou mais pessoas</i></span>
-    ${P.ind.length?`<p class="fl-g">Especialistas em ${esc(m.categoria)}</p><div class="chips">${P.ind.map(p=>chipPessoa(p,X.sel)).join("")}</div><p class="fl-g">Outros</p>`:""}<div class="chips">${P.outros.map(p=>chipPessoa(p,X.sel)).join("")||`<span class="hint">Nenhuma pessoa da manutenção cadastrada.</span>`}</div></div>`};
+  const escolher=()=>{const P=pessoasMan(m);const L=P.ind.concat(P.outros);const R=rotTec(m,"Quem está fazendo? Escolha o seu nome");R.mot.vazio="Escolha o seu nome…";
+    return `<div class="ms-box"><div class="esc-g ms-esc" id="oxEsc">${L.length?motHTML("ox",X.sel,L,"ms-in",R.mot)+ajHTML("ox",X.sel,L,"ms-in",R.aj):`<span class="hint">Nenhuma pessoa da manutenção cadastrada. A coordenação cadastra em Cadastros › Equipe, com o setor Manutenção.</span>`}</div></div>`};
   if(m.status==="concluida"){h+=`<div class="ms-box"><span class="ms-lbl">Feito por</span><b>${esc(nomeEquipe(m.equipeIds)||"—")}</b>${m.solucao?`<p style="margin:6px 0 0;white-space:pre-line">${esc(m.solucao)}</p>`:""}</div>`}
   else if(m.executor==="terceiro"&&!ex){h+=`<div class="ms-box warn">Esta OS é de prestador: ${esc(nomePrest(m.prestadorId)||"a definir")}. A coordenação acompanha.</div>`}
   else if(!ex){h+=escolher()+horaHTML(X,"Quando começaram?")+`<p class="err" id="oxErr" role="alert"></p><button class="ms-cta" type="button" id="oxIni">${ic("play","ic")}Iniciar o serviço</button>`}
@@ -5116,11 +5130,11 @@ function renderMExec(){
   app.innerHTML=h;
   const err=$("#oxErr");const go=modo=>{X.modo=modo;X.txt="";X.qOn=false;X.quando="";renderMExec();window.scrollTo(0,document.body.scrollHeight)};
   const run=async(btn,fn)=>{if(!btn)return;btn.onclick=async()=>{err.textContent="";btn.disabled=true;try{await fn();}catch(e){console.error(e);btn.disabled=false;err.textContent=(e&&e.message&&/[a-zà-ú]{4}/i.test(e.message)?e.message:"Não foi possível salvar. Verifique a internet.")}}};
-  $$("[data-px]").forEach(b=>b.onclick=()=>{const id=b.dataset.px;X.sel=X.sel.includes(id)?X.sel.filter(x=>x!==id):X.sel.concat([id]);b.setAttribute("aria-pressed",X.sel.includes(id))});
+  if($("#oxEsc")){const re=()=>{const y=window.scrollY;renderMExec();window.scrollTo(0,y)};bindEscala("ox",X.sel,re)}
   const tx=$("#oxTxt");if(tx)tx.addEventListener("input",()=>{X.txt=tx.value});
   bindHora(X,()=>{const y=window.scrollY;renderMExec();window.scrollTo(0,y)});
   const qx=min=>{const q=horaISO(X,min);return q.manual?q.iso:null};
-  run($("#oxIni"),async()=>{if(!X.sel.length)throw new Error("Escolha quem vai fazer.");await oficinaAcao(m,"iniciar",X.sel,null,null,qx());toast(codM(m)+" iniciada");S.ox=null;renderMExec()});
+  run($("#oxIni"),async()=>{if(!X.sel.length)throw new Error("Escolha o seu nome em Quem está fazendo.");await oficinaAcao(m,"iniciar",X.sel,null,null,qx());toast(codM(m)+" iniciada");S.ox=null;renderMExec()});
   run($("#oxEq"),async()=>{if(!X.sel.length)throw new Error("Escolha quem está fazendo.");await oficinaAcao(m,"equipe",X.sel);toast("Equipe atualizada");X.modo=null;renderMExec()});
   run($("#oxRet"),async()=>{await oficinaAcao(m,"retomar");toast("Serviço retomado");renderMExec()});
   run($("#oxPausa"),async()=>{if(!X.txt.trim())throw new Error("Diga por que vai parar.");await oficinaAcao(m,"pausar",null,X.txt.trim());toast(codM(m)+" pausada");X.modo=null;renderMExec()});
@@ -5133,7 +5147,7 @@ function renderMExec(){
 }
 function loadDemoPainel(){
   const esp=[["Elétrica","Gerador / energia"],["Hidráulica","Civil / alvenaria"],["Ar-condicionado","Refrigeração"],["Pintura","Marcenaria"],["Manutenção geral"]];let i=0;
-  S.equipe.forEach(p=>{if(areaDe(p)!=="logistica"){p.especialidades=esp[i%esp.length];i++}});
+  S.equipe.forEach(p=>{if(naMan(p)){p.especialidades=esp[i%esp.length];i++}});
 }
 
 /* =====================================================================

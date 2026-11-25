@@ -1234,7 +1234,7 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"57"}
+:root{--versao-css:"58"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}
@@ -1303,3 +1303,8 @@ button.pf-row,a.pf-row{cursor:pointer}button.pf-row:hover,a.pf-row:hover{backgro
 .ms-box.ms-volta{display:flex;gap:10px;align-items:flex-start;background:var(--soft);border-color:var(--line-strong)}
 .ms-box.ms-volta .ic{flex:none;margin-top:2px;color:var(--accent)}
 .ms-ro.ent .ms-ro-s{color:var(--s-ok,#1E7A46)}
+
+/* v58 · setor da equipe e técnicos em caixa */
+.cad-area button span{font-weight:500;opacity:.75;margin-left:2px}
+.ms-esc{grid-template-columns:minmax(0,1fr)}
+.ms-esc .esc-f label{font-size:13px;font-weight:700;letter-spacing:.02em;color:var(--mute);text-transform:uppercase}

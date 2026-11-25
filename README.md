@@ -586,3 +586,11 @@ Não precisa rodar nada no Supabase.
 - **Painel da coordenação:** na última parada o botão é "Registrar entrega" (sem km). Depois aparece **Registrar volta à base**, com o km e a hora. O aviso no WhatsApp já pode ser enviado na entrega.
 - **Atraso só na saída:** a OS fica "Atrasada" quando ainda não saiu e passou do horário marcado. Depois que saiu, não conta mais atraso. Indicadores: "Saíram no horário".
 - **Tempo médio por serviço:** o sistema compara cada missão com a média dos serviços iguais (mesma base, mesmas paradas, mesmo tipo) e avisa **Acima do tempo médio** (15% acima da média, no mínimo 10 minutos). A média aparece depois de 3 serviços iguais. Nova aba em Controle de Eficiência › **Tempo por serviço**, e um indicador no Painel.
+
+## Atualização 58 · Setor de cada pessoa e técnicos em caixa suspensa
+**Rodar o script `supabase/32_setores_equipe.sql` no SQL Editor do Supabase** (uma vez; mostra 1 linha OK).
+- **Setor onde trabalha:** em Cadastros › Equipe, cada pessoa tem um setor: Logística, Manutenção, Frota, Estacionamento, Logística e manutenção ou Outro setor. A pessoa não precisa ter login: é só cadastrar o nome.
+- **Filtro por setor** em Cadastros › Equipe, com a quantidade de pessoas em cada um. Quem é cadastrado pela área da Manutenção já vem com o setor Manutenção.
+- **Execução da manutenção:** só aparecem as pessoas do setor **Manutenção** (ou Logística e manutenção). Nas OS de veículo, aparece também quem é da Frota. Na logística, só Logística, Frota e Logística e manutenção.
+- **Celular da manutenção (login único):** quem estiver na casa abre a OS, escolhe o próprio nome em **"Quem está fazendo?"** (caixa suspensa) e toca em Iniciar. Dá para juntar mais pessoas em "Mais alguém".
+- **Nova OS da manutenção:** "Quem vai fazer" e "Mais alguém" também em caixa suspensa, com os especialistas da categoria no topo.
