@@ -1234,7 +1234,7 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"59"}
+:root{--versao-css:"60"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}
@@ -1308,3 +1308,20 @@ button.pf-row,a.pf-row{cursor:pointer}button.pf-row:hover,a.pf-row:hover{backgro
 .cad-area button span{font-weight:500;opacity:.75;margin-left:2px}
 .ms-esc{grid-template-columns:minmax(0,1fr)}
 .ms-esc .esc-f label{font-size:13px;font-weight:700;letter-spacing:.02em;color:var(--mute);text-transform:uppercase}
+
+/* v60 · aviso de nova missão */
+.av-novo{position:relative;margin:0 0 14px;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 12px 12px 16px;border-radius:14px;
+  background:linear-gradient(135deg,#4A0A06,#250504);color:#fff;box-shadow:0 12px 32px rgba(0,0,0,.35);border:1px solid rgba(199,147,45,.55);animation:avIn .35s ease-out}
+@keyframes avIn{from{transform:translateY(-20px);opacity:0}to{transform:none;opacity:1}}
+.av-novo .av-ic{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(199,147,45,.22);color:#E8C27A;animation:avSino 1.2s ease-in-out 3}
+@keyframes avSino{0%,100%{transform:rotate(0)}20%{transform:rotate(14deg)}40%{transform:rotate(-12deg)}60%{transform:rotate(8deg)}80%{transform:rotate(-4deg)}}
+.av-novo .av-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.av-novo .av-t b{font-size:15px}.av-novo .av-t small{opacity:.85;font-size:13px;overflow-wrap:anywhere}
+.av-novo .av-ver{flex:none;padding:9px 16px;border-radius:999px;background:#C7932D;color:#250504;font-weight:700;text-decoration:none}
+.av-novo .av-x{flex:none;width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:#fff;font-size:22px;cursor:pointer}
+@media (min-width:761px){.av-novo{max-width:560px}}
+.av-card{display:flex;gap:12px;align-items:flex-start;border-color:var(--gold-ink,#A87420)}
+.av-card>.ic{flex:none;color:var(--gold-ink,#A87420);margin-top:2px}
+.av-card p{margin:4px 0 10px;color:var(--mute);font-size:14px}
+.av-bts{display:flex;gap:8px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){.av-novo,.av-novo .av-ic{animation:none}}

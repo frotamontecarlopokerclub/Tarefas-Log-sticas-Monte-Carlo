@@ -105,7 +105,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=59;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=60;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -207,6 +207,7 @@ async function startSession(session){
   if(lento) toast("A conexão está lenta: parte dos dados não carregou. Puxe a tela para baixo ou recarregue.");
   try{ if(isLog()) gerarRecorrentes(); if(isMan()) gerarPreventivas(); }catch(e){ console.warn(e); }
   assinarTempoReal();
+  if(S.role==="campo"||S.role==="oficina"){registrarSW();setTimeout(checarAvisos,1500)}
   }catch(e){ telaErro(e); }
   finally{ S.starting=false; }
 }
@@ -229,6 +230,64 @@ async function carregar(t){
 const recarga={};
 // assinatura do conteúdo: só redesenha a tela quando algo mudou
 const assinaturaT=t=>(S[t]||[]).map(x=>x.id+":"+(x.status||"")+":"+(x.atualizadoEm||x.criadoEm||"")).join("|");
+/* =====================================================================
+   v60 · AVISO DE NOVA MISSÃO: som, vibração, faixa na tela e notificação
+   Toca no celular da equipe de campo quando a coordenação escala a pessoa
+   numa OS (logística, traslado ou manutenção) e no celular da manutenção
+   quando entra uma OS nova na fila. Funciona com o app aberto ou em
+   segundo plano; com o app fechado, o Android pode pausar o app.
+   ===================================================================== */
+const AV={ctx:null,rep:null,n:0};
+function audioCtx(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;AV.ctx=AV.ctx||new C();if(AV.ctx.state==="suspended")AV.ctx.resume();return AV.ctx}catch(e){return null}}
+document.addEventListener("pointerdown",()=>{if(S.role==="campo"||S.role==="oficina")audioCtx()},{passive:true});
+function somAviso(){const c=audioCtx();if(!c)return;try{const t0=c.currentTime+0.03;
+  [[784,0],[1047,0.16],[1319,0.32],[784,0.85],[1047,1.01],[1319,1.17]].forEach(([f,d])=>{const o=c.createOscillator(),g=c.createGain();o.type="triangle";o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t0+d);g.gain.exponentialRampToValueAtTime(0.4,t0+d+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+d+0.34);o.connect(g);g.connect(c.destination);o.start(t0+d);o.stop(t0+d+0.36)})}catch(e){}}
+let swReg=null;
+async function registrarSW(){if(!("serviceWorker" in navigator)||!/^https?:$/.test(location.protocol))return;try{swReg=await navigator.serviceWorker.register("sw.js")}catch(e){dlog("aviso: service worker "+e.message)}}
+const temNotif=()=>"Notification" in window;
+async function notificar(a){if(!temNotif()||Notification.permission!=="granted")return;
+  const op={body:a.txt,icon:"icone-192.png",badge:"icone-48.png",tag:a.k,renotify:true,requireInteraction:true,vibrate:[300,150,300,150,300],data:{url:location.pathname+a.url}};
+  try{const r=swReg||(navigator.serviceWorker&&await navigator.serviceWorker.getRegistration());if(r){await r.showNotification(a.tit,op);return}new Notification(a.tit,op)}catch(e){dlog("aviso: notificação "+e.message)}}
+// o que merece aviso para quem está logado
+function alvosAviso(){const L=[];
+  if(S.role==="campo")minhasMissoes().forEach(x=>{if(x.o.status==="agendada"&&!cienteEm(x.o))L.push({k:x.k+"_"+x.o.id,
+    tit:(x.k==="log"?(ehTraslado(x.o)?"Novo traslado":"Nova missão"):"Nova OS da manutenção")+" · "+(x.k==="log"?codigo(x.o):codM(x.o)),
+    txt:tituloMs(x)+(x.o.agendadoPara?" · "+quandoTxt(x.o.agendadoPara):""),url:"#missao/"+x.k+"_"+x.o.id})});
+  if(S.role==="oficina")osPainelMan().aFazer.forEach(m=>L.push({k:"fila_"+m.id,tit:(m.prioridade==="urgente"?"URGENTE · ":"")+"Nova OS · "+codM(m),txt:tituloM(m)+" · "+ondeM(m),url:"#m-exec/"+m.id}));
+  return L}
+const AV_KEY="fmc-avisados";
+function avisados(){try{return new Set(JSON.parse(localStorage.getItem(AV_KEY)||"[]"))}catch(e){return new Set()}}
+function guardarAvisados(set){try{localStorage.setItem(AV_KEY,JSON.stringify([...set].slice(-300)))}catch(e){}}
+function checarAvisos(){if(S.role!=="campo"&&S.role!=="oficina")return;if(S.role==="campo"&&!S.loaded.os&&!S.demo)return;
+  const L=alvosAviso(),vistos=avisados();const novos=L.filter(a=>!vistos.has(a.k));
+  const pend=new Set(L.map(a=>a.k));if(AV.banner&&!AV.banner.some(a=>pend.has(a.k)))fecharAviso();
+  if(!novos.length)return;novos.forEach(a=>vistos.add(a.k));guardarAvisados(vistos);alertar(novos)}
+function alertar(L){somAviso();try{if(navigator.vibrate)navigator.vibrate([300,150,300,150,300])}catch(e){}
+  AV.banner=L;mostrarAviso();if(document.visibilityState!=="visible"||!document.hasFocus())L.slice(0,3).forEach(notificar);
+  clearInterval(AV.rep);AV.n=0;AV.rep=setInterval(()=>{if(!AV.banner||++AV.n>3){clearInterval(AV.rep);return}somAviso();try{if(navigator.vibrate)navigator.vibrate([300,150,300])}catch(e){}},90000)}
+// a faixa fica no topo da tela, dentro da página (não cobre o "Voltar" nem os botões)
+function mostrarAviso(){let el=$("#avNovo");if(!el){el=document.createElement("div");el.id="avNovo";el.className="av-novo";el.setAttribute("role","alert")}
+  if(el.parentNode!==app||app.firstChild!==el)app.insertBefore(el,app.firstChild);
+  const L=AV.banner||[];const a=L[0];if(!a){el.remove();return}
+  el.innerHTML=`<span class="av-ic">${ic("bell","ic")}</span><span class="av-t"><b>${esc(a.tit)}</b><small>${esc(a.txt)}${L.length>1?" · e mais "+(L.length-1):""}</small></span><a class="av-ver" href="${esc(a.url)}">Ver</a><button type="button" class="av-x" aria-label="Fechar aviso">×</button>`;
+  el.querySelector(".av-ver").onclick=()=>fecharAviso();el.querySelector(".av-x").onclick=()=>fecharAviso()}
+function fecharAviso(){AV.banner=null;clearInterval(AV.rep);const el=$("#avNovo");if(el)el.remove()}
+window.addEventListener("hashchange",()=>{if(AV.banner&&AV.banner.some(a=>location.hash===a.url))fecharAviso()}); // abriu a própria missão: a faixa sai
+// cartão para ligar os avisos (o navegador só pede permissão depois de um toque)
+function avisosCardHTML(){if(S.role!=="campo"&&S.role!=="oficina")return "";
+  const st=temNotif()?Notification.permission:"x";let ok=false;try{ok=localStorage.getItem("fmc-som-ok")==="1"}catch(e){}
+  if(st==="granted"&&ok)return "";
+  return `<div class="ms-box av-card">${ic("bell","ic")}<div><b>${st==="denied"?"Notificações bloqueadas":"Ative o aviso de nova missão"}</b>
+    <p>${st==="denied"?"O som continua tocando com o app aberto. Para receber também a notificação, libere em Configurações do celular › Apps › Facilities MC › Notificações.":"Toca um som, vibra e aparece uma notificação quando chegar uma OS nova para você."}</p>
+    <div class="av-bts">${st==="default"?`<button type="button" class="btn pri sm" id="avAtivar">Ativar avisos</button>`:st==="granted"?`<button type="button" class="btn pri sm" id="avAtivar">Ativar som</button>`:""}<button type="button" class="btn sm" id="avTeste">Testar som</button></div></div></div>`}
+document.addEventListener("click",async e=>{const t=e.target.closest&&e.target.closest("#avAtivar,#avTeste");if(!t)return;
+  audioCtx();if(t.id==="avTeste"){somAviso();try{if(navigator.vibrate)navigator.vibrate([300,150,300])}catch(x){}toast("Esse é o som de nova missão.");return}
+  let r=temNotif()?Notification.permission:"x";if(r==="default"){try{r=await Notification.requestPermission()}catch(x){}}
+  try{localStorage.setItem("fmc-som-ok","1")}catch(x){}somAviso();
+  if(r==="granted"){await registrarSW();notificar({k:"teste",tit:"Avisos ativados",txt:"Você vai ser avisado quando chegar uma OS nova.",url:location.hash||"#missoes"})}
+  toast(r==="granted"?"Pronto: avisos ativados.":r==="denied"?"Notificações bloqueadas. O som toca com o app aberto.":"Som ativado.");render()});
+
 function avisarNovos(t,antes){
   if(!antes||!S.role)return;const novos=(S[t]||[]).filter(x=>!antes.has(x.id));if(!novos.length||novos.length>5)return;
   if(t==="manutencoes"&&(isMan()||S.role==="tv"||S.role==="oficina")){const l=novos.filter(m=>!m.veiculoId||isFrota());if(l.length)toast(l.length===1?"Nova OS na manutenção: "+codM(l[0])+(l[0].prioridade==="urgente"?" · URGENTE":""):l.length+" OS novas na manutenção")}
@@ -242,6 +301,7 @@ async function recarregar(ts){
   const mudou=ts.filter((t,i)=>r[i].status==="fulfilled"&&assinaturaT(t)!==antes[t]);
   if(!mudou.length)return;
   mudou.forEach(t=>avisarNovos(t,ids[t]));
+  if(mudou.some(t=>["os","manutencoes"].includes(t)))setTimeout(checarAvisos,300);
   if(mudou.includes("perfis")){const me=S.perfis.find(x=>x.id===S.uid);if(me&&(me.areaAcesso||"ambas")!==S.areaAcesso){location.reload();return}}
   if(mudou.includes("recorrencias")&&isLog())gerarRecorrentes();if(mudou.includes("planos")&&isMan())gerarPreventivas();
   buildNav();render();
@@ -519,6 +579,7 @@ function render(force){
   }
   if(S.openId&&!S.action) renderDrawer();
   if(S.mOpen&&!S.mAct) renderMDrawer();
+  if(typeof AV!=="undefined"&&AV.banner)mostrarAviso();
 }
 function banner(){
   if(S.demo) return `<div class="banner"><b>Modo demonstração.</b> O arquivo config.js ainda não tem o endereço e a chave do Supabase. Os dados abaixo são exemplos e não são salvos.
@@ -2005,6 +2066,7 @@ function renderRelatorio(){
   function bindRel(){$("#rmS").onchange=e=>{S.rm=e.target.value;renderRelatorio()};
     const ex=$("#expM");if(ex){ex.onclick=()=>exportCSV(mesStats(S.rm).all,S.rm)}}
 }
+document.addEventListener("click",e=>{const b0=e.target.closest&&e.target.closest("[data-demorole]");if(b0&&S.demo)setTimeout(checarAvisos,900)});
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-demorole]");if(!b||!S.demo)return;const [r,ar]=b.dataset.demorole.split(":");S.role=r;S.areaAcesso=ar||"ambas";document.body.classList.toggle("campo",r==="campo"||r==="oficina");document.body.classList.toggle("tvmode",r==="tv");
   if(r==="tv"||r==="oficina"){S.area="man";S.meName=r==="tv"?"TV da manutenção":"Celular da manutenção";buildNav();const h="#"+navCfg().home;if(location.hash===h)route();else location.hash=h;return}
   if(r==="campo"){S.demoEquipeId="e0";S.meName="Motorista A";const h=new Date();S.os.filter(o=>(o.equipeIds||[]).includes("e0")&&["agendada","em_rota"].includes(o.status)).length||S.os.filter(o=>o.status==="agendada").slice(0,2).forEach(o=>{o.equipeIds=["e0"]});
@@ -3084,6 +3146,7 @@ const ICON={mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a
   pin:'<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',ok:'<path d="M5 12l5 5L20 7"/>',back:'<path d="M15 5l-7 7 7 7"/>',
   pause:'<path d="M9 5v14M15 5v14"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M12 5v14M5 12h14"/>',play:'<path d="M7 5l12 7-12 7z"/>'};
 ICON.play='<path d="M7 4l13 8-13 8z"/>';
+ICON.bell='<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>';
 const ic=(k,cls)=>`<svg class="${cls||"ic"}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 const cienteEm=o=>{const id=meuEquipeId();return id&&o&&o.cientes?o.cientes[id]||null:null};
 const meuEquipeId=()=>S.demo?S.demoEquipeId:((S.equipe.find(p=>p.perfilId===S.uid)||{}).id||null);
@@ -3115,7 +3178,7 @@ function msCard(x){const e=estadoMs(x);const late=x.k==="log"?atrasada(x.o):mAtr
     <span class="ms-foot"><span class="ms-st ${e.cls}">${esc(e.txt)}</span><span class="ms-go">${esc(e.acao)} ›</span></span></button>`}
 function renderMissoes(){
   S.ms=null;const id=meuEquipeId();
-  let h=`<div class="ms-head"><h1>Olá, ${esc((S.meName||"").split(" ")[0]||"equipe")}</h1><p>${(t=>t.charAt(0).toUpperCase()+t.slice(1))(new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"}))}</p></div>${banner()}`;
+  let h=`<div class="ms-head"><h1>Olá, ${esc((S.meName||"").split(" ")[0]||"equipe")}</h1><p>${(t=>t.charAt(0).toUpperCase()+t.slice(1))(new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"}))}</p></div>${banner()}${avisosCardHTML()}`;
   if(!S.demo&&!S.loaded.os){app.innerHTML=h+`<div class="empty"><h3>Carregando suas missões…</h3></div>`;return}
   if(!id){app.innerHTML=h+`<div class="ms-empty">${ic("clock","ic xl")}<h2>Sua conta ainda não está ligada à equipe</h2><p>Avise a coordenação de Facilities para concluir a liberação do seu acesso.</p></div>${sairHTML()}`;bindSairMs();return}
   const L=minhasMissoes();const agora=L.filter(x=>x.ativo),antes=L.filter(x=>!x.ativo&&x.quando&&dayKey(x.quando)<dayKey(new Date())),hoje=L.filter(x=>!x.ativo&&x.quando&&dayKey(x.quando)===dayKey(new Date())),dep=L.filter(x=>!x.ativo&&(!x.quando||dayKey(x.quando)>dayKey(new Date())));
@@ -5082,7 +5145,7 @@ function filaCard(m){const pz=prazoFalta(m);const pr=m.prioridade||"normal";cons
 function renderMFila(){
   if(!podeDesenhar())return;S.ox=null;
   const P=osPainelMan();const tab=S.flTab||"fazer";
-  let h=`<div class="ms-head"><h1>Ordens da manutenção</h1><p>${(t=>t.charAt(0).toUpperCase()+t.slice(1))(new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"}))}</p></div>${banner()}
+  let h=`<div class="ms-head"><h1>Ordens da manutenção</h1><p>${(t=>t.charAt(0).toUpperCase()+t.slice(1))(new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"}))}</p></div>${banner()}${avisosCardHTML()}
     <div class="fl-tabs" role="tablist">${[["fazer","A fazer",P.aFazer.length],["exec","Em execução",P.exec.length],["feitas","Finalizadas",P.feitas.length]].map(([k,l,n])=>`<button type="button" role="tab" aria-selected="${tab===k}" data-flt="${k}">${l}<span class="num">${n}</span></button>`).join("")}</div>`;
   if(!S.demo&&!S.loaded.manutencoes){app.innerHTML=h+`<div class="empty"><h3>Carregando…</h3></div>`;return}
   const L=tab==="fazer"?P.aFazer:tab==="exec"?P.exec:P.feitas;
@@ -5230,7 +5293,7 @@ function partRota(o){if(!o.rotaId)return null;const r=byId(S.rotas||[],o.rotaId)
 /* ---------- equipe de campo ---------- */
 function rotaCardHTML(){const r=minhaRota();const id=meuEquipeId();
   const minhas=S.os.filter(o=>(o.equipeIds||[]).includes(id)&&o.status==="agendada"&&!o.rotaId);
-  if(!r){if(!minhas.some(o=>o.veiculoId))return "";return `<a class="ms-rota" href="#rota/nova">${ic("van","ic lg")}<span><b>Sair com o veículo</b><small>Checklist rápido e km do painel. Depois você escolhe as OS da rota.</small></span><span class="ms-go">›</span></a>`}
+  if(!r){if(!minhas.some(o=>o.veiculoId))return "";return `<a class="ms-rota" href="#rota/nova">${ic("van","ic lg")}<span><b>Sair com o veículo</b><small>${temVolta()?"Checklist, km do painel e as OS que você vai fazer.":"Checklist rápido e km do painel. Depois você escolhe as OS da rota."}</small></span><span class="ms-go">›</span></a>`}
   const L=osDaRota(r),feitas=L.filter(o=>o.status==="concluida").length;
   const ent=L.filter(o=>o.status==="concluida"||entregue(o)).length;
   const prox=r.status==="saida"?"Começar a rota":r.status==="em_rota"?(temVolta()?(L.length&&ent===L.length?"Voltar para "+baseNome(r.baseLocalId||baseDePessoa(id)):"Ver a rota · "+ent+" de "+L.length+" entregues"):(L.length&&feitas===L.length?"Terminar a rota":"Ver a rota · "+feitas+" de "+L.length+" feitas")):"Devolver o veículo";

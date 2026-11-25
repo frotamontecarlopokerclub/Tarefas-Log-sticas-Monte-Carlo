@@ -599,3 +599,11 @@ Não precisa rodar nada no Supabase.
 Não precisa rodar nada no Supabase.
 - Antes, a OS só passava para **Agendada** com data, equipe e veículo. Quem salvava só a equipe e o veículo (sem data) via a OS continuar em "Registrada", com o botão "Agendar equipe e veículo".
 - Agora, com equipe e veículo e sem data, a OS fica **agendada para agora**: aparece no celular do motorista e o botão **Saída do veículo** já aparece no painel. Vale no formulário completo e no passo a passo.
+
+## Atualização 60 · Som e notificação de nova missão
+Não precisa rodar nada no Supabase.
+- **Celular da equipe de campo:** quando a coordenação escala a pessoa numa OS (logística, traslado ou manutenção), toca um som, o celular vibra, aparece uma faixa no topo com **Ver** e, se o app estiver em segundo plano, uma notificação do Android. Se ninguém abrir, o som repete até 3 vezes (a cada 1 min e meio).
+- **Celular da manutenção:** o mesmo aviso quando entra uma OS nova na fila (urgente aparece como URGENTE).
+- **Ativar:** na primeira vez, o celular mostra o cartão **Ative o aviso de nova missão**. Toque em **Ativar avisos** e permita as notificações. **Testar som** toca o aviso.
+- Arquivo novo `sw.js` (mostra as notificações). O app Android passa a entregar as notificações (pasta `android`): gere e instale o APK novo.
+- Com o app **fechado** de vez, o Android pode não avisar (isso precisa de notificação por servidor, o "push"; fica para uma próxima etapa).
