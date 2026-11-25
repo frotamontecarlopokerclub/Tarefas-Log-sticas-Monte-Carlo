@@ -105,7 +105,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=58;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=59;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -901,7 +901,7 @@ function renderForm(){
       <div class="field"><label class="req" for="solTel">WhatsApp de quem pediu</label><input type="tel" id="solTel" inputmode="tel" value="${esc(FD.solicitanteTelefone||"")}" placeholder="(11) 99999-9999"><span class="hint">Recebe o aviso de conclusão</span></div>
       <div class="field"><label class="req" for="setor">Setor solicitante</label><select id="setor"></select><span class="hint">Preenchido sozinho quando o contato já tem setor</span>${qaHTML("setor","fSetor")}</div>
       <div class="field"><label for="agPara">${FD.rep.on?"Horário de início":"Quando"}</label><input type="datetime-local" id="agPara" value="${toInput(FD.agendadoPara)}"><span class="hint" id="agHint">${FD.rep.on?"Na rota fixa vale o horário; a data é a de cada dia escolhido":""}</span></div>
-      <div class="full esc-box fesc"><h3 class="esc-t">Equipe e veículo</h3><div class="esc-g" id="fEsc"></div><p class="hint" style="margin:8px 0 0">Com equipe e veículo, a OS já entra agendada.</p><div class="esc-qa">${qaHTML("equipe","fEq",{area:"logistica",funcao:"Motorista"})}${qaHTML("veiculo","fVe")}</div></div>
+      <div class="full esc-box fesc"><h3 class="esc-t">Equipe e veículo</h3><div class="esc-g" id="fEsc"></div><p class="hint" style="margin:8px 0 0">Com equipe e veículo, a OS já entra agendada e aparece no celular do motorista. Sem data e hora, ela fica agendada para agora.</p><div class="esc-qa">${qaHTML("equipe","fEq",{area:"logistica",funcao:"Motorista"})}${qaHTML("veiculo","fVe")}</div></div>
       <div class="field"><span class="lbl">Carga</span><div class="chips">${[["leve","Leve"],["pesada","Pesada"]].map(([k,l])=>`<button type="button" class="chip" data-carga="${k}" aria-pressed="${(FD.carga||"leve")===k}">${l}</button>`).join("")}</div><span class="hint">Carga pesada usa o consumo de veículo carregado</span></div>
     </div></section>
     <details class="fs" id="fMais"${ed||rec||fp||dup||FD.rep.on?" open":""}><summary>Mais detalhes <small>tipo, prioridade, canal, horários, observações${podeRepetir?", rota fixa":""}</small></summary><div class="fg">
@@ -977,6 +977,11 @@ async function submitForm(e){
   const rep=FD.rep&&FD.rep.on&&!S.editId&&!S.fromPedido;
   if(rep&&!FD.rep.dias.length)errs.push("os dias da semana da rota fixa");
   if(rep&&!d.agendadoPara)errs.push("o horário de início");
+  // v59: com equipe e veículo e sem data, a OS fica agendada para agora (não trava em "Registrada")
+  let agoraAuto=false;const edO=S.editId?byId(S.os,S.editId):null;
+  if(!rep&&!d.agendadoPara&&d.equipeIds.length&&d.veiculoId&&(!edO||["registrada","agendada"].includes(edO.status))){
+    d.agendadoPara=new Date(Math.ceil(Date.now()/60000)*60000).toISOString();agoraAuto=true;
+    if(d.previstoAte&&T(d.previstoAte)<=T(d.agendadoPara))d.previstoAte=new Date(T(d.agendadoPara)+2*3600000).toISOString()}
   if(d.agendadoPara&&d.previstoAte&&T(d.previstoAte)<T(d.agendadoPara)){$("#fErr").textContent="A previsão de término precisa ser depois do início.";return}
   if(rep&&!FD.rep.dias.length){const m=$("#fMais");if(m)m.open=true}
   if(errs.length){$("#fErr").textContent="Preencha: "+errs.join(", ")+".";return}
@@ -1003,7 +1008,7 @@ async function submitForm(e){
       else if(o.status==="agendada"&&!pronta){st="registrada";extra.agendadaEm=null}
       const nota=st!==o.status?"":"Dados alterados";
       await saveOS(o.id,Object.assign(d,extra,{status:st,atualizadoEm:nowISO(),historico:hist(o,st,nota)}));
-      toast(codigo(o)+" atualizada");const id=o.id;S.editId=null;location.hash="#ordens";setTimeout(()=>openOS(id),60);
+      toast(codigo(o)+(st==="agendada"&&o.status!=="agendada"?" agendada"+(agoraAuto?" para agora":"")+". Já aparece no celular de "+nomeEquipe(d.equipeIds):" atualizada"));const id=o.id;S.editId=null;location.hash="#ordens";setTimeout(()=>openOS(id),60);
     }else{
       const id=novoId();
       const st=pronta?"agendada":"registrada";const now=nowISO();
@@ -3499,7 +3504,7 @@ function resumoWz(){const d=W.d;const L=[];const linha=(i,t,v)=>L.push(`<div cla
     if(tr)linha(2,"Quem vai",esc(plural(paxDe({itens:itensPax(d)}),"pessoa","pessoas"))+(d.nomes?"<br><small>"+esc(d.nomes).replace(/\n+/g,", ")+"</small>":"")+(d.solicitante?"<br><small>pedido por "+esc(d.solicitante)+"</small>":""));
     else linha(2,"O que vai",esc(d.oQue||"").replace(/\n/g,"<br>")+"<br><small>carga "+(d.carga==="pesada"?"pesada":"leve")+"</small>"+(d.solicitante?"<br><small>pedido por "+esc(d.solicitante)+"</small>":""));
     linha(3,"Quando e quem vai",esc(d.quando?quandoTxt(d.quando):"Sem data")+"<br>"+esc(d.equipeIds.length?nomeEquipe(d.equipeIds):"Equipe a definir")+" · "+esc(d.veiculoId?nomeVeic(d.veiculoId):"sem veículo"));
-    const pronta=d.quando&&d.equipeIds.length&&d.veiculoId;L.push(`<p class="wz-note">${pronta?"A OS entra como <b>agendada</b> e aparece no celular de "+esc(nomeEquipe(d.equipeIds))+".":"A OS fica <b>registrada</b>. Para agendar, defina data, equipe e veículo."}</p>`)}
+    const pronta=d.equipeIds.length&&d.veiculoId;L.push(`<p class="wz-note">${pronta?(d.quando?"":"Sem data marcada: fica agendada para agora. ")+"A OS entra como <b>agendada</b> e aparece no celular de "+esc(nomeEquipe(d.equipeIds))+".":"A OS fica <b>registrada</b>. Para agendar, defina data, equipe e veículo."}</p>`)}
   else{linha(0,"Problema",esc(d.descricao)+(d.fotos.length?` <small>· ${d.fotos.length} foto${d.fotos.length>1?"s":""}</small>`:""));
     linha(1,"Onde",esc(nomeLocal(d.localId))+(d.localDetalhe?" · "+esc(d.localDetalhe):""));
     linha(2,"Quem faz e quando",esc((MPRIOS.find(p=>p[0]===d.prioridade)||[,""])[1])+"<br>"+esc(d.exec==="interno"?nomeEquipe(d.equipeIds):d.exec==="terceiro"?nomePrest(d.prestadorId):"A definir na triagem")+" · "+esc(d.quando?quandoTxt(d.quando):"Sem data"));
@@ -3546,6 +3551,7 @@ async function wzCriar(){
       d.itens=ehTraslado(d)?itensPax(d):String(d.oQue||"").split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>({desc:x,qtd:"",un:""}));if(ehTraslado(d))d.carga="leve";
       {const c=d.solicitante?acharContato(d.solicitante):null;if(c){d.tel=d.tel||c.telefone||"";d.setorId=d.setorId||c.setorId||""}}
       let contatoId=null;if(d.solicitante&&d.tel){try{contatoId=await salvarContato(d.solicitante,d.tel,d.setorId||null,null)}catch(e){}}
+      if(!d.quando&&d.equipeIds.length&&d.veiculoId)d.quando=new Date(Math.ceil(Date.now()/60000)*60000).toISOString(); // v59: sem data = para agora
       const pronta=!!(d.quando&&d.equipeIds.length&&d.veiculoId);const st=pronta?"agendada":"registrada";
       const doc={tipo:d.tipo,carga:d.carga||"leve",prioridade:"normal",setorId:d.setorId,solicitante:d.solicitante,solicitanteTelefone:d.tel,contatoId,canal:"WhatsApp",solicitadoEm:now,
         paradas:ps,origemId:ps[0].localId,origemDetalhe:ps[0].detalhe||"",destinoId:ps[ps.length-1].localId,destinoDetalhe:ps[ps.length-1].detalhe||"",

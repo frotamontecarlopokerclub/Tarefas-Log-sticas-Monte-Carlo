@@ -1234,7 +1234,7 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"58"}
+:root{--versao-css:"59"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}

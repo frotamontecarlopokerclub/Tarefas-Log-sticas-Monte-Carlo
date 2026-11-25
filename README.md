@@ -594,3 +594,8 @@ Não precisa rodar nada no Supabase.
 - **Execução da manutenção:** só aparecem as pessoas do setor **Manutenção** (ou Logística e manutenção). Nas OS de veículo, aparece também quem é da Frota. Na logística, só Logística, Frota e Logística e manutenção.
 - **Celular da manutenção (login único):** quem estiver na casa abre a OS, escolhe o próprio nome em **"Quem está fazendo?"** (caixa suspensa) e toca em Iniciar. Dá para juntar mais pessoas em "Mais alguém".
 - **Nova OS da manutenção:** "Quem vai fazer" e "Mais alguém" também em caixa suspensa, com os especialistas da categoria no topo.
+
+## Atualização 59 · OS com equipe e veículo não fica presa em "Registrada"
+Não precisa rodar nada no Supabase.
+- Antes, a OS só passava para **Agendada** com data, equipe e veículo. Quem salvava só a equipe e o veículo (sem data) via a OS continuar em "Registrada", com o botão "Agendar equipe e veículo".
+- Agora, com equipe e veículo e sem data, a OS fica **agendada para agora**: aparece no celular do motorista e o botão **Saída do veículo** já aparece no painel. Vale no formulário completo e no passo a passo.
