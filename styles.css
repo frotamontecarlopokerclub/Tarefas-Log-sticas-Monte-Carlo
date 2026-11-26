@@ -1234,7 +1234,7 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"61"}
+:root{--versao-css:"62"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}
@@ -1330,3 +1330,9 @@ button.pf-row,a.pf-row{cursor:pointer}button.pf-row:hover,a.pf-row:hover{backgro
 .kd-t td{vertical-align:middle}
 .kd-in{width:120px;max-width:100%;text-align:right;padding:8px 10px;border:1px solid var(--line-strong);border-radius:8px;font:inherit;font-weight:600;background:var(--card);color:var(--ink)}
 .kd-in:focus{outline:2px solid var(--accent);outline-offset:1px}
+
+/* v62 · veículo da OS diferente do veículo da rota */
+.vd-box{margin:0 0 14px;padding:14px 16px;border:2px solid var(--s-late,#B42318);border-radius:12px;background:rgba(180,35,24,.06)}
+.vd-box>b{color:var(--s-late,#B42318);font-size:15px}
+.vd-box p{margin:6px 0 10px;line-height:1.45}
+.vd-box .actions{margin:0}

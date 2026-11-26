@@ -614,3 +614,9 @@ Não precisa rodar nada no Supabase.
 - Nada é excluído: as OS, as rotas e os horários continuam iguais. No histórico de cada OS (e na observação da rota) fica o valor antigo, o novo, quem corrigiu e o motivo.
 - Depois de salvar, o km atual do veículo é recalculado com os km certos.
 - Atalho: na OS com veículo, botão **Corrigir km**, que abre a correção já no dia da OS. Quando o km da chegada fica menor que o da saída, a mensagem leva direto para essa correção.
+
+## Atualização 62 · Veículo da OS diferente do veículo da rota
+Não precisa rodar nada no Supabase (mas o script 33 da atualização 61 precisa estar rodado).
+- **Causa do km errado:** em "Sair com o veículo", o celular vinha marcado com o último veículo usado no aparelho (ex.: Renault Master), e não com o veículo da OS (ex.: Fiorino). A rota saía com o km da Master, e a OS da Fiorino não fechava com o km certo.
+- **Agora** o veículo marcado na OS vem escolhido na saída. Se o motorista escolher outro, aparece o aviso "OS-0075 está marcada para Fiorino. Você escolheu Renault Master…" e ele precisa confirmar. Confirmando, a OS passa para o veículo que realmente saiu.
+- **Rotas que já saíram assim:** na OS aparece o quadro **Veículo diferente**, com dois botões: **Foi a Fiorino: corrigir a rota** (a rota passa para a Fiorino e abre o Corrigir km de um dia para acertar o km da saída) ou **Foi a Master: corrigir a OS** (a OS passa para a Master).
