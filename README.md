@@ -620,3 +620,10 @@ Não precisa rodar nada no Supabase (mas o script 33 da atualização 61 precisa
 - **Causa do km errado:** em "Sair com o veículo", o celular vinha marcado com o último veículo usado no aparelho (ex.: Renault Master), e não com o veículo da OS (ex.: Fiorino). A rota saía com o km da Master, e a OS da Fiorino não fechava com o km certo.
 - **Agora** o veículo marcado na OS vem escolhido na saída. Se o motorista escolher outro, aparece o aviso "OS-0075 está marcada para Fiorino. Você escolheu Renault Master…" e ele precisa confirmar. Confirmando, a OS passa para o veículo que realmente saiu.
 - **Rotas que já saíram assim:** na OS aparece o quadro **Veículo diferente**, com dois botões: **Foi a Fiorino: corrigir a rota** (a rota passa para a Fiorino e abre o Corrigir km de um dia para acertar o km da saída) ou **Foi a Master: corrigir a OS** (a OS passa para a Master).
+
+## Atualização 63 · Rota esquecida aberta (OS de vários dias juntas)
+Não precisa rodar nada no Supabase (o script 33 da atualização 61 precisa estar rodado).
+- **Causa:** uma rota que não foi encerrada (sem "Cheguei na base") continuava aberta nos dias seguintes. Toda OS nova do motorista entrava nela, com o veículo e o km do dia em que ela saiu. Por isso uma OS de hoje aparecia "junto com" OS de outros dias e não fechava com o km certo.
+- **Rotas › Rota aberta de outro dia:** quadro vermelho no topo da página Rotas e na OS, com o botão **Arrumar a rota**. Nele você marca quais OS foram naquela saída, corrige o veículo e o km da saída, encerra a rota (hora e km da chegada, ou "Não sei os km desta saída") e as OS de hoje vão para uma **rota nova** com o veículo e o km certos. Nada é excluído e fica registrado quem arrumou.
+- **No celular:** rota aberta de outro dia aparece em vermelho ("Aberta desde 23/11"). OS nova não entra mais nela: o motorista é avisado para encerrar a rota antiga primeiro (ou avisar a coordenação). Ao incluir uma OS de outro veículo numa rota, aparece aviso e é preciso confirmar.
+- O botão **Arrumar rota** também fica em cada rota da página Rotas.

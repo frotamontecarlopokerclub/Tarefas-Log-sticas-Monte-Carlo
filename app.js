@@ -105,7 +105,7 @@ function fromDb(r){const o={};for(const k in r)o[camel(k)]=r[k];return o}
 function toDb(o){const r={};for(const k in o){let v=o[k];if(v===undefined)continue;if(/Id$/.test(k)&&v==="")v=null;r[snake(k)]=v}return r}
 const novoId=()=>(crypto.randomUUID?crypto.randomUUID():"10000000-1000-4000-8000-100000000000".replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)));
 const PAPEL_ROLE={logistica:"log",setor:"sol",leitura:"ver",campo:"campo",tv:"tv",oficina:"oficina"};
-const VERSAO=62;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
+const VERSAO=63;{const rv=document.getElementById("rodapeV");if(rv)rv.textContent=" · Versão "+VERSAO}console.info("Facilities MC · versão "+VERSAO);
 const DOMINIO_USUARIOS=(CFG.dominioUsuarios||"campo.facilities-mc.com").toLowerCase();
 const paraEmail=v=>{v=String(v||"").trim().toLowerCase();return v.includes("@")?v:v+"@"+DOMINIO_USUARIOS};
 const usuarioDe=em=>{em=String(em||"");return em.toLowerCase().endsWith("@"+DOMINIO_USUARIOS)?em.split("@")[0]:""};
@@ -1174,7 +1174,7 @@ function renderDrawer(){
       <span class="stl"><span class="st ${o.status}">${esc(stTxt(o))}</span></span>${late?` <span class="stl"><span class="late">Atrasada</span></span>`:lateC?` <span class="stl"><span class="late">Saiu com atraso</span></span>`:""}${acimaMedia(o)?` <span class="stl"><span class="late">Acima do tempo médio</span></span>`:""}</div>
     <div class="dr-b">
       ${o.criadaNoCampo?(o.revisadaEm?`<p class="hint" style="margin:0 0 10px">${ic("van","ic sm")} Criada no campo pela equipe · revisada em ${esc(fDH(o.revisadaEm))}</p>`:`<div class="banner campo-n"><b>Criada no campo pela equipe.</b> O pedido chegou durante a missão${o.solicitante?" (pedido por "+esc(o.solicitante)+")":""}. Confira endereço, itens e setor; se precisar, edite. ${isLog()?`<button class="btn sm" type="button" data-act="revisar">Marcar como revisada</button>`:""}</div>`):""}
-      ${!A?divergeHTML(o):""}${!A?`<div class="actions">${acts}${copyBtn}${extraActs}</div>`:""}${S.copyOpen&&!A?copyPanel(o):""}${panel}${emgBoxDrawer("log",o)}
+      ${!A?rotaVelhaHTML(o)+divergeHTML(o):""}${!A?`<div class="actions">${acts}${copyBtn}${extraActs}</div>`:""}${S.copyOpen&&!A?copyPanel(o):""}${panel}${emgBoxDrawer("log",o)}
       <section class="card card-b" style="padding-top:16px">${stopsHTML(o,isLog()&&!A)}${o.recorrenciaId?`<p class="hint" style="margin:10px 0 0">Gerada pela rota fixa ${esc((byId(S.recorrencias,o.recorrenciaId)||{}).nome||"")}</p>`:""}</section>
       <section class="card card-b" style="padding-top:16px"><dl class="dl">
         <div><dt>Início agendado</dt><dd class="num">${fDH(o.agendadoPara)}</dd></div>
@@ -3258,10 +3258,13 @@ function renderMissao(){
     h+=msHeader(x,esc(o.tipo||"")+(o.veiculoId?" · "+esc(nomeVeic(o.veiculoId)):""))+stepsBar(ps,o);
     const tr=ehTraslado(o);const itens=(o.itens||[]).length?`<div class="ms-box"><span class="ms-lbl">${tr?"Passageiros · "+paxDe(o):"O que levar"}</span><ul class="ms-itens">${o.itens.map(i=>`<li><b class="num">${esc(i.qtd===""||i.qtd==null?"":String(i.qtd).replace(".",","))} ${esc(i.un||"")}</b> ${esc(i.desc||"")}</li>`).join("")}</ul></div>`:"";
     const obs=o.observacoes?`<div class="ms-box warn"><span class="ms-lbl">Atenção</span>${esc(o.observacoes)}</div>`:"";
-    if((o.status==="agendada"||o.status==="registrada")&&o.status==="agendada"&&!A.legado){const mr=minhaRota();
+    if((o.status==="agendada"||o.status==="registrada")&&o.status==="agendada"&&!A.legado&&rotaVelha(minhaRota())){const mr=minhaRota();
+      h+=`<h1 class="ms-h">Encerre a rota de ${esc(fDiaM(mr.saidaEm))}</h1>${itens}${obs}<div class="ms-box warn"><span class="ms-lbl">Rota ainda aberta</span><b>${esc(codR(mr))} · ${esc(nomeVeic(mr.veiculoId))}</b><p style="margin:6px 0 0">Saiu em ${esc(fDH(mr.saidaEm))} e não foi encerrada. Abra a rota e registre a chegada na base daquele dia. Depois comece esta OS com o veículo e o km de hoje.</p><p style="margin:6px 0 0">Não lembra o km ou a hora? Avise a coordenação: ela arruma a rota.</p></div>
+        <a class="ms-cta" href="#rota/${esc(mr.id)}">${ic("van","ic lg")}Abrir a rota ${esc(codR(mr))}</a>`}
+    else if((o.status==="agendada"||o.status==="registrada")&&o.status==="agendada"&&!A.legado){const mr=minhaRota();const vDif=mr&&o.veiculoId&&mr.veiculoId&&o.veiculoId!==mr.veiculoId;
       horaAuto(A,o.agendadoPara,pzPassou(o));if(isFinite(prazo(o)))A._pz=o;
       h+=`<h1 class="ms-h">${mr?"Incluir na rota "+esc(codR(mr)):"Pronto para sair?"}</h1>${itens}${obs}
-        ${mr?`<div class="ms-box"><span class="ms-lbl">Rota em andamento</span><b>${esc(codR(mr))} · ${esc(nomeVeic(mr.veiculoId))}</b><p style="margin:6px 0 0;color:var(--mute)">${esc(ROTA_ST[mr.status])} · ${plural(osDaRota(mr).length,"OS")} na rota</p></div>`
+        ${mr?`<div class="ms-box"><span class="ms-lbl">Rota em andamento</span><b>${esc(codR(mr))} · ${esc(nomeVeic(mr.veiculoId))}</b><p style="margin:6px 0 0;color:var(--mute)">${esc(ROTA_ST[mr.status])} · ${plural(osDaRota(mr).length,"OS")} na rota</p>${vDif?`<p style="margin:8px 0 0"><b>Atenção:</b> esta OS está marcada para <b>${esc(nomeVeic(o.veiculoId))}</b>. Se incluir, ela passa para ${esc(nomeVeic(mr.veiculoId))}.</p>`:""}</div>`
           :o.veiculoId?`<div class="ms-box"><span class="ms-lbl">Veículo</span><b>${esc(nomeVeic(o.veiculoId))}</b><p style="margin:6px 0 0;color:var(--mute)">Registre a saída do veículo com o checklist rápido e o km. Depois você escolhe esta e as outras OS que vão juntas.</p></div>`:""}
         ${(mr&&mr.status==="em_rota")||(!mr&&!o.veiculoId)?horaHTML(A,"Quando você começou?"):""}
         <p class="err" id="msErr" role="alert"></p>
@@ -3350,6 +3353,7 @@ function bindMissao(x){
   const fim=$("#msFim");if(fim)fim.onclick=()=>{A.modo="fim";renderMissao()};
   const sd=$("#msSaida");if(sd)sd.onclick=()=>{S.rt=null;S.rtVeic=o.veiculoId;location.hash="#rota/nova"};
   const mr=$("#msRota");if(mr)mr.onclick=async()=>{const r=minhaRota();if(!r)return;if(r.status==="saida"){location.hash="#rota/"+r.id;return}
+    if(o.veiculoId&&r.veiculoId&&o.veiculoId!==r.veiculoId&&!A.trocaOk){A.trocaOk=true;err.textContent="Esta OS é da "+nomeVeic(o.veiculoId)+" e a sua rota é com "+nomeVeic(r.veiculoId)+". Se a OS vai mesmo neste veículo, toque de novo.";return}
     let Q;try{Q=horaISO(A,r.inicioEm||r.saidaEm)}catch(e){err.textContent=e.message;return}
     mr.disabled=true;try{await incluirNaRota(r,o,Q);await salvarRota(r.id,{osIds:[...new Set((r.osIds||[]).concat([o.id]))]});toast("Incluída na rota "+codR(r));S.ms=null;renderMissao()}catch(e){console.error(e);mr.disabled=false;err.textContent=erroRota(e)}};
   const ap=$("#msAPe");if(ap)ap.onclick=async()=>{let Q;try{Q=horaISO(A)}catch(e){err.textContent=e.message;return}ap.disabled=true;try{await saveOS(o.id,{status:"em_rota",iniciadoEm:Q.iso,atualizadoEm:nowISO(),historico:hist(o,"em_rota","Missão iniciada sem veículo (app de campo)"+Q.nota)});S.ms=null;toast("Missão iniciada");renderMissao()}catch(e){ap.disabled=false;err.textContent=msgErroCampo(e)}};
@@ -3492,7 +3496,7 @@ function bindEscala(k,ids,redraw){const st=escSt(ids);
 }
 /* v62 · OS marcada para um veículo e rota que saiu com outro */
 function veicDiverge(o){const r=o&&o.rotaId?byId(S.rotas||[],o.rotaId):null;return r&&r.veiculoId&&o.veiculoId&&r.veiculoId!==o.veiculoId?r:null}
-function divergeHTML(o){const r=veicDiverge(o);if(!r||!podeCorrigirKm())return "";
+function divergeHTML(o){const r=veicDiverge(o);if(!r||!podeCorrigirKm()||rotaProblema(r))return "";
   return `<div class="vd-box" role="alert"><b>Veículo diferente</b><p>Esta OS está marcada para <b>${esc(nomeVeic(o.veiculoId))}</b>, mas a rota ${esc(codR(r))} saiu com <b>${esc(nomeVeic(r.veiculoId))}</b>${r.kmSaida!=null?" (km da saída "+esc(fKm(r.kmSaida))+")":""}. Por isso o km não bate. Qual veículo foi de verdade?</p>
     <div class="actions"><button class="btn pri" type="button" data-vdfix="rota">Foi ${esc(nomeVeic(o.veiculoId))}: corrigir a rota</button><button class="btn" type="button" data-vdfix="os">Foi ${esc(nomeVeic(r.veiculoId))}: corrigir a OS</button></div></div>`}
 async function corrigirVeicRota(o,modo){const r=veicDiverge(o);if(!r)return;const quem=S.meName||"Coordenação";
@@ -3505,6 +3509,110 @@ async function corrigirVeicRota(o,modo){const r=veicDiverge(o);if(!r)return;cons
   toast("A rota "+codR(r)+" agora está com "+nomeVeic(novo)+". Agora corrija o km da saída.");abrirKmDia(novo,r.saidaEm)}
 document.addEventListener("click",async e=>{const b=e.target.closest&&e.target.closest("[data-vdfix]");if(!b)return;const o=S.openId&&byId(S.os,S.openId);if(!o)return;
   b.disabled=true;try{await corrigirVeicRota(o,b.dataset.vdfix);if(S.openId)renderDrawer()}catch(x){b.disabled=false;toast(x.message||"Não foi possível corrigir.")}});
+
+/* ---------- v63: rota esquecida aberta · arrumar a rota ---------- */
+const diaOS=o=>dayKey(o.iniciadoEm||o.agendadoPara||o.criadoEm||nowISO());
+const rotaVelha=r=>!!r&&rotaAberta(r)&&dayKey(r.saidaEm)<dayKey(new Date());
+function rotaProblema(r){if(!r||!rotaAberta(r))return false;const d=dayKey(r.saidaEm);return d<dayKey(new Date())||osDaRota(r).some(x=>x.status!=="cancelada"&&diaOS(x)!==d)}
+const fDiaM=iso=>{const d=new Date(iso);return pad(d.getDate())+"/"+pad(d.getMonth()+1)};
+// km registrado do veículo mais perto de um horário (sem contar a rota que está sendo arrumada)
+function kmPerto(vid,t,exRid){const v=byId(S.veiculos||[],vid);if(!v||!t)return {};const cut=kmCorte(v);const L=[];
+  const add=(k,tt,de)=>{k=nOuNull(k);if(k==null||k<=0||!tt||!kmValeT(cut,tt))return;L.push({t:T(tt),km:Number(k),de})};
+  confsDe(vid).forEach(c=>add(c.km,c.feitoEm,"conferência"));
+  (S.rotas||[]).forEach(r=>{if(r.veiculoId!==vid||r.id===exRid||r.status==="cancelada")return;const de="rota "+codR(r);add(r.kmSaida,r.saidaEm,de);add(r.kmDevolucao!=null?r.kmDevolucao:r.kmFim,r.devolvidoEm||r.fimEm,de)});
+  S.os.forEach(o=>{if(o.veiculoId!==vid||(exRid&&o.rotaId===exRid))return;add(o.kmInicial,o.iniciadoEm,codigo(o));add(o.kmFinal,o.concluidoEm,codigo(o))});
+  const x=T(t);return {antes:L.filter(a=>a.t<=x).sort((a,b)=>b.t-a.t)[0]||null,depois:L.filter(a=>a.t>x).sort((a,b)=>a.t-b.t)[0]||null}}
+const kmPertoTxt=(vid,t,exRid)=>{if(!vid||!t)return "";const p=kmPerto(vid,t,exRid);const f=a=>fKm(a.km)+" em "+fDH(new Date(a.t).toISOString())+" ("+a.de+")";
+  return p.antes||p.depois?"Km registrado de "+nomeVeic(vid)+": "+[p.antes?"antes, "+f(p.antes):"",p.depois?"depois, "+f(p.depois):""].filter(Boolean).join(" · "):"Sem outro km registrado de "+nomeVeic(vid)+"."};
+function arrIni(r){const d=dayKey(r.saidaEm);const L=osDaRota(r).filter(x=>x.status!=="cancelada");
+  const vel=rotaVelha(r),fica={};L.forEach(o=>{fica[o.id]=diaOS(o)===d||(vel&&o.status==="concluida"&&diaOS(o)>d)});const F=L.filter(o=>fica[o.id]),N=L.filter(o=>!fica[o.id]);
+  const fimF=F.map(o=>o.retornoEm||o.concluidoEm||o.entregueEm||ultimoFeito(o)).filter(Boolean).sort().pop()||r.inicioEm||r.saidaEm;
+  return {rid:r.id,fica,veic:r.veiculoId||"",kmS:r.kmSaida!=null?String(r.kmSaida):"",fechar:rotaAberta(r)&&F.every(o=>o.status==="concluida"),
+    hV:toInput(fimF),kmV:"",semKm:false,nVeic:(N.find(o=>o.veiculoId)||{}).veiculoId||r.veiculoId||"",
+    nH:toInput(N.map(o=>o.iniciadoEm).filter(Boolean).sort()[0]||nowISO()),nKm:"",nHV:toInput(N.map(o=>o.retornoEm||o.concluidoEm).filter(Boolean).sort().pop()||""),nKmV:""}}
+function abrirArr(rid){const r=byId(S.rotas||[],rid);if(!r)return;S.arr=arrIni(r);S.rdDia=dayKey(r.saidaEm);closeOS();
+  if(location.hash==="#rotas-dia")renderRotasDia();else location.hash="#rotas-dia";setTimeout(()=>{const b=$("#arrBox");if(b)b.scrollIntoView({block:"start"})},60)}
+function rotaVelhaHTML(o){const r=o&&o.rotaId?byId(S.rotas||[],o.rotaId):null;if(!rotaProblema(r)||!podeCorrigirKm())return "";
+  const L=osDaRota(r).filter(x=>x.status!=="cancelada"),dias=[...new Set(L.map(diaOS))].sort();
+  return `<div class="vd-box" role="alert"><b>${rotaVelha(r)?"Rota aberta desde "+esc(fDiaM(r.saidaEm)):"Rota com OS de outros dias"}</b><p>A rota ${esc(codR(r))} saiu em ${esc(fDH(r.saidaEm))} com <b>${esc(nomeVeic(r.veiculoId))}</b>${r.kmSaida!=null?" ("+esc(fKm(r.kmSaida))+")":""} e não foi encerrada. Por isso as OS novas de ${esc(nomeEquipe(r.equipeIds))} entraram nela, com o veículo e o km daquele dia${dias.length>1?": hoje ela tem "+plural(L.length,"OS","OS")+" de "+dias.length+" dias diferentes":""}.</p>
+    <div class="actions"><button class="btn pri" type="button" data-arr="${esc(r.id)}">Arrumar a rota</button></div></div>`}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-arr]");if(!b)return;e.preventDefault();abrirArr(b.dataset.arr)});
+function arrHTML(r){const A=S.arr;const L=osDaRota(r).filter(x=>x.status!=="cancelada");const F=L.filter(o=>A.fica[o.id]),N=L.filter(o=>!A.fica[o.id]);
+  const ab=rotaAberta(r),tudoN=N.length&&N.every(o=>o.status==="concluida");
+  const veicSel=(id,sel)=>`<select id="${id}">${sel?"":`<option value="">Escolha…</option>`}${veicOpts(sel)}</select>`;
+  const km=(id,v,ph)=>`<input id="${id}" class="num" type="number" inputmode="numeric" min="0" value="${esc(v||"")}" placeholder="${esc(ph||"")}">`;
+  const dt=(id,v)=>`<input id="${id}" type="datetime-local" value="${esc(v||"")}" max="${esc(toInput(nowISO()))}">`;
+  const pS=ab&&A.semKm?kmPerto(A.veic,r.saidaEm,r.id):null,bS=pS&&(pS.antes||pS.depois);
+  return `<section class="card fr-form" id="arrBox"><div class="card-h"><h2>Arrumar a rota ${esc(codR(r))}</h2><span class="sub">${esc(nomeEquipe(r.equipeIds))}</span></div><div class="card-b">
+    <p class="hint" style="margin:0 0 14px">A rota saiu em <b>${esc(fDH(r.saidaEm))}</b> com <b>${esc(nomeVeic(r.veiculoId))}</b>${r.kmSaida!=null?" e "+esc(fKm(r.kmSaida)):""}${ab?(rotaVelha(r)?" e continua aberta. Enquanto ela fica aberta, toda OS nova do motorista entra nela, com o veículo e o km daquele dia.":" e continua aberta."):" e já foi encerrada."} Deixe nesta rota só as OS que foram nessa saída. As outras vão para uma rota nova, com o veículo e o km certos. Nada é excluído e fica registrado quem arrumou.</p>
+    <h3 class="arr-h">1. Quais OS foram nesta saída?</h3>
+    <div class="tbl-wrap"><table class="t arr-t"><thead><tr><th>Fica</th><th>OS</th><th>Dia</th><th>Trajeto</th><th>Situação</th><th>Veículo da OS</th></tr></thead><tbody>
+    ${L.map(o=>`<tr class="${A.fica[o.id]?"":"arr-sai"}"><td><input type="checkbox" data-arrf="${esc(o.id)}"${A.fica[o.id]?" checked":""} aria-label="${esc(codigo(o))} fica na rota ${esc(codR(r))}"></td><td><b>${esc(codigo(o))}</b></td><td class="num">${esc(fDH(o.iniciadoEm||o.agendadoPara))}</td><td>${esc(rotaTxt(o))}</td><td>${esc(stTxt(o))}</td><td>${esc(nomeVeic(o.veiculoId))}</td></tr>`).join("")||`<tr><td colspan="6">Nenhuma OS nesta rota.</td></tr>`}
+    </tbody></table></div><p class="hint" style="margin:6px 0 16px">${N.length?`<b>${plural(N.length,"OS desmarcada vai","OS desmarcadas vão")} para uma rota nova</b> (passo 3).`:"Desmarque as OS que não foram nesta saída."}</p>
+    <h3 class="arr-h">2. Rota ${esc(codR(r))} · fica com ${plural(F.length,"OS","OS")}</h3>
+    <div class="fr-g"><div class="field"><label for="arrV">Veículo que saiu</label>${veicSel("arrV",A.veic)}</div>
+      ${A.semKm&&ab?"":`<div class="field"><label for="arrKs">Km no painel na saída</label>${km("arrKs",A.kmS)}</div>`}
+</div>
+    ${ab?`<label class="chk" style="margin-top:12px"><input type="checkbox" id="arrF"${A.fechar?" checked":""}> Encerrar esta rota (registrar a chegada na base)</label>`:""}
+    ${A.fechar&&ab?`<div class="fr-g" style="margin-top:12px"><div class="field"><label for="arrHV">Chegada na base</label>${dt("arrHV",A.hV)}</div>${A.semKm?"":`<div class="field"><label for="arrKV">Km no painel na chegada</label>${km("arrKV",A.kmV)}</div>`}</div>`:""}
+    ${ab?`<label class="chk" style="margin-top:10px"><input type="checkbox" id="arrSK"${A.semKm?" checked":""}> Não sei os km desta saída</label>`:""}
+    <p class="hint" style="margin:6px 0 16px">${A.semKm&&ab?(bS?"Vai usar "+esc(fKm(bS.km))+" (último km registrado de "+esc(nomeVeic(A.veic))+") na saída"+(A.fechar?" e na chegada: a rota fica com 0 km rodados e sem custo de combustível.":"."):"Não há outro km registrado de "+esc(nomeVeic(A.veic))+": informe o km."):esc(kmPertoTxt(A.veic,r.saidaEm,r.id))}</p>
+    ${N.length?`<h3 class="arr-h">3. Rota nova · ${plural(N.length,"OS","OS")} (${esc(N.map(codigo).join(", "))})</h3>
+    <div class="fr-g"><div class="field"><label for="arrNV">Veículo que saiu</label>${veicSel("arrNV",A.nVeic)}</div><div class="field"><label for="arrNH">Saída</label>${dt("arrNH",A.nH)}</div><div class="field"><label for="arrNK">Km no painel na saída</label>${km("arrNK",A.nKm)}</div></div>
+    ${tudoN?`<div class="fr-g" style="margin-top:12px"><div class="field"><label for="arrNHV">Chegada na base</label>${dt("arrNHV",A.nHV)}</div><div class="field"><label for="arrNKV">Km no painel na chegada</label>${km("arrNKV",A.nKmV)}</div></div>`:`<p class="hint" style="margin:6px 0 0">A rota nova fica <b>em rota</b>. O motorista registra a chegada na base pelo celular, como sempre.</p>`}
+    <p class="hint" style="margin:6px 0 0">${esc(kmPertoTxt(A.nVeic,fromInput(A.nH),r.id))}</p>`:""}
+    <p class="err" id="arrErr" role="alert"></p>
+    <div class="actions"><button class="btn pri" type="button" id="arrOk">Salvar</button><button class="btn ghost" type="button" id="arrX">Fechar</button></div></div></section>`}
+function bindArr(r){const A=S.arr;if(!A)return;const re=()=>{const y=window.scrollY;renderRotasDia();window.scrollTo(0,y)};
+  $$("[data-arrf]").forEach(c=>c.onchange=()=>{A.fica[c.dataset.arrf]=c.checked;const F=osDaRota(r).filter(o=>o.status!=="cancelada"&&A.fica[o.id]);if(rotaAberta(r)&&F.some(o=>o.status!=="concluida"))A.fechar=false;A.conf=false;re()});
+  [["arrKs","kmS"],["arrKV","kmV"],["arrHV","hV"],["arrNK","nKm"],["arrNKV","nKmV"],["arrNHV","nHV"]].forEach(([id,k])=>{const i=$("#"+id);if(i)i.oninput=()=>{A[k]=i.value;A.conf=false}});
+  const v=$("#arrV");if(v)v.onchange=()=>{A.veic=v.value;re()};const nv=$("#arrNV");if(nv)nv.onchange=()=>{A.nVeic=nv.value;re()};
+  const nh=$("#arrNH");if(nh)nh.onchange=()=>{A.nH=nh.value;re()};
+  const f=$("#arrF");if(f)f.onchange=()=>{A.fechar=f.checked;re()};const sk=$("#arrSK");if(sk)sk.onchange=()=>{A.semKm=sk.checked;re()};
+  $("#arrX").onclick=()=>{S.arr=null;re()};
+  const ok=$("#arrOk");ok.onclick=async()=>{const er=$("#arrErr");er.textContent="";let msg;
+    try{msg=await salvarArr(r,ok)}catch(e){console.error(e);const m=(e&&e.message)||"";msg=/rotas_veiculo_aberta/.test(m)?"Este veículo já está em outra rota aberta. Arrume ou encerre aquela rota antes.":/row-level|permission|policy/i.test(m)?"Seu acesso não permite alterar rotas.":/check/i.test(m)?"O banco recusou: um km ficaria menor que o anterior na mesma rota. Confira os valores.":"Não foi possível salvar: "+m}
+    if(msg){er.textContent=msg;ok.disabled=false;ok.textContent="Salvar"}}}
+async function salvarArr(r,btn){const A=S.arr;const quem=S.meName||"Coordenação",agora=Date.now();
+  const L=osDaRota(r).filter(x=>x.status!=="cancelada");const F=L.filter(o=>A.fica[o.id]),N=L.filter(o=>!A.fica[o.id]);
+  const num=s=>{s=String(s==null?"":s).trim();if(s==="")return null;const k=Math.round(Number(s));return isFinite(k)&&k>=0&&k<=3000000?k:NaN};
+  const hora=(v,nome,min)=>{const iso=fromInput(v);if(!iso)throw new Error("Informe "+nome+".");const t=T(iso);if(t>agora+5*60000)throw new Error(nome[0].toUpperCase()+nome.slice(1)+" está no futuro.");if(t<agora-7*DIA_MS)throw new Error(nome[0].toUpperCase()+nome.slice(1)+" tem mais de 7 dias: o sistema não aceita.");if(min&&t<T(min))throw new Error(nome[0].toUpperCase()+nome.slice(1)+" ficou antes da saída ("+fDH(min)+").");return iso};
+  const ab=rotaAberta(r),fechar=ab&&A.fechar,tudoN=N.length&&N.every(o=>o.status==="concluida");
+  if(!A.veic)return "Escolha o veículo da rota "+codR(r)+".";
+  let kS=num(A.kmS),kV=fechar?num(A.kmV):null,hV=null;
+  if(A.semKm&&ab){const p=kmPerto(A.veic,r.saidaEm,r.id),b=p.antes||p.depois;if(!b)return "Não há outro km registrado de "+nomeVeic(A.veic)+". Informe o km.";kS=b.km;if(fechar)kV=b.km}
+  if(kS==null||isNaN(kS))return "Informe o km na saída da rota "+codR(r)+".";
+  try{if(fechar)hV=hora(A.hV,"a chegada na base",r.inicioEm||r.saidaEm)}catch(e){return e.message}
+  if(fechar){if(kV==null||isNaN(kV))return "Informe o km na chegada à base.";if(kV<kS)return "O km da chegada ("+fKm(kV)+") não pode ser menor que o da saída ("+fKm(kS)+").";
+    const nf=F.filter(o=>o.status!=="concluida");if(nf.length)return nf.map(codigo).join(", ")+" ainda não terminou: desmarque para ir para a rota nova, ou desmarque Encerrar esta rota."}
+  let nH=null,kN=null,nHV=null,kNV=null;
+  if(N.length){if(!A.nVeic)return "Escolha o veículo da rota nova.";
+    try{nH=hora(A.nH,"a saída da rota nova")}catch(e){return e.message}
+    kN=num(A.nKm);if(kN==null||isNaN(kN))return "Informe o km na saída da rota nova.";
+    if(tudoN){try{nHV=hora(A.nHV,"a chegada da rota nova",nH)}catch(e){return e.message}kNV=num(A.nKmV);if(kNV==null||isNaN(kNV))return "Informe o km na chegada da rota nova.";if(kNV<kN)return "Na rota nova, o km da chegada não pode ser menor que o da saída."}
+    if(ab&&!fechar&&A.nVeic===A.veic)return "As duas rotas ficariam abertas com o mesmo veículo. Marque Encerrar esta rota.";
+    if(!A.conf&&fechar&&A.nVeic===A.veic&&kN<kV){A.conf=true;return "Atenção: a rota nova sai com "+fKm(kN)+", menos que a chegada desta rota ("+fKm(kV)+"), no mesmo veículo. Se estiver certo, toque em Salvar de novo."}}
+  btn.disabled=true;btn.textContent="Salvando…";
+  const nota="Rota arrumada por "+quem,desc=[];
+  const pR={veiculoId:A.veic,kmSaida:kS,osIds:F.map(o=>o.id)};
+  if(A.veic!==r.veiculoId)desc.push("veículo "+nomeVeic(r.veiculoId)+" → "+nomeVeic(A.veic));
+  if(kS!==r.kmSaida)desc.push("km da saída "+fKm(r.kmSaida)+" → "+fKm(kS)+(A.semKm?" (km não informado: usado o último registrado)":""));
+  if(r.kmInicio!=null||fechar){const ki=r.kmInicio!=null&&r.kmInicio!==r.kmSaida&&r.kmInicio>=kS&&(kV==null||r.kmInicio<=kV)&&!A.semKm?r.kmInicio:kS;pR.kmInicio=ki;if(!r.inicioEm)pR.inicioEm=r.saidaEm}
+  if(fechar){const kf=r.kmFim!=null&&r.kmFim>=pR.kmInicio&&r.kmFim<=kV?r.kmFim:kV;Object.assign(pR,{status:"devolvida",kmFim:kf,kmDevolucao:kV,fimEm:r.fimEm&&T(r.fimEm)<=T(hV)?r.fimEm:hV,devolvidoEm:hV});desc.push("encerrada em "+fDH(hV)+" com "+fKm(kV))}
+  if(N.length)desc.push(N.map(codigo).join(", ")+" "+(N.length>1?"foram":"foi")+" para uma rota nova");
+  pR.obs=((r.obs||"")+"\n"+nota+": "+(desc.join("; ")||"sem mudanças")).trim();
+  const veics=new Set([r.veiculoId,A.veic,A.nVeic].concat(L.map(o=>o.veiculoId)).filter(Boolean));
+  await salvarRota(r.id,pR);
+  for(const o of F)if(o.veiculoId!==A.veic)await saveOS(o.id,{veiculoId:A.veic,atualizadoEm:nowISO(),historico:hist(o,o.status,nota+": veículo "+nomeVeic(o.veiculoId)+" → "+nomeVeic(A.veic)+" (rota "+codR(r)+")")});
+  let nr=null;
+  if(N.length){const dn={veiculoId:A.nVeic,equipeIds:r.equipeIds||[],status:tudoN?"devolvida":"em_rota",saidaEm:nH,kmSaida:kN,inicioEm:nH,kmInicio:kN,checklist:{},osIds:N.map(o=>o.id),
+      obs:nota+": separada da rota "+codR(r)+" ("+N.map(codigo).join(", ")+")"};
+    if(r.baseLocalId)dn.baseLocalId=r.baseLocalId;if(tudoN)Object.assign(dn,{fimEm:nHV,kmFim:kNV,devolvidoEm:nHV,kmDevolucao:kNV});
+    nr=await salvarRota(null,dn);
+    for(const o of N)await saveOS(o.id,Object.assign({rotaId:nr.id,atualizadoEm:nowISO(),historico:hist(o,o.status,nota+": saiu da rota "+codR(r)+" e foi para a rota "+codR(nr)+(o.veiculoId!==A.nVeic?" · veículo "+nomeVeic(o.veiculoId)+" → "+nomeVeic(A.nVeic):""))},o.veiculoId!==A.nVeic?{veiculoId:A.nVeic}:{}))}
+  for(const id of veics){const v=byId(S.veiculos,id);if(v)await recalcularKmVeiculo(v)}
+  S.arr=null;toast("Rota "+codR(r)+" arrumada"+(nr?" · rota nova "+codR(nr)+" com "+plural(N.length,"OS","OS"):"")+". Nada foi excluído.");
+  if(nr&&dayKey(nr.saidaEm)!==S.rdDia)S.rdDia=dayKey(nr.saidaEm);renderRotasDia();return null}
 
 function veicInfo(id){const v=id&&byId(S.veiculos,id);if(!v)return "";const km=kmVeic(v);const p=!frotaSemScript()?prazoConf(v):null;
   const emUso=(S.rotas||[]).some(r=>r.veiculoId===v.id&&!["devolvida","cancelada"].includes(r.status));
@@ -4659,7 +4767,7 @@ function loadDemo(){
   S.solicitantes=[{id:"c1",nome:"Laura Souza",telefone:"(11) 99999-8888",setorId:"s4",ativo:true},{id:"c2",nome:"Marcos Lima",telefone:"(11) 98888-7777",setorId:"s1",ativo:true}];
   S.recorrencias=[{id:"rec-demo",nome:"Abastecimento do Doryo",ativo:true,diasSemana:[2,5],hora:"09:00",duracaoMin:150,pulos:[],criadoEm:new Date(now-30*86400000).toISOString(),
     modelo:{tipo:"Abastecimento de estoque",prioridade:"normal",setorId:"s8",paradas:[novaParada("retirada","cd1","Estoque seco"),novaParada("retirada","fo","Peixaria"),novaParada("entrega","dr","Cozinha")],itens:[{desc:"Arroz japonês",qtd:30,un:"kg"},{desc:"Peixe fresco",qtd:12,un:"kg"}],equipeIds:["e0","e2"],veiculoId:"v1",observacoes:"Peixe em caixa térmica"}}];
-  loadDemoMan(); loadDemoFrota(); loadDemoEmg(); loadDemoEfic(); loadDemoPainel(); loadDemoRotas(); loadDemoVolta();
+  loadDemoMan(); loadDemoFrota(); loadDemoEmg(); loadDemoEfic(); loadDemoPainel(); loadDemoRotas(); loadDemoVolta(); if(/[?&]cen=esq/.test(location.search))loadDemoEsquecida();
   S.relatorios=[{id:pm.getFullYear()+"-"+pad(pm.getMonth()+1),geradoEm:new Date(now-12*86400000).toISOString(),resumo:"Exemplo de fechamento. O volume cresceu puxado por Eventos e Bar, e a rota CD → Mirage concentrou a maior parte das transferências. O tempo de resposta caiu, mas um terço das OS concluídas passou da previsão de término, quase todas em retiradas de fornecedor.",destaques:["Rever a previsão de término das retiradas em fornecedor, que costumam levar mais de 2 h.","Concentrar as entregas CD → Mirage em uma rota fixa pela manhã."]}];
 }
 
@@ -5383,6 +5491,7 @@ function rotaCardHTML(){const r=minhaRota();const id=meuEquipeId();
   const L=osDaRota(r),feitas=L.filter(o=>o.status==="concluida").length;
   const ent=L.filter(o=>o.status==="concluida"||entregue(o)).length;
   const prox=r.status==="saida"?"Começar a rota":r.status==="em_rota"?(temVolta()?(L.length&&ent===L.length?"Voltar para "+baseNome(r.baseLocalId||baseDePessoa(id)):"Ver a rota · "+ent+" de "+L.length+" entregues"):(L.length&&feitas===L.length?"Terminar a rota":"Ver a rota · "+feitas+" de "+L.length+" feitas")):"Devolver o veículo";
+  if(rotaVelha(r))return `<a class="ms-rota on velha" href="#rota/${esc(r.id)}">${ic("van","ic lg")}<span><b>${esc(codR(r))} · ${esc(nomeVeic(r.veiculoId))}</b><small>Aberta desde ${esc(fDH(r.saidaEm))}. Encerre antes de sair de novo.</small></span><span class="ms-go">Encerrar ›</span></a>`;
   return `<a class="ms-rota on" href="#rota/${esc(r.id)}">${ic("van","ic lg")}<span><b>${esc(codR(r))} · ${esc(nomeVeic(r.veiculoId))}</b><small>${esc(ROTA_ST[r.status])} desde ${esc(fHora(r.saidaEm))}</small></span><span class="ms-go">${esc(prox)} ›</span></a>`}
 async function salvarRota(id,dados){
   if(S.demo){let r=id?byId(S.rotas,id):null;if(!r){r=Object.assign({id:novoId(),numero:(S.rotas||[]).reduce((m,x)=>Math.max(m,x.numero||0),0)+1,status:"saida",saidaEm:nowISO(),checklist:{},osIds:[]},dados);S.rotas.unshift(r)}else Object.assign(r,dados);
@@ -5464,15 +5573,17 @@ function renderRota(){
   let h=`<div class="ms-bar"><a class="ms-back" href="#missoes">${ic("back","ic")}Minhas missões</a><span class="ms-cod">${esc(codR(r))}</span></div>
     <p class="ms-sub">${esc(nomeVeic(r.veiculoId))} · ${esc(ROTA_ST[r.status])}</p>
     ${nv?`<ol class="ms-steps rt" aria-label="Etapas da rota">${[["Saída",r.kmSaida!=null?fKm(r.kmSaida):"—",true],["Entregas",L.filter(o=>o.status==="concluida"||entregue(o)).length+" de "+L.length,L.length&&L.every(o=>o.status==="concluida"||entregue(o))],["Volta à base",r.kmDevolucao!=null?fKm(r.kmDevolucao):"—",r.kmDevolucao!=null]].map(([l,v,f],i,a)=>{const at=!f&&(i===0||a[i-1][2]);return `<li class="${f?"f":at?"n":""}"><span>${f?ic("ok","ic sm"):i+1}</span><small>${l}<br>${esc(v)}</small></li>`}).join("")}</ol>`:`<ol class="ms-steps rt" aria-label="Etapas da rota">${[["saida","Saída",r.kmSaida],["em_rota","Início",r.kmInicio],["retorno","Fim",r.kmFim],["devolvida","Devolução",r.kmDevolucao]].map(([k,l,km],i)=>{const f=km!=null;const at=!f&&["saida","em_rota","retorno","devolvida"].indexOf(r.status)+1===i;return `<li class="${f?"f":at?"n":""}"><span>${f?ic("ok","ic sm"):i+1}</span><small>${l}<br>${f?fKm(km):"—"}</small></li>`}).join("")}</ol>`}`;
-  const err=`<p class="err" id="rtErr" role="alert"></p>`;
-  if(r.status==="saida"){if(A.sel==null)A.sel=livres.filter(o=>!o.veiculoId||o.veiculoId===r.veiculoId).filter(o=>!o.agendadoPara||dayKey(o.agendadoPara)<=dayKey(new Date())).map(o=>o.id);if(!A.km)A.km=String(r.kmSaida!=null?r.kmSaida:"");
+  const err=`<p class="err" id="rtErr" role="alert"></p>`;const velha=rotaVelha(r);
+  if(velha)h+=`<div class="ms-box warn"><span class="ms-lbl">Rota aberta desde ${esc(fDH(r.saidaEm))}</span>${r.status==="saida"?"Esta saída não começou e ficou aberta. Peça para a coordenação cancelar ou arrumar esta rota.":"Registre aqui a chegada na base daquele dia, com o km e a hora reais. As OS de hoje vão numa rota nova."} Se não lembrar, avise a coordenação: ela arruma a rota.</div>`;
+  if(r.status==="saida"&&velha){}
+  else if(r.status==="saida"){if(A.sel==null)A.sel=livres.filter(o=>!o.veiculoId||o.veiculoId===r.veiculoId).filter(o=>!o.agendadoPara||dayKey(o.agendadoPara)<=dayKey(new Date())).map(o=>o.id);if(!A.km)A.km=String(r.kmSaida!=null?r.kmSaida:"");
     h+=`<h1 class="ms-h">Começar a rota</h1><div class="ms-box"><span class="ms-lbl">Quais OS vão juntas nesta rota?</span>${livres.length?livres.map(o=>`<label class="ms-chk"><input type="checkbox" data-rsel="${esc(o.id)}"${A.sel.includes(o.id)?" checked":""}><span><b>${esc(codigo(o))}</b> ${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(quandoTxt(o.agendadoPara))} · ${esc(itensResumo(o))}</small></span></label>`).join(""):`<p class="hint">Nenhuma OS programada para você. Fale com a coordenação.</p>`}</div>
       <div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel no início da rota</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">Na saída: ${esc(fKm(r.kmSaida))}</span></div>
       ${(horaAuto(A,r.saidaEm),"")}${horaHTML(A,"Quando a rota começou?",r.saidaEm)}${err}<button class="ms-cta" id="rtOk" type="button">${ic("van","ic lg")}Começar a rota</button>`}
   else if(r.status==="em_rota"){const pend=L.filter(o=>o.status!=="concluida"&&!(nv&&entregue(o)));
     h+=`<h1 class="ms-h">${pend.length?"Rota em andamento":nv?"Tudo entregue! Volte para "+esc(bR):"Tudo feito! Termine a rota"}</h1><div class="ms-box"><span class="ms-lbl">OS desta rota · ${L.length-pend.length} de ${L.length} ${nv?"entregues":"feitas"}</span>${L.map(linhaOS).join("")||`<p class="hint">Nenhuma OS na rota.</p>`}</div>
-      ${livres.length?`<details class="ms-more"${A.add?" open":""}><summary>Incluir outra OS nesta rota</summary>${livres.map(o=>`<button type="button" class="ms-ro add" data-radd="${esc(o.id)}"><span class="ms-ro-c num">${esc(codigo(o))}</span><span class="ms-ro-t">${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(quandoTxt(o.agendadoPara))}</small></span><span class="ms-ro-s">+ Incluir</span></button>`).join("")}</details>`:""}
-      ${ncBtnHTML("Pediram outro serviço no trajeto? Ele entra nesta rota.")}
+      ${livres.length&&!velha?`<details class="ms-more"${A.add?" open":""}><summary>Incluir outra OS nesta rota</summary>${livres.map(o=>`<button type="button" class="ms-ro add" data-radd="${esc(o.id)}"><span class="ms-ro-c num">${esc(codigo(o))}</span><span class="ms-ro-t">${esc(paradasDe(o).map(nomeP).join(" → "))}<small>${esc(quandoTxt(o.agendadoPara))}</small></span><span class="ms-ro-s">+ Incluir</span></button>`).join("")}</details>`:""}
+      ${velha?"":ncBtnHTML("Pediram outro serviço no trajeto? Ele entra nesta rota.")}
       ${pend.length?`${err}<p class="ms-sub" style="text-align:center">Toque em cada OS para registrar retirada e entrega. ${nv?"Depois da última entrega, volte para "+esc(bR)+" e registre a chegada aqui.":"Quando todas estiverem feitas, aparece o botão para terminar a rota."}</p>`:nv?`<div class="ms-box ms-volta">${ic("van","ic")}<span>A OS só termina quando você chegar em <b>${esc(bR)}</b>. A volta entra no tempo e no km da missão.</span></div><div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel na chegada à base</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">Na saída: ${esc(fKm(r.kmInicio!=null?r.kmInicio:r.kmSaida))}</span></div>${(horaAuto(A,ultEnt()),"")}${horaHTML(A,"Quando chegou na base?",ultEnt())}${err}<button class="ms-cta" id="rtOk" type="button">${ic("ok","ic lg")}Cheguei na base</button>`:`<div class="ms-box"><label class="ms-lbl" for="rtKm">Km no painel no fim da rota</label><input class="ms-in big num" id="rtKm" type="number" inputmode="numeric" value="${esc(A.km)}"><span class="hint">No início: ${esc(fKm(r.kmInicio))}</span></div>${(horaAuto(A,r.inicioEm),"")}${horaHTML(A,"Quando a rota terminou?",r.inicioEm)}${err}<button class="ms-cta" id="rtOk" type="button">${ic("ok","ic lg")}Terminei a rota</button>`}`}
   else if(r.status==="retorno"){
     h+=`<h1 class="ms-h">Devolver o veículo</h1><div class="ms-box"><span class="ms-lbl">Rota terminada às ${esc(fHora(r.fimEm))}</span>${L.map(linhaOS).join("")}</div>
@@ -5520,7 +5631,7 @@ function renderNovaCampo(){
   const bar=`<div class="ms-bar"><a class="ms-back" href="#missoes">${ic("back","ic")}Minhas missões</a><span class="ms-cod">Nova OS</span></div>`;
   if(!meuEquipeId()){app.innerHTML=`<div class="ms-wrap">${bar}<div class="ms-empty"><h2>Sua conta ainda não está ligada à equipe</h2><p>Avise a coordenação de Facilities.</p></div></div>`;return}
   if(!S.nc)S.nc={o:"",oe:"",d:"",de:"",q:"",carga:"leve",ped:"",tel:"",obs:"",naRota:true};const A=S.nc;
-  const r=minhaRota();const rOk=r&&["saida","em_rota"].includes(r.status);
+  const r=minhaRota();const rOk=r&&!rotaVelha(r)&&["saida","em_rota"].includes(r.status);
   if(A.fim){const f=A.fim;app.innerHTML=`<div class="ms-fim">${ic("ok","ic xl")}<h1>${esc(f.cod)} criada</h1>
       <p>${f.status==="em_rota"?"Ela já está na sua rota. Faça a retirada e a entrega como nas outras.":f.rota?"Ela aparece na lista quando você começar a rota.":"Ela ficou nas suas missões. A coordenação também já está vendo."}</p>
       ${f.status==="em_rota"?`<a class="ms-cta" href="#missao/log_${esc(f.id)}">Abrir a missão</a>`:""}<a class="ms-cta${f.status==="em_rota"?" sec":""}" href="#missoes" style="margin-top:10px">Voltar para minhas missões</a></div>`;
@@ -5574,18 +5685,23 @@ function renderRotasDia(){
   let h=`<div class="head"><div><h1>Rotas</h1><p>Cada rota é um uso do veículo, da saída à devolução. As OS feitas juntas dividem o custo do mesmo percurso, sem somar duas vezes.</p></div></div>${banner()}${aviso26()}
     <div class="filters"><div class="field"><label for="rdDia">Dia</label><input type="date" id="rdDia" value="${esc(dia)}"></div><div class="field"><span class="lbl">&nbsp;</span><div class="chips"><button type="button" class="chip" data-rdd="-1">Dia anterior</button><button type="button" class="chip" data-rdd="0">Hoje</button></div></div></div>
     <div class="kpis">${kpi("Rotas",R.length,"",plural(nOS,"OS feita junto","OS feitas juntas"))}${kpi("Km rodados",fNum(tot("km")),"km","da saída à devolução")}${kpi("Horas de veículo fora",fHrs(tot("h")),"","")}${adm?kpi("Custo do dia",fBRL(tot("total")+cs),"",soltas.length?"inclui "+plural(soltas.length,"OS sem rota"):"rotas do dia","money-k"):""}</div>`;
+  const arrR=S.arr&&byId(S.rotas||[],S.arr.rid);if(S.arr&&!arrR)S.arr=null;
+  const prob=podeCorrigirKm()?(S.rotas||[]).filter(rotaProblema).sort((a,b)=>T(a.saidaEm)-T(b.saidaEm)):[];
+  if(prob.length)h+=`<div class="vd-box" role="alert"><b>${prob.length>1?prob.length+" rotas abertas de outros dias":"Rota aberta de outro dia"}</b><p>Rota que fica aberta junta as OS dos dias seguintes, com o veículo e o km do dia em que saiu. Arrume para separar.</p>
+    ${prob.map(r=>`<div class="arr-l"><span><b>${esc(codR(r))}</b> · ${esc(nomeVeic(r.veiculoId))} · ${esc(nomeEquipe(r.equipeIds))} · desde ${esc(fDH(r.saidaEm))} · ${plural(osDaRota(r).length,"OS","OS")}</span><button class="btn sm pri" type="button" data-arr="${esc(r.id)}">Arrumar</button></div>`).join("")}</div>`;
+  if(arrR)h+=arrHTML(arrR);
   if(!R.length)h+=`<div class="empty"><h3>Nenhuma rota neste dia</h3><p>As rotas aparecem quando o motorista registra a saída do veículo no celular.</p></div>`;
   R.forEach((r,i)=>{const c=C[i];const L=osDaRota(r);const RT=rateio(r);
     h+=`<section class="card rtd"><div class="card-h"><h2>${esc(codR(r))} · ${esc(nomeVeic(r.veiculoId))}</h2><span class="sub">${esc(nomeEquipe(r.equipeIds))} · <b class="st-${r.status}">${esc(ROTA_ST[r.status])}</b></span></div><div class="card-b">
-      <ol class="rd-steps">${[["Saída",r.saidaEm,r.kmSaida],["Início",r.inicioEm,r.kmInicio],["Fim",r.fimEm,r.kmFim],["Devolução",r.devolvidoEm,r.kmDevolucao]].map(([l,t,k])=>`<li class="${k!=null?"f":""}"><b>${l}</b><span class="num">${t?fHora(t):"—"}</span><small class="num">${k!=null?fKm(k):"—"}</small></li>`).join("")}</ol>
+      <ol class="rd-steps">${[["Saída",r.saidaEm,r.kmSaida],["Início",r.inicioEm,r.kmInicio],["Fim",r.fimEm,r.kmFim],["Devolução",r.devolvidoEm,r.kmDevolucao]].map(([l,t,k])=>`<li class="${k!=null?"f":""}"><b>${l}</b><span class="num">${t?(dayKey(t)===dia?fHora(t):fDH(t)):"—"}</span><small class="num">${k!=null?fKm(k):"—"}</small></li>`).join("")}</ol>
       ${r.obs?`<p class="hint" style="margin:0 0 8px;white-space:pre-line">${ic("clock","ic sm")} ${esc(r.obs)}</p>`:""}
       ${r.checklist&&r.checklist.problemas?`<p class="rd-ck">Checklist de saída com ${plural(r.checklist.problemas,"problema")}: ${esc((r.checklist.itens||[]).filter(x=>!x.ok).map(x=>x.nome+(x.obs?" ("+x.obs+")":"")).join(", "))}${r.manutencaoId?` · <button type="button" class="lnk" data-mopen="${esc(r.manutencaoId)}">OS da frota</button>`:""}</p>`:""}
       <table class="t"><thead><tr><th>OS</th><th>Trajeto</th><th>Carga</th><th>Situação</th><th class="r">Parte da rota</th><th class="r">Km</th>${adm?`<th class="r">Custo</th>`:""}</tr></thead><tbody>
       ${L.map(o=>{const s=RT.out[o.id];const km=c.km&&s!=null?c.km*s:null;return `<tr><td><button type="button" class="lnk" data-open="${esc(o.id)}">${esc(codigo(o))}</button></td><td>${esc(rotaTxt(o))}</td><td>${o.carga==="pesada"?"Pesada":"Leve"}</td><td>${esc(ST[o.status]||o.status)}</td><td class="r num">${s!=null?fNum(s*100)+"%":"—"}</td><td class="r num">${km!=null?fNum(km,1):"—"}</td>${adm?`<td class="r num">${s!=null&&rotaKm(r)!=null?fBRL(custoMissao(o).total):"—"}</td>`:""}</tr>`}).join("")||`<tr><td colspan="7">Nenhuma OS na rota ainda.</td></tr>`}
       </tbody></table>
       <p class="hint" style="margin:10px 0 0">${RT.metodo==="distancia"?"Custo dividido pela distância de cada OS.":RT.metodo==="paradas"?"Custo dividido pelo número de paradas: falta cadastrar a distância entre alguma das unidades (Cadastros › Distâncias).":""}${rotaKm(r)!=null?` · ${fKm(c.km)} e ${fHrs(c.h)} no total`+(adm?` · custo da rota ${fBRL(c.total)}`:""):" · o custo aparece quando o veículo for devolvido"}</p>
-      ${isLog()&&rotaAberta(r)?`<div class="actions" style="margin-top:8px"><button class="btn sm ghost" type="button" data-rcanc="${esc(r.id)}">Cancelar rota</button></div>`:""}</div></section>`});
-  app.innerHTML=h;
+      ${podeCorrigirKm()||(isLog()&&rotaAberta(r))?`<div class="actions" style="margin-top:8px">${podeCorrigirKm()?`<button class="btn sm" type="button" data-arr="${esc(r.id)}">Arrumar rota</button>`:""}${isLog()&&rotaAberta(r)?`<button class="btn sm ghost" type="button" data-rcanc="${esc(r.id)}">Cancelar rota</button>`:""}</div>`:""}</div></section>`});
+  app.innerHTML=h;if(arrR)bindArr(arrR);
   $("#rdDia").onchange=e=>{S.rdDia=e.target.value||null;renderRotasDia()};
   $$("[data-rdd]").forEach(b=>b.onclick=()=>{const d=b.dataset.rdd==="0"?new Date():new Date(T(dia+"T12:00:00")-DIA_MS);S.rdDia=dayKey(d);renderRotasDia()});
   $$("[data-open]").forEach(b=>b.onclick=()=>openOS(b.dataset.open));$$("[data-mopen]").forEach(b=>b.onclick=()=>openM(b.dataset.mopen));
@@ -5651,6 +5767,20 @@ function loadDemoVolta(){
     Object.assign(em[1],{equipeIds:["e1","e3"],veiculoId:"v2",origemId:"cd2",destinoId:"mc",paradas:ps,iniciadoEm:ini.toISOString(),entregueEm:ps[1].feitoEm,kmInicial:41200,cientes:{e1:ini.toISOString()}})}
   _tmC=null;
 }
+
+// cenário de teste (index.html?cen=esq): rota que ficou aberta há 2 dias com o veículo errado
+function loadDemoEsquecida(){const d=n=>{const x=new Date(Date.now()-n*DIA_MS);return x};const at=(n,h,m)=>{const x=d(n);x.setHours(h,m,0,0);return x.toISOString()};
+  const r={id:"rtEsq",numero:90,veiculoId:"v2",equipeIds:["e0"],status:"em_rota",saidaEm:at(2,11,19),kmSaida:80511,inicioEm:at(2,11,19),kmInicio:80511,checklist:{},osIds:[],baseLocalId:"mc"};
+  S.rotas=(S.rotas||[]).filter(x=>!(x.veiculoId==="v2"&&rotaAberta(x)));S.rotas.push(r);
+  const C=S.os.filter(o=>o.status==="concluida"&&!o.rotaId).slice(0,3);
+  C.forEach((o,i)=>{const n=i<2?2:1;Object.assign(o,{equipeIds:["e0"],veiculoId:"v1",rotaId:r.id,agendadoPara:at(n,12+i,0),iniciadoEm:at(n,12+i,5),entregueEm:at(n,12+i,50),concluidoEm:at(n,13+i,20),retornoEm:at(n,13+i,20),kmInicial:null,kmFinal:null})});
+  const E=S.os.filter(o=>o.status==="agendada"&&!o.rotaId).slice(0,3);
+  if(E[0])Object.assign(E[0],{status:"em_rota",equipeIds:["e0"],veiculoId:"v1",rotaId:r.id,agendadoPara:at(0,13,10),iniciadoEm:at(0,13,24),entregueEm:at(0,14,33),kmInicial:null,cientes:{e0:at(0,13,24)}});
+  if(E[1])Object.assign(E[1],{status:"em_rota",equipeIds:["e0"],veiculoId:"v1",rotaId:r.id,agendadoPara:at(0,14,0),iniciadoEm:at(0,14,40),kmInicial:null,cientes:{e0:at(0,14,40)}});
+  if(E[2])Object.assign(E[2],{equipeIds:["e0"],veiculoId:"v1",agendadoPara:at(0,9,0)});
+  r.osIds=C.concat(E.slice(0,2)).map(o=>o.id);
+  const v1=byId(S.veiculos,"v1");if(v1)v1.kmAtual=Math.max(...S.os.filter(o=>o.veiculoId==="v1").map(o=>Number(o.kmFinal)||0),31200);
+  S.os.filter(o=>o.status==="em_rota"&&!o.rotaId&&(o.equipeIds||[]).includes("e0")).forEach(o=>{o.equipeIds=["e2"]});_tmC=null}
 
 /* ---------- Início ---------- */
 let rz,rzW=window.innerWidth;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{

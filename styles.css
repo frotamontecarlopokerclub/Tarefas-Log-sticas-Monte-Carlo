@@ -1234,7 +1234,7 @@ body.auth .rodape{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
 .qd-pan input{max-width:280px}
 
 /* ---------- v51: corrigir km, excluir cadastro e importar abastecimentos ---------- */
-:root{--versao-css:"62"}
+:root{--versao-css:"63"}
 .btn.danger-t{color:var(--s-late)}
 .imp-ex{margin:0 0 14px;max-width:560px}
 .imp-ex .t td,.imp-ex .t th{padding:6px 10px}
@@ -1336,3 +1336,16 @@ button.pf-row,a.pf-row{cursor:pointer}button.pf-row:hover,a.pf-row:hover{backgro
 .vd-box>b{color:var(--s-late,#B42318);font-size:15px}
 .vd-box p{margin:6px 0 10px;line-height:1.45}
 .vd-box .actions{margin:0}
+/* v63: arrumar rota esquecida aberta */
+.arr-h{font-size:14px;font-weight:700;margin:4px 0 8px}
+.arr-t td:first-child,.arr-t th:first-child{width:48px;text-align:center}
+.arr-t td:nth-child(2),.arr-t td:nth-child(3){white-space:nowrap}
+.arr-t input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.arr-t tr.arr-sai td{color:var(--mute);background:rgba(180,35,24,.04)}
+.arr-t tr.arr-sai td:nth-child(2) b{color:var(--s-late,#B42318)}
+.arr-l{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid rgba(180,35,24,.18);flex-wrap:wrap}
+.arr-l span{flex:1 1 260px;line-height:1.4}
+.ms-rota.on.velha{background:linear-gradient(135deg,#9B1C10,#4A0A06);box-shadow:0 0 0 3px rgba(180,35,24,.25)}
+.ms-rota.on.velha small{opacity:1;color:#FFE2DC;font-weight:600}
+.ms-rota.on.velha .ms-go{color:#FFD27A}
+:root{--versao-css:"63"}
