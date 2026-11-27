@@ -636,3 +636,19 @@ Rode no Supabase o script **34_areas_cadastros.sql** (pode rodar mais de uma vez
 - **Salário no cadastro do funcionário:** a coordenação geral cadastra o salário, as horas trabalhadas no mês e os encargos, e já vê o custo por hora. É o mesmo valor da aba Salários da Eficiência, usado no custo das OS. As outras pessoas não veem o salário.
 - **Ajudantes:** na criação da OS, os ajudantes agora são botões. Toque em quantos quiser.
 - Corrigido: as especialidades (e as áreas) do cadastro da equipe não marcavam ao tocar.
+
+## Atualização 65 · Ajudantes em caixa suspensa
+Não precisa rodar nada novo no Supabase (o script 34 da atualização 64 precisa estar rodado).
+- Na criação da OS, os ajudantes voltam a ficar numa **caixa suspensa**, igual à do motorista. Ao abrir, marque quantos quiser e toque em **Pronto**. A caixa mostra os nomes escolhidos.
+- O mesmo vale para "Mais alguém" na manutenção e para a tela do celular da oficina.
+
+## Atualização 66 · Uso do veículo: ciência reserva, OS com começo e fim, km fora das OS
+Rode no Supabase o script **35_uso_veiculo.sql** (pode rodar mais de uma vez; a conferência no final deve dizer OK nas três linhas).
+- **Ciência = reserva:** ao tocar em "Estou ciente", o veículo da OS fica reservado para o motorista até ele devolver. Na Frota aparece "Reservado para Fulano (OS-0075)" ou "Em uso por Fulano desde 11:19".
+- **Retirar o veículo:** checklist rápido e km. Se o motorista já está no ponto de retirada, a OS começa junto (mesmo km). Se o veículo está reservado para outra pessoa, aparece aviso e ele precisa confirmar; a coordenação vê "retirado com reserva de outra pessoa" na página Rotas.
+- **Cada OS só tem começo e fim:** começo no ponto de retirada (o km já vem preenchido com o último registrado) e fim na entrega, com o km. A OS fica Concluída na entrega. Sem etapas de cada parada e sem "voltar à base" por OS.
+- **Devolver o veículo:** km final. O celular mostra quanto rodou, quanto foi nas OS e quanto ficou fora das OS.
+- **Km fora das OS:** rodado (devolução − retirada) menos a soma das OS (OS feitas ao mesmo tempo contam o trecho em comum uma vez). Aparece na página Rotas (com alerta), no Painel (últimos 7 dias) e em Eficiência › Km fora das OS. A coordenação pode **Justificar** (ex.: abastecimento).
+- O custo de cada OS agora usa o km dela (do começo ao fim).
+- Corrigir o km de um dia: quando a OS começou junto com a retirada, o km aparece numa linha só e é corrigido nos dois.
+- Corrigido: o motorista não conseguia passar a OS para o veículo que ele retirou (o banco recusava). O script 35 libera só para o veículo que está com ele.
