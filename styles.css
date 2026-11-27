@@ -1349,3 +1349,16 @@ button.pf-row,a.pf-row{cursor:pointer}button.pf-row:hover,a.pf-row:hover{backgro
 .ms-rota.on.velha small{opacity:1;color:#FFE2DC;font-weight:600}
 .ms-rota.on.velha .ms-go{color:#FFD27A}
 :root{--versao-css:"63"}
+/* v64: ajudantes em botões · salário no cadastro */
+.esc-aj .chips{gap:8px}
+.esc-g2+.esc-g2{margin-top:10px}
+.esc-gl{display:block;font-size:12px;color:var(--mute);font-weight:600;margin:6px 0 6px}
+.chip.esc-chip{padding:8px 12px;font-size:14px;min-height:40px;display:inline-flex;align-items:center;gap:2px}
+.chip.esc-chip small{font-size:12px}
+.sal-cad{grid-column:1/-1;border:1px solid var(--line);border-radius:12px;padding:12px 14px 6px;margin:4px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 14px}
+.sal-cad legend{font-weight:700;font-size:14px;padding:0 6px}
+.sal-cad legend small{font-weight:500;color:var(--mute);margin-left:6px}
+.sal-cad .hint{grid-column:1/-1;margin:0 0 6px}
+:root{--versao-css:"64"}
+.cad-edit .field.cad-multi{grid-column:1/-1}
+.cad-edit .field.cad-multi .hint{display:block;margin-top:6px}

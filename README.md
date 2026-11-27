@@ -627,3 +627,12 @@ Não precisa rodar nada no Supabase (o script 33 da atualização 61 precisa est
 - **Rotas › Rota aberta de outro dia:** quadro vermelho no topo da página Rotas e na OS, com o botão **Arrumar a rota**. Nele você marca quais OS foram naquela saída, corrige o veículo e o km da saída, encerra a rota (hora e km da chegada, ou "Não sei os km desta saída") e as OS de hoje vão para uma **rota nova** com o veículo e o km certos. Nada é excluído e fica registrado quem arrumou.
 - **No celular:** rota aberta de outro dia aparece em vermelho ("Aberta desde 23/11"). OS nova não entra mais nela: o motorista é avisado para encerrar a rota antiga primeiro (ou avisar a coordenação). Ao incluir uma OS de outro veículo numa rota, aparece aviso e é preciso confirmar.
 - O botão **Arrumar rota** também fica em cada rota da página Rotas.
+
+## Atualização 64 · Cadastros por área, salário no cadastro e vários ajudantes
+Rode no Supabase o script **34_areas_cadastros.sql** (pode rodar mais de uma vez; a conferência no final deve dizer OK nas duas linhas).
+- **Equipe e Prestadores separados por área:** em Cadastros, a Logística vê só a equipe e os prestadores da Logística; a Manutenção, os seus; a Frota, os seus. Locais, Setores, Veículos e Distâncias continuam os mesmos para todos.
+- **Pessoa em mais de uma área:** no cadastro da equipe, marque as áreas em que ela trabalha (ex.: Logística e Manutenção). Ela aparece nas listas de cada área marcada.
+- **Prestadores:** cada um atende as áreas marcadas. Os que já existiam ficaram na Manutenção (os de veículos, também na Frota).
+- **Salário no cadastro do funcionário:** a coordenação geral cadastra o salário, as horas trabalhadas no mês e os encargos, e já vê o custo por hora. É o mesmo valor da aba Salários da Eficiência, usado no custo das OS. As outras pessoas não veem o salário.
+- **Ajudantes:** na criação da OS, os ajudantes agora são botões. Toque em quantos quiser.
+- Corrigido: as especialidades (e as áreas) do cadastro da equipe não marcavam ao tocar.
